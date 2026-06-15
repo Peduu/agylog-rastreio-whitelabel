@@ -16,34 +16,46 @@ Mesmo sistema, tema próprio para cada cliente — todos co-branded com a AgyLog
 | **BRB DUX** | Preto e branco | https://rastreamento.agylog.com.br/tracking/BRBDUX/ |
 | **BRB Card** | Azul institucional | https://rastreamento.agylog.com.br/tracking/BRB/ |
 | **Panini** | Amarelo, vermelho e preto | https://rastreamento.agylog.com.br/tracking/panini/ |
-
-> As páginas abrem na tela de consulta. A tela de status completa (situação atual, etapas e histórico) é exibida ao informar um código de rastreio válido.
+| **PinBank** | Roxo e branco | https://rastreamento.agylog.com.br/tracking/pinbank/ |
+| **Inter** | Laranja e branco | https://rastreamento.agylog.com.br/tracking/inter/ |
 
 ---
 
-## Destaques
+## Empresas parceiras
 
-- **Multi-tenant por slug** — `/tracking/<cliente>/` carrega logo, paleta e header específicos sem duplicar a base de código.
-- **Co-branding automático** — lockup do cliente + AgyLog no header, com proporção e espaçamento consistentes.
-- **Consulta por código** — campo de busca com colar rápido e validação de entrada.
-- **Tela de status** — destaque com a situação atual, etapas, linha do tempo e histórico de movimentações.
-- **Responsivo** — header e cards adaptados para desktop e mobile.
-- **Operação enxuta** — em produção em VPS própria, com HTTPS gratuito e custo de operação próximo de zero.
+Este sistema foi desenvolvido em colaboração direta com as seguintes instituições:
+
+| Empresa | Segmento |
+| --- | --- |
+| **Tribanco / Tricard** | Banco e cartão de crédito |
+| **BRB — Banco de Brasília** | Banco público do DF |
+| **BRB DUX** | Fintech do grupo BRB |
+| **Panini** | Editora e distribuidora |
+| **PinBank** | Fintech / Banco digital |
+| **Inter** | Banco digital |
 
 ---
 
 ## Stack
 
-`HTML` · `CSS` · `JavaScript` · `Python` · `Flask` · `Gunicorn` · `nginx` · `VPS Linux` · `Let's Encrypt`
+`HTML · CSS · JavaScript · Python · Flask · nginx · Linux VPS`
+
+**Custo de infraestrutura: R$ 0,00**
 
 ---
 
 ## Como funciona
 
-1. O usuário acessa `/tracking/<slug>/` (ex.: `tricard`, `BRBDUX`, `BRB`, `panini`).
-2. O back-end identifica o cliente pelo slug e aplica o tema correspondente (logo, cores e header co-branded).
-3. O usuário informa o código de rastreio e acompanha a entrega em uma tela de status padronizada.
+```
+URL: /tracking/{slug}/
+           ↓
+  Resolve tenant pelo slug
+           ↓
+  Carrega tema visual (logo, cores, header)
+           ↓
+  Consulta status no TMS da AgyLog
+           ↓
+  Renderiza página com identidade do cliente
+```
 
----
-
-_Projeto em produção, operado pela AgyLog / CorelliLog._
+O fluxo de desenvolvimento e os temas por cliente foram criados com auxílio de fluxo de trabalho assistido por IA (Claude Code), acelerando a entrega de cada nova identidade visual.
