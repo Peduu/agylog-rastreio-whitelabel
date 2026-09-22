@@ -619,6 +619,49 @@ def carregar_datas_etapas(codigo):
     }
 
 
+def montar_datas_etapas_ocorrencias(ocorrencias):
+    """Monta datas da timeline a partir do histórico cru vindo do TMS.
+
+    O rastreio público consulta o TMS em tempo real e, nesses casos, as datas
+    ainda podem não existir em rastreios_ocorrencias. Este fallback usa apenas
+    datas reais da API; etapa sem ocorrência segue vazia.
+    """
+    datas = {}
+    primeira_ocorrencia = None
+
+    for ocorrencia in ocorrencias or []:
+        dt = parse_data_ocorrencia(ocorrencia.get("dtOcorrencia"))
+        if not dt:
+            continue
+
+        if primeira_ocorrencia is None or dt < primeira_ocorrencia:
+            primeira_ocorrencia = dt
+
+        status_badge = str(ocorrencia.get("statusBadge") or "").strip().upper()
+        if status_badge in {"CRIADA", "ARQUIVO RECEBIDO", "SOLICITAÇÃO REALIZADA"}:
+            stage_key = "aguardando_postagem"
+        elif status_badge in {"POSTADO", "OBJETO POSTADO", "PRE CADASTRADO", "EM SEPARAÇÃO"}:
+            stage_key = "preparacao_transporte"
+        else:
+            stage_key = converter_status_publico(status_badge)
+        if not stage_key:
+            continue
+
+        if stage_key not in datas or dt < datas[stage_key]:
+            datas[stage_key] = dt
+
+    if primeira_ocorrencia and "aguardando_postagem" not in datas:
+        datas["aguardando_postagem"] = primeira_ocorrencia
+
+    return {
+        chave: {
+            "date": valor.strftime("%d/%m/%Y"),
+            "time": "" if (valor.hour == 0 and valor.minute == 0 and valor.second == 0) else valor.strftime("%H:%M"),
+        }
+        for chave, valor in datas.items()
+    }
+
+
 def normalizar_cnpj(valor):
     return re.sub(r"\D+", "", str(valor or ""))
 
@@ -3603,7 +3646,9 @@ def montar_etapas_publicas(status_key, resultado):
     # Preenche a data real de cada etapa. Prioridade: ocorrencia persistida;
     # senao, uma data ja conhecida na linha do rastreio. Etapa sem data fica
     # vazia (o front trata) — nunca se inventa data.
-    datas = resultado.get("datasEtapas") or {}
+    datas = dict(resultado.get("datasEtapas") or {})
+    for chave, data_etapa in montar_datas_etapas_ocorrencias(resultado.get("ocorrencias")).items():
+        datas.setdefault(chave, data_etapa)
 
     for stage in stages:
         chave = stage["key"]
@@ -3614,15 +3659,22 @@ def montar_etapas_publicas(status_key, resultado):
                 data_etapa = (
                     _split_data_etapa(resultado.get("dataCadastroPortal"))
                     or _split_data_etapa(resultado.get("dataPostagemRaw"))
+                    or _split_data_etapa(resultado.get("dataPostagem"))
                 )
             elif chave == "preparacao_transporte":
-                data_etapa = _split_data_etapa(resultado.get("dataPostagemRaw"))
+                data_etapa = (
+                    _split_data_etapa(resultado.get("dataPostagemRaw"))
+                    or _split_data_etapa(resultado.get("dataPostagem"))
+                )
 
             # Etapa do status atual sem ocorrencia persistida: usa a data da
             # ultima ocorrencia (data_baixa), que ja esta no banco. Cobre
             # pedidos antigos que o coletor nao reprocessa.
             if not data_etapa and chave == status_key:
-                data_etapa = _split_data_etapa(resultado.get("dataBaixaRaw"))
+                data_etapa = (
+                    _split_data_etapa(resultado.get("dataBaixaRaw"))
+                    or _split_data_etapa(resultado.get("dataBaixa"))
+                )
 
         if data_etapa:
             stage["date"] = data_etapa["date"]
