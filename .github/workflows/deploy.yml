@@ -46,7 +46,7 @@ jobs:
           root = pathlib.Path.cwd()
           manifest = root / "deploy" / "deploy-manifest.tsv"
           package = root / "rastreamento-deploy.tar.gz"
-          sources = ["deploy/deploy-manifest.tsv", "deploy/validate-deploy.py", "deploy/README.md"]
+          sources = [".env.example", "deploy/deploy-manifest.tsv", "deploy/validate-deploy.py", "deploy/README.md"]
 
           for raw in manifest.read_text(encoding="utf-8").splitlines():
               line = raw.strip()
