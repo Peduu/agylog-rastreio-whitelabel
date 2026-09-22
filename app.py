@@ -209,6 +209,7 @@ def _consultar_tms_api(payload, tipo_consulta, codigo, cnpj_cliente, headers):
         codigo_ocorrencia = str(ultimo.get("codigoOcorrencia", "")).strip()
         descricao_api = str(ultimo.get("descricaoOcorrencia", "")).strip()
         data_ocorrencia = str(ultimo.get("dtOcorrencia", "")).strip()
+        codigo_cliente = str(ultimo.get("nroPedido", "")).strip()
         cidade = str(ultimo.get("nomeCidade", "")).strip()
         uf = str(ultimo.get("uf", "")).strip()
 
@@ -278,6 +279,7 @@ def _consultar_tms_api(payload, tipo_consulta, codigo, cnpj_cliente, headers):
             "recebidoPor": "",
             "ultimoStatus": ultimo_status,
             "statusBadge": status_badge,
+            "codigoCliente": codigo_cliente or codigo,
             "dataPostagem": formatar_data_exibicao(data_postagem),
             "ocorrencias": ocorrencias_mapeadas
         }
@@ -743,6 +745,7 @@ def buscar_rastreio_no_banco(codigo):
         "recebidoPor": row["recebido_por"],
         "ultimoStatus": row["ultimo_status"],
         "statusBadge": row["status_badge"],
+        "codigoCliente": row["codigo"],
         "cnpjCliente": row["cnpj_cliente"],
         "dataCadastroPortal": row["data_cadastro_portal"],
         "dataPostagemRaw": row["data_postagem"],
@@ -3444,7 +3447,7 @@ def api_rastrear_publico():
 
             resposta_ccxp = {
                 "ok": True,
-                "cliente": resultado.get("destinatario") or "-",
+                "cliente": resultado.get("codigoCliente") or resultado.get("codigo") or "-",
                 "status": status_ccxp,
                 "status_label": titulo_ccxp,
                 "stages": etapas_ccxp,
@@ -3457,7 +3460,7 @@ def api_rastrear_publico():
 
     return jsonify({
         "ok": True,
-        "cliente": resultado.get("destinatario") or "-",
+        "cliente": resultado.get("codigoCliente") or resultado.get("codigo") or "-",
         "status": status_key,
         "status_label": resultado.get("statusBadge") or "-",
         "stages": montar_etapas_publicas(status_key, resultado),

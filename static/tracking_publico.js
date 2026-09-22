@@ -995,7 +995,7 @@ const _pageThemes = {
   if (isCcXpTreatmentStatus(activeStatus)) {
     const treatmentWhen = formatCcXpTimelineWhen(ccxpTreatment?.when);
     stages = stages
-      .filter((stage) => stage && !problemKeys.includes(stage.key) && stage.key !== 'entregue')
+      .filter((stage) => stage && !problemKeys.includes(stage.key) && stage.key !== 'entregue' && stage.key !== 'ccxp_tratativa')
       .filter((stage) => stage.key !== 'em_rota_entrega' || hasRealDate(stage))
       .map((stage) => stage.key === 'em_rota_entrega'
         ? { ...stage, done: true, attention: false }
