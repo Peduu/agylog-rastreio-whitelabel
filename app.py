@@ -3407,6 +3407,11 @@ def api_rastrear_publico():
             for etapa in montar_etapas_publicas(status_key, resultado):
                 if etapa.get("key") in {"atencao", "devolucao", "devolvido", "entregue"}:
                     continue
+                if etapa.get("key") == "em_rota_entrega" and not (
+                    str(etapa.get("date") or "").strip()
+                    or str(etapa.get("time") or "").strip()
+                ):
+                    continue
                 etapa_segura = dict(etapa)
                 etapa_segura["attention"] = False
                 if etapa_segura.get("key") == "em_rota_entrega":
