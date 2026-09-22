@@ -3423,8 +3423,8 @@ def api_rastrear_publico():
                 "desc": descricao_timeline_ccxp,
                 "date": data_ccxp,
                 "time": "",
-                "icon": "➜",
-                "done": False,
+                "icon": "✓",
+                "done": True,
                 "attention": False,
             })
 

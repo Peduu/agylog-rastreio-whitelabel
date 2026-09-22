@@ -1007,8 +1007,8 @@ const _pageThemes = {
       desc: ccxpTreatment?.timelineDesc || 'Aguardando tratativa para reenvio.',
       date: treatmentWhen.date,
       time: treatmentWhen.time,
-      icon: '➜',
-      done: false,
+      icon: '✓',
+      done: true,
       attention: false,
     });
     activeStatus = 'ccxp_tratativa';
