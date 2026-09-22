@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Base de Enderecos</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body>
+  <main class="admin-shell">
+    <header class="admin-header">
+      <div>
+        <span class="admin-kicker">Painel Administrativo</span>
+        <h1>Consulta da Base de Enderecos</h1>
+        <p>Busque ARs, refine as colunas exibidas e exporte um relatorio do jeito que voce precisar.</p>
+      </div>
+
+      <div class="admin-actions">
+        <div class="nav-dropdown admin-nav">
+          <button id="modelosMenuToggle" class="ghost-btn" type="button" aria-expanded="false">Menu</button>
+          <div class="nav-dropdown-menu" id="modelosMenuItems">
+            <a class="nav-menu-link" href="{{ url_for('admin') }}">Painel admin</a>
+            <a class="nav-menu-link" href="{{ url_for('home') }}">Rastreamento</a>
+            <a class="nav-menu-link" href="{{ url_for('custodia') }}">Custodia</a>
+            <button class="nav-menu-link" type="button" data-nav-target="operacaoSection">Operacao</button>
+            <button class="nav-menu-link" type="button" data-nav-target="consultaSection">Consulta</button>
+            <button class="nav-menu-link" type="button" data-nav-target="detalhesSection">Detalhes</button>
+          </div>
+        </div>
+        <a href="{{ url_for('admin') }}" class="ghost-btn">Voltar ao admin</a>
+      </div>
+    </header>
+
+    <section class="dashboard-grid">
+      <div class="dashboard-card">
+        <span>Total de registros</span>
+        <h2 id="metaTotalRegistros">-</h2>
+      </div>
+      <div class="dashboard-card">
+        <span>Modelos</span>
+        <h2 id="metaTotalModelos">-</h2>
+      </div>
+      <div class="dashboard-card">
+        <span>Arquivos</span>
+        <h2 id="metaTotalArquivos">-</h2>
+      </div>
+      <div class="dashboard-card">
+        <span>Ultima atualizacao</span>
+        <h2 id="metaUltimaAtualizacao">-</h2>
+      </div>
+    </section>
+
+    <section class="admin-card admin-card-full" id="operacaoSection">
+      <h2>Operacao por bipagem</h2>
+      <p>Bipe os cartoes um a um. Cada leitura entra automaticamente na lista abaixo para voce separar os envios por agencia usando <strong>OBS1</strong> ou <strong>observacoes</strong>.</p>
+
+      <div id="bipagemAlert" class="admin-alert hidden"></div>
+
+      <div class="admin-toolbar admin-toolbar-wrap">
+        <input id="bipagemInput" class="admin-search-input modelos-scan-input" type="text" placeholder="Bipe ou digite o cartao e pressione Enter" autofocus />
+        <button id="limparBipagemBtn" class="ghost-btn" type="button">Limpar lista</button>
+      </div>
+
+      <div class="modelos-operacao-summary" id="operacaoSummaryCards"></div>
+
+      <div class="table-wrap table-wrap-limited">
+        <table class="admin-table">
+          <thead>
+            <tr id="operacaoTableHeadRow">
+              <th>Agencia</th>
+              <th>AR</th>
+              <th>Destinatario</th>
+              <th>Cidade</th>
+              <th>UF</th>
+              <th>Arquivo</th>
+            </tr>
+          </thead>
+          <tbody id="operacaoTableBody">
+            <tr>
+              <td colspan="6">Nenhum cartao bipado ainda.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin-card admin-card-full" id="consultaSection">
+      <h2>Consulta</h2>
+      <p>Pesquise pela AR, pedido, nome, arquivo ou outros dados do destinatario. Depois escolha exatamente quais colunas quer visualizar e exportar.</p>
+
+      <div id="modelosAlert" class="admin-alert hidden"></div>
+
+      <div class="admin-toolbar admin-toolbar-wrap">
+        <input id="modelosBuscaInput" class="admin-search-input" type="text" placeholder="Buscar por AR, pedido, nome, arquivo, CEP, CPF ou CNPJ" />
+        <select id="modelosFiltroModelo" class="admin-search-input" style="max-width: 240px;">
+          <option value="">Todos os modelos</option>
+        </select>
+        <select id="modelosFiltroUf" class="admin-search-input" style="max-width: 160px;">
+          <option value="">Todas as UFs</option>
+        </select>
+        <input id="modelosFiltroCidade" class="admin-search-input" type="text" placeholder="Cidade" style="max-width: 220px;" />
+        <input id="modelosFiltroArquivo" class="admin-search-input" type="text" placeholder="Nome do arquivo" style="max-width: 260px;" />
+        <select id="modelosLimiteSelect" class="admin-search-input" style="max-width: 180px;">
+          <option value="50">50 resultados</option>
+          <option value="100" selected>100 resultados</option>
+          <option value="250">250 resultados</option>
+          <option value="500">500 resultados</option>
+        </select>
+      </div>
+
+      <div class="admin-toolbar admin-toolbar-wrap">
+        <button id="consultarModelosBtn" class="primary-btn" type="button">Consultar base</button>
+        <button id="limparModelosBtn" class="ghost-btn" type="button">Limpar filtros</button>
+        <button id="exportarModelosBtn" class="ghost-btn" type="button">Exportar CSV</button>
+      </div>
+
+      <section class="modelos-column-picker">
+        <div class="modelos-column-picker-head">
+          <div>
+            <span class="admin-kicker">Colunas</span>
+            <h3>Escolha o que quer ver</h3>
+          </div>
+          <div class="inline-actions">
+            <button id="colunasEssenciaisBtn" class="ghost-btn" type="button">Essenciais</button>
+            <button id="colunasTodasBtn" class="ghost-btn" type="button">Todas</button>
+            <button id="colunasNenhumaBtn" class="ghost-btn" type="button">Limpar</button>
+          </div>
+        </div>
+        <div id="modelosColumnsContainer" class="modelos-columns-grid"></div>
+      </section>
+
+      <div class="table-wrap table-wrap-limited">
+        <table class="admin-table">
+          <thead>
+            <tr id="modelosTableHeadRow">
+              <th>Carregando...</th>
+            </tr>
+          </thead>
+          <tbody id="modelosTableBody">
+            <tr>
+              <td>Carregando base...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin-card admin-card-full" id="detalhesSection">
+      <h2>Detalhes completos do registro</h2>
+      <p>Abra um registro para ver todas as informacoes estruturadas e tambem os campos extras da tabela legada.</p>
+
+      <div id="modelosDetalhesVazio" class="modelos-empty-state">Clique em "Detalhes" em algum resultado para inspecionar tudo.</div>
+
+      <div id="modelosDetalhesWrap" class="hidden">
+        <div class="modelos-details-grid" id="modelosDetalhesGrid"></div>
+
+        <div class="admin-card modelos-extra-card">
+          <h3>Campos extras</h3>
+          <div class="table-wrap table-wrap-limited">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody id="modelosExtrasTableBody">
+                <tr>
+                  <td colspan="2">Nenhum campo extra carregado.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='admin_modelos.js') }}"></script>
+</body>
+</html>

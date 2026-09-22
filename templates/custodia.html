@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Custódia - AGYLOG</title>
+
+  <!-- CSS base + custódia -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='custodia.css') }}">
+</head>
+
+<body>
+
+
+<main class="custodia-shell">
+  <section class="custodia-screen">
+
+    <!-- ===== TOPO ===== -->
+    <div class="custodia-hero">
+      <span class="eyebrow">Área de Custódia</span>
+      <h1>Atualização de Entrega</h1>
+      <p>Informe o código da AR para solicitar reenvio ou alteração de endereço.</p>
+    </div>
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="user-pill" id="userPill">
+          <div class="user-avatar" id="userAvatar">
+            {{ (usuario_nome[:1] if usuario_nome else 'U') | upper }}
+          </div>
+
+          <div>
+            <span class="user-name" id="userName">
+              {{ usuario_email or usuario_nome or 'Usuário' }}
+            </span>
+            <span class="user-role">Acesso autenticado</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <div class="nav-dropdown" id="custodiaMenu">
+          <button id="custodiaMenuToggle" class="ghost-btn" type="button" aria-expanded="false">Menu</button>
+          <div class="nav-dropdown-menu" id="custodiaMenuItems">
+            <a class="nav-menu-link" href="{{ url_for('home') }}">Rastreamento</a>
+            <a class="nav-menu-link" href="{{ url_for('custodia') }}">Custodia</a>
+            {% if is_admin %}
+            <a class="nav-menu-link" href="{{ url_for('admin') }}">Admin</a>
+            {% endif %}
+          </div>
+        </div>
+        <button id="voltarRastreioBtn" class="ghost-btn" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="19" y1="12" x2="5" y2="12"/>
+            <polyline points="12 19 5 12 12 5"/>
+          </svg>
+          Voltar
+        </button>
+        <button id="logoutBtn" class="ghost-btn danger-ghost" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sair
+        </button>
+      </div>
+    </header>
+    <!-- ===== BUSCA ===== -->
+    <section class="panel custodia-panel">
+      <div class="panel-header">
+        <div>
+          <span class="panel-kicker">Consulta</span>
+          <h2>Buscar AR em custódia</h2>
+        </div>
+      </div>
+
+      <div class="custodia-form">
+        <div class="field">
+          <label class="field-label">Código da AR</label>
+          <div class="input-wrap">
+            <input type="text" id="custodiaCodigoInput" placeholder="Digite o código da AR">
+          </div>
+        </div>
+
+        <div class="custodia-actions">
+          <button id="buscarCustodiaBtn" class="primary-btn" type="button">
+            Buscar
+          </button>
+        </div>
+
+        <div id="custodiaAlert" class="custodia-alert"></div>
+      </div>
+    </section>
+
+    <!-- ===== RESULTADO ===== -->
+    <section class="panel custodia-panel hidden" id="custodiaResultado">
+      <div class="panel-header">
+        <div>
+          <span class="panel-kicker">Resultado</span>
+          <h2>Informações da entrega</h2>
+        </div>
+      </div>
+
+      <div class="custodia-result-grid">
+
+        <div class="custodia-info-item">
+          <span class="label">Código</span>
+          <strong id="custodiaCodigo"></strong>
+        </div>
+
+        <div class="custodia-info-item">
+          <span class="label">Status</span>
+          <strong id="custodiaStatus"></strong>
+        </div>
+
+        <div class="custodia-info-item">
+          <span class="label">Destinatário</span>
+          <strong id="custodiaNome"></strong>
+        </div>
+
+        <div class="custodia-info-item">
+          <span class="label">Cidade</span>
+          <strong id="custodiaCidade"></strong>
+        </div>
+
+      </div>
+
+      <!-- ===== ESCOLHA ===== -->
+      <div class="custodia-choice-group">
+
+        <label class="custodia-choice">
+          <input type="radio" name="tipoSolicitacao" value="MESMO_ENDERECO" checked>
+          <span>Reenviar para o mesmo endereço</span>
+        </label>
+
+        <label class="custodia-choice">
+          <input type="radio" name="tipoSolicitacao" value="NOVO_ENDERECO">
+          <span>Novo endereço</span>
+        </label>
+
+      </div>
+
+      <!-- ===== NOVO ENDEREÇO ===== -->
+      <div id="novoEnderecoForm" class="novo-endereco-box hidden">
+
+        <span class="eyebrow">Novo endereço</span>
+
+        <div class="custodia-form">
+
+          <div class="field">
+            <label class="field-label">Nome</label>
+            <input type="text" id="novoNome">
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label">CEP</label>
+              <input type="text" id="novoCep">
+            </div>
+
+            <div class="field">
+              <label class="field-label">Número</label>
+              <input type="text" id="novoNumero">
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label">Endereço</label>
+            <input type="text" id="novoEndereco">
+          </div>
+
+          <div class="field">
+            <label class="field-label">Complemento</label>
+            <input type="text" id="novoComplemento">
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label">Bairro</label>
+              <input type="text" id="novoBairro">
+            </div>
+
+            <div class="field">
+              <label class="field-label">Cidade</label>
+              <input type="text" id="novoCidade">
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label">UF</label>
+            <input type="text" id="novoUf">
+          </div>
+
+          <div class="field">
+            <label class="field-label">Ponto de Referência</label>
+            <textarea id="novoReferencia"></textarea>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== AÇÃO FINAL ===== -->
+      <div class="custodia-actions" style="margin-top: 20px;">
+        <button id="enviarCustodiaBtn" class="primary-btn" type="button">
+          Enviar solicitação
+        </button>
+      </div>
+
+    </section>
+
+  </section>
+</main>
+
+<!-- JS -->
+<script src="{{ url_for('static', filename='custodia.js') }}"></script>
+
+</body>
+</html>

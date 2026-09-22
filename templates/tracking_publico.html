@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <!-- codex-20260911-favicon-agy-global -->
+  <link rel="icon" type="image/svg+xml" href="/static/favicon-agy.svg?v=20260911-g-blue" />
+  <link rel="shortcut icon" href="/static/favicon-agy.svg?v=20260911-g-blue" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="X-Frame-Options" content="DENY" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Rastreio · AGYLOG</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='tracking_publico.css') }}" />
+</head>
+<body>
+  <div class="bg-glow glow-1"></div>
+  <div class="bg-glow glow-2"></div>
+  <div class="bg-glow glow-3"></div>
+
+  <header class="dest-header">
+    <div class="dest-header-inner">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2.3" aria-hidden="true">
+        <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"></path>
+        <circle cx="12" cy="10" r="3"></circle>
+      </svg>
+      <span class="dest-logo-text">Rastreio <span>AGYLOG</span></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="tracking-hero">
+      <h1 class="tracking-hero-title">Informações de rastreio</h1>
+      <p class="tracking-hero-sub">Digite o código do seu pedido e acompanhe a situação da entrega.</p>
+
+      <div class="tracking-card">
+        <div class="tracking-input-group">
+          <label class="tracking-label" for="codigoInput">Código de rastreio</label>
+          <div class="tracking-input-wrap">
+            <input
+              type="text"
+              id="codigoInput"
+              value="{{ codigo }}"
+              class="tracking-input"
+              placeholder="Ex: BR123456789BR"
+              maxlength="50"
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="Codigo de rastreio"
+            />
+            <button type="button" class="paste-btn" id="pasteBtn" title="Colar código">Colar</button>
+          </div>
+        </div>
+
+        <button type="button" id="rastrearBtn" class="rastrear-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          Rastrear encomenda
+        </button>
+
+        <div id="alertBox" class="alert-box" role="alert" aria-live="polite"></div>
+
+      </div>
+
+      <div class="result-area" id="resultArea">
+        <div class="info-card">
+          <div class="info-card-left info-card-grid">
+            <div class="info-item">
+              <span class="info-label">HAWB</span>
+              <span class="info-value" id="resultCode">-</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Código do cliente</span>
+              <span class="info-value info-value-small" id="resultCliente">-</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Situação atual</span>
+              <span class="status-pill" id="statusPill">
+                <span class="pulse-dot"></span>
+                <span id="statusText">-</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-visual-card">
+          <div class="status-visual-media" id="statusVisualMedia"></div>
+          <div class="status-visual-copy">
+            <span class="visual-kicker">Status do pedido</span>
+            <h2 id="currentStageTitle">Acompanhamento da entrega</h2>
+            <p id="journeyMessage">Consulte o pedido para visualizar a etapa atual da entrega.</p>
+
+            <div class="visual-tags" id="visualTags"></div>
+            <div class="visual-meta">
+              <span id="lastUpdateLabel"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-container">
+          <div class="timeline-head">
+            <div>
+              <span class="timeline-kicker">Linha de status</span>
+              <h3>Etapas da entrega</h3>
+            </div>
+          </div>
+
+          <div class="progress-track">
+            <div class="progress-line"></div>
+            <div class="progress-line-fill" id="progressFill"></div>
+            <div class="timeline" id="timeline"></div>
+          </div>
+        </div>
+
+        <div class="history-card">
+          <div class="timeline-head">
+            <div>
+              <span class="timeline-kicker">Histórico</span>
+              <h3>Atualizações recentes</h3>
+            </div>
+          </div>
+          <div class="history-list" id="historyList"></div>
+        </div>
+
+        <div class="history-card third-party-card hidden" id="thirdPartyCard">
+          <div class="timeline-head">
+            <div>
+              <span class="timeline-kicker">Informacao adicional</span>
+              <h3>CORREIOS</h3>
+            </div>
+          </div>
+          <div class="third-party-grid-public" id="thirdPartyGrid"></div>
+        </div>
+
+        <button type="button" class="nova-busca-btn" id="novaBuscaBtn">Nova consulta</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 <strong>AGYLOG</strong> · Todos os direitos reservados</p>
+  </footer>
+
+  <script src="assets/lottie-player.js"></script>
+  <script src="{{ url_for('static', filename='tracking_publico.js') }}?v=tms-live-20260821"></script>
+</body>
+</html>

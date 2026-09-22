@@ -1,0 +1,320 @@
+/* ===== BASE DA TELA DE CUSTÓDIA ===== */
+
+body {
+  min-height: 100vh;
+}
+
+.custodia-shell {
+  position: relative;
+  z-index: 1;
+  width: min(1100px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 40px 0 48px;
+}
+
+.custodia-screen {
+  width: 100%;
+}
+
+.custodia-hero {
+  margin-bottom: 24px;
+}
+
+.custodia-hero .eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue-light);
+  margin-bottom: 6px;
+}
+
+.custodia-hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+}
+
+.custodia-hero p {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  max-width: 700px;
+}
+
+/* ===== CARDS ===== */
+
+.custodia-panel {
+  padding: 28px 28px 24px;
+  margin-bottom: 20px;
+}
+
+.custodia-panel .panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.custodia-panel h2 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.custodia-panel .panel-kicker,
+.custodia-panel .eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue-light);
+  margin-bottom: 5px;
+}
+
+.custodia-panel .panel-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--blue), var(--blue-light));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+  box-shadow: 0 4px 18px rgba(26, 86, 219, 0.4);
+}
+
+/* ===== FORM ===== */
+
+.custodia-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.custodia-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custodia-form .field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+.custodia-form .field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.custodia-form .input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.custodia-form .input-wrap input,
+.custodia-form input,
+.custodia-form textarea,
+.custodia-form select {
+  width: 100%;
+  min-height: 48px;
+  padding: 13px 14px;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+  caret-color: var(--blue-light);
+}
+
+.custodia-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.custodia-form .input-wrap input::placeholder,
+.custodia-form input::placeholder,
+.custodia-form textarea::placeholder {
+  color: var(--subtle);
+}
+
+.custodia-form .input-wrap input:focus,
+.custodia-form input:focus,
+.custodia-form textarea:focus,
+.custodia-form select:focus {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(26, 86, 219, 0.07);
+  box-shadow: 0 0 0 3px rgba(26, 86, 219, 0.14);
+}
+
+/* ===== AÇÕES ===== */
+
+.custodia-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* ===== RESULTADO DA AR ===== */
+
+.custodia-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.custodia-info-item {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.custodia-info-item .label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.custodia-info-item strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+/* ===== TIPO DE SOLICITAÇÃO ===== */
+
+.custodia-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.custodia-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.custodia-choice:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+.custodia-choice input[type="radio"] {
+  margin-top: 2px;
+  accent-color: var(--blue-light);
+}
+
+.custodia-choice span {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+/* ===== FORM NOVO ENDEREÇO ===== */
+
+.novo-endereco-box {
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.novo-endereco-box .eyebrow {
+  margin-bottom: 12px;
+}
+
+/* ===== ALERTA ===== */
+
+.custodia-alert {
+  margin-top: 14px;
+}
+
+/* ===== STATUS BADGE ===== */
+
+.custodia-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--warning);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ===== UTIL ===== */
+
+.hidden {
+  display: none !important;
+}
+
+/* ===== RESPONSIVO ===== */
+
+@media (max-width: 760px) {
+  .custodia-shell {
+    width: calc(100% - 32px);
+    padding: 24px 0 32px;
+  }
+
+  .custodia-panel {
+    padding: 22px 18px 20px;
+  }
+
+  .custodia-form .field-row,
+  .custodia-result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .custodia-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .custodia-actions .primary-btn,
+  .custodia-actions .ghost-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

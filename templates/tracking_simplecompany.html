@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <!-- codex-20260911-favicon-agy-global -->
+  <link rel="icon" type="image/svg+xml" href="/static/favicon-agy.svg?v=20260911-g-blue" />
+  <link rel="shortcut icon" href="/static/favicon-agy.svg?v=20260911-g-blue" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Rastreamento · Simple Company</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='tracking_simplecompany.css') }}?v=3" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-row">
+      <img class="simple-logo" src="{{ url_for('static', filename='logos/simplecompany.webp') }}" alt="Simple Company" />
+      <span class="brand-divider" aria-hidden="true"></span>
+      <img class="agy-logo" src="{{ url_for('static', filename='logos/agy-logo.jpeg') }}" alt="AGYLOG" />
+    </div>
+  </header>
+  <main class="container">
+    <section class="hero"><p class="eyebrow">SIMPLE COMPANY</p><h1>Acompanhe seu pedido</h1><p>Digite o número do pedido para consultar o andamento da entrega.</p></section>
+    <section class="search-card">
+      <label for="pedidoInput">Número do pedido</label>
+      <div class="search-row"><input id="pedidoInput" value="{{ codigo }}" maxlength="80" autocomplete="off" placeholder="Ex.: 123456" /><button id="consultarBtn">Consultar pedido</button></div>
+      <div id="nameValidation" class="name-validation hidden">
+        <label for="nomeInput">Nome completo do destinatário</label>
+        <p>Confirme o nome para consultar o pedido: <strong id="nomeHint">-</strong></p>
+        <input id="nomeInput" maxlength="160" autocomplete="name" placeholder="Digite o nome completo" />
+      </div>
+      <p id="alertBox" class="alert" role="alert"></p>
+    </section>
+    <section id="resultArea" class="result hidden">
+      <div class="result-head"><div><span class="eyebrow">PEDIDO</span><strong id="pedidoCode">-</strong></div><span id="statusPill" class="status-pill">-</span></div>
+      <h2 id="statusTitle">Acompanhamento da entrega</h2><p id="statusMessage">-</p>
+      <div class="timeline-container">
+        <div class="timeline-head"><div><span class="eyebrow">LINHA DE STATUS</span><h3>Etapas do pedido</h3></div></div>
+        <div class="progress-track"><div class="progress-line"></div><div id="progressFill" class="progress-line-fill"></div><div id="timeline" class="timeline"></div></div>
+      </div>
+      <div class="history"><h3>Histórico do pedido</h3><div id="historyList"></div></div>
+      <button id="novaBuscaBtn" class="secondary">Nova consulta</button>
+    </section>
+  </main>
+  <footer>&copy; 2026 <strong>AGYLOG</strong> · Todos os direitos reservados</footer>
+  <script src="{{ url_for('static', filename='tracking_simplecompany.js') }}?v=6"></script>
+</body>
+</html>

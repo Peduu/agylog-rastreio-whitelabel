@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Administrativo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+
+<body>
+  <main class="admin-shell">
+    <header class="admin-header">
+      <div>
+        <span class="admin-kicker">Painel Administrativo</span>
+        <h1>Gestao do Portal de Rastreamento</h1>
+        <p>Area reservada para administracao de acessos, importacoes e auditoria.</p>
+      </div>
+
+      <div class="admin-actions">
+        <div class="nav-dropdown admin-nav">
+          <button id="adminMenuToggle" class="ghost-btn" type="button" aria-expanded="false">Menu</button>
+          <div class="nav-dropdown-menu" id="adminMenuItems">
+            <a class="nav-menu-link" href="{{ url_for('home') }}">Rastreamento</a>
+            <a class="nav-menu-link" href="{{ url_for('custodia') }}">Custodia</a>
+            <a class="nav-menu-link" href="{{ url_for('admin_modelos') }}">Base de enderecos</a>
+            <button class="nav-menu-link" type="button" data-nav-target="usuariosSection">Usuarios</button>
+            <button class="nav-menu-link" type="button" data-nav-target="databaseSection">Banco</button>
+            <button class="nav-menu-link" type="button" data-nav-target="regrasPrevisaoSection">Previsoes</button>
+          </div>
+        </div>
+        <a href="{{ url_for('home') }}" class="ghost-btn">Voltar ao portal</a>
+      </div>
+    </header>
+
+    <section class="dashboard-grid">
+      <div class="dashboard-card">
+        <span>Rastreios</span>
+        <h2 id="dashRastreios">-</h2>
+      </div>
+
+      <div class="dashboard-card">
+        <span>Usuarios</span>
+        <h2 id="dashUsuarios">-</h2>
+      </div>
+
+      <div class="dashboard-card">
+        <span>Logins hoje</span>
+        <h2 id="dashLogins">-</h2>
+      </div>
+
+      <div class="dashboard-card">
+        <span>Ultima importacao</span>
+        <h2 id="dashImportacao">-</h2>
+      </div>
+    </section>
+
+    <section class="admin-card admin-card-full" id="usuariosSection">
+      <h2>Usuarios Cadastrados</h2>
+      <p>Visualize usuarios autorizados e aprove clientes escolhendo um CNPJ da lista ou digitando um novo.</p>
+
+      <div id="usuariosAlert" class="admin-alert hidden"></div>
+
+      <div class="admin-toolbar">
+        <input
+          type="text"
+          id="usuariosBuscaInput"
+          class="admin-search-input"
+          placeholder="Buscar por nome ou e-mail..."
+        />
+      </div>
+
+      <div class="table-wrap table-wrap-limited">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Admin</th>
+              <th>CNPJ</th>
+              <th>Aprovado</th>
+              <th>Acao</th>
+            </tr>
+          </thead>
+          <tbody id="usuariosTableBody">
+            <tr>
+              <td colspan="7">Carregando usuarios...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin-grid">
+      <section class="admin-card">
+        <h2>Base de Enderecos</h2>
+        <p>Acesse a consulta dedicada do banco de envios, filtre por AR e monte relatorios com as colunas que quiser.</p>
+        <a class="primary-btn" href="{{ url_for('admin_modelos') }}">Abrir consulta</a>
+      </section>
+
+      <section class="admin-card">
+        <h2>Importacao de Rastreios</h2>
+        <p>Envie uma planilha CSV ou XLSX para atualizar os rastreios.</p>
+
+        <form id="importRastreiosForm" class="admin-form">
+          <input type="file" id="arquivoRastreios" accept=".csv,.xlsx,.xls" required />
+          <button class="primary-btn" type="submit">Importar rastreios</button>
+        </form>
+
+        <div id="importRastreiosAlert" class="admin-alert hidden"></div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Importacao de Usuarios</h2>
+        <p>Cadastro em massa (em breve).</p>
+        <button class="primary-btn" disabled>Em breve</button>
+      </section>
+
+      <section class="admin-card admin-card-full">
+        <h2>Logs de Acesso</h2>
+        <p>Visualize tentativas de login.</p>
+
+        <div id="logAcessosAlert" class="admin-alert hidden"></div>
+
+        <div class="table-wrap table-wrap-limited">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Email</th>
+                <th>Sucesso</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody id="logAcessosTableBody">
+              <tr>
+                <td colspan="4">Carregando logs...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="admin-card admin-card-full">
+        <h2>Logs de Atualizacao</h2>
+        <p>Alteracoes feitas por administradores.</p>
+
+        <div id="logUpdatesAlert" class="admin-alert hidden"></div>
+
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Usuario</th>
+                <th>Tipo</th>
+                <th>Arquivo</th>
+                <th>Inseridos</th>
+                <th>Atualizados</th>
+                <th>Ignorados</th>
+              </tr>
+            </thead>
+            <tbody id="logUpdatesTableBody">
+              <tr>
+                <td colspan="7">Carregando logs...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="admin-card admin-card-full">
+      <h2>Solicitacoes de Custodia</h2>
+      <p>Gerencie solicitacoes abertas e concluidas.</p>
+
+      <div id="custodiasAdminAlert" class="admin-alert hidden"></div>
+
+      <div class="admin-toolbar">
+        <button id="carregarCustodiasBtn" class="primary-btn">Carregar custodias</button>
+        <button id="exportarCustodiasBtn" class="ghost-btn">Exportar CSV</button>
+
+        <select id="filtroStatusCustodia" class="admin-search-input" style="max-width: 180px;">
+          <option value="">Todas</option>
+          <option value="ABERTO">Abertas</option>
+          <option value="CONCLUIDO">Concluidas</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table class="admin-table" id="custodiasTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>AR</th>
+              <th>Tipo</th>
+              <th>Nome</th>
+              <th>Cidade/UF</th>
+              <th>Status</th>
+              <th>Usuario</th>
+              <th>Data</th>
+              <th>Acao</th>
+            </tr>
+          </thead>
+          <tbody id="custodiasTableBody">
+            <tr>
+              <td colspan="9">Clique em "Carregar custodias"</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin-card admin-card-full" id="databaseSection">
+      <h2>Visao do Banco de Dados</h2>
+      <p>Consulte os registros mais recentes, filtre por cliente e acompanhe os status salvos no portal.</p>
+
+      <div class="admin-toolbar admin-toolbar-wrap">
+        <input id="databaseCnpjFilter" class="admin-search-input" list="cnpjSugestoes" placeholder="Filtrar por CNPJ" style="max-width: 280px;" />
+        <input
+          type="text"
+          id="databaseStatusFilter"
+          class="admin-search-input"
+          placeholder="Filtrar por status exato"
+          style="max-width: 240px;"
+        />
+        <button id="carregarDatabaseBtn" class="primary-btn" type="button">Atualizar visao</button>
+      </div>
+
+      <div class="database-status-grid" id="databaseStatusGrid"></div>
+
+      <div class="table-wrap table-wrap-limited">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Codigo</th>
+              <th>Destinatario</th>
+              <th>Status</th>
+              <th>Previsao</th>
+              <th>CNPJ</th>
+              <th>API</th>
+            </tr>
+          </thead>
+          <tbody id="databaseRastreiosTableBody">
+            <tr>
+              <td colspan="6">Carregando base...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin-card admin-card-full" id="regrasPrevisaoSection">
+      <h2>Regras de Previsao</h2>
+      <p>Cadastre regras fixas por CNPJ ou UF. A previsao fica unica para a entrega e segue ate o fim.</p>
+
+      <form id="regraPrevisaoForm" class="admin-form admin-form-grid">
+        <select id="regraTipo" class="admin-search-input" required>
+          <option value="CNPJ">CNPJ</option>
+          <option value="UF">UF</option>
+        </select>
+        <input id="regraIdentificadorSelect" class="admin-search-input" list="cnpjSugestoes" placeholder="Escolha ou digite um CNPJ" />
+        <input id="regraIdentificadorManual" class="admin-search-input hidden" type="text" placeholder="UF, ex.: SP" />
+        <input id="regraDiasPrevisao" class="admin-search-input" type="number" placeholder="Dias de previsao" required />
+        <input id="regraPrioridade" class="admin-search-input" type="number" placeholder="Prioridade (menor = primeiro)" value="100" />
+        <input id="regraDescricao" class="admin-search-input" type="text" placeholder="Descricao opcional" />
+        <button class="primary-btn" type="submit">Salvar regra</button>
+      </form>
+
+      <div class="admin-toolbar admin-toolbar-wrap">
+        <a class="ghost-btn" href="/api/admin/regras-previsao/modelo-csv">Baixar modelo CSV</a>
+        <form id="importarRegrasCsvForm" class="admin-form-inline">
+          <input id="arquivoRegrasCsv" type="file" accept=".csv" class="admin-search-input" style="max-width: 260px;" />
+          <button class="primary-btn" type="submit">Importar regras CSV</button>
+        </form>
+      </div>
+
+      <div id="regrasPrevisaoAlert" class="admin-alert hidden"></div>
+
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Tipo</th>
+              <th>Identificador</th>
+              <th>Dias</th>
+              <th>Prioridade</th>
+              <th>Descricao</th>
+              <th>Acao</th>
+            </tr>
+          </thead>
+          <tbody id="regrasPrevisaoTableBody">
+            <tr>
+              <td colspan="6">Carregando regras...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <datalist id="cnpjSugestoes"></datalist>
+
+  <script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+</html>

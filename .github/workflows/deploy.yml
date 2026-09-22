@@ -1,0 +1,182 @@
+name: Deploy Rastreamento Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Digite DEPLOY para confirmar producao"
+        required: true
+        type: string
+
+concurrency:
+  group: rastreamento-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy manual seguro do rastreamento
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Confirmar deploy manual
+        run: |
+          if [ "${{ inputs.confirm }}" != "DEPLOY" ]; then
+            echo "Confirmacao invalida. Digite DEPLOY para liberar producao."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validar pacote local
+        run: python deploy/validate-deploy.py
+
+      - name: Criar pacote com manifesto
+        run: |
+          python - <<'PY'
+          import pathlib
+          import tarfile
+
+          root = pathlib.Path.cwd()
+          manifest = root / "deploy" / "deploy-manifest.tsv"
+          package = root / "rastreamento-deploy.tar.gz"
+          sources = ["deploy/deploy-manifest.tsv", "deploy/validate-deploy.py", "deploy/README.md"]
+
+          for raw in manifest.read_text(encoding="utf-8").splitlines():
+              line = raw.strip()
+              if not line or line.startswith("#"):
+                  continue
+              source, _target = raw.split("\t", 1)
+              sources.append(source.strip())
+
+          with tarfile.open(package, "w:gz") as tar:
+              for source in dict.fromkeys(sources):
+                  tar.add(root / source, arcname=source)
+
+          print(f"Pacote criado: {package} ({package.stat().st_size} bytes)")
+          PY
+
+      - name: Enviar pacote para VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          source: "rastreamento-deploy.tar.gz"
+          target: "/tmp/rastreamento-deploy-${{ github.run_id }}"
+          overwrite: true
+
+      - name: Aplicar deploy com backup e rollback
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+
+            PACKAGE="/tmp/rastreamento-deploy-${{ github.run_id }}/rastreamento-deploy.tar.gz"
+            STAGE="/tmp/rastreamento-stage-${{ github.run_id }}"
+            TS="$(date +%Y%m%d-%H%M%S)"
+            BACKUP="/home/rastreamento/backups/deploy-${TS}-github-actions-${{ github.run_number }}"
+            MANIFEST="$STAGE/deploy/deploy-manifest.tsv"
+            APPLIED=0
+
+            MAINPID="$(systemctl show -p MainPID --value rastreamento.service)"
+            if [ -z "$MAINPID" ] || [ "$MAINPID" = "0" ]; then
+              echo "ERRO: rastreamento.service nao esta rodando. Nada foi alterado."
+              exit 1
+            fi
+            for required_env in SECRET_KEY TMS_API_TOKEN; do
+              if grep -qz "^${required_env}=..*" "/proc/$MAINPID/environ"; then
+                echo "OK ${required_env} presente no ambiente do servico (valor nao exibido)"
+              else
+                echo "ERRO: servico sem ${required_env}. Nada foi alterado."
+                exit 1
+              fi
+            done
+
+            mkdir -p "$STAGE" "$BACKUP"
+            rm -rf "$STAGE"/*
+            tar -xzf "$PACKAGE" -C "$STAGE"
+
+            cd "$STAGE"
+            python3 deploy/validate-deploy.py
+            python3 -m py_compile app.py atualizar_rastreios_api.py consulta_tms_api.py depara_ocorrencias.py importar_dados.py importar_proceda_omelete.py exportar_dados.py
+
+            mapfile -t MANIFEST_LINES < <(grep -v '^[[:space:]]*$' "$MANIFEST" | grep -v '^[[:space:]]*#')
+            TARGETS=()
+
+            for line in "${MANIFEST_LINES[@]}"; do
+              IFS=$'\t' read -r source target <<< "$line"
+
+              case "$target" in
+                /home/rastreamento/*) ;;
+                *)
+                  echo "ERRO: target fora da area permitida: $target"
+                  exit 1
+                  ;;
+              esac
+
+              if [ ! -f "$source" ]; then
+                echo "ERRO: source ausente no pacote: $source"
+                exit 1
+              fi
+
+              TARGETS+=("$target")
+              if [ -e "$target" ]; then
+                mkdir -p "$BACKUP$(dirname "$target")"
+                cp -a "$target" "$BACKUP$target"
+              else
+                echo "$target" >> "$BACKUP/MISSING_TARGETS.txt"
+              fi
+            done
+
+            rollback() {
+              echo "ERRO no deploy. Restaurando arquivos do backup: $BACKUP"
+              for target in "${TARGETS[@]}"; do
+                if [ -e "$BACKUP$target" ]; then
+                  cp -a "$BACKUP$target" "$target"
+                fi
+              done
+              if [ "$APPLIED" = "1" ]; then
+                systemctl restart rastreamento.service || true
+              fi
+            }
+            trap rollback ERR
+
+            for line in "${MANIFEST_LINES[@]}"; do
+              IFS=$'\t' read -r source target <<< "$line"
+              mkdir -p "$(dirname "$target")"
+              install -m 0644 "$source" "$target"
+              echo "Atualizado: $source -> $target"
+            done
+            APPLIED=1
+
+            /home/rastreamento/venv/bin/python -m py_compile /home/rastreamento/app.py
+            /home/rastreamento/venv/bin/pip install --disable-pip-version-check -r /home/rastreamento/requirements.txt
+
+            systemctl restart rastreamento.service
+            sleep 2
+            systemctl is-active --quiet rastreamento.service
+
+            for route in /tracking/tricard/ /tracking/BRB/ /tracking/panini/; do
+              code="$(curl -k -s -o /dev/null -w '%{http_code}' "https://rastreamento.agylog.com.br${route}")"
+              case "$code" in
+                200|301|302) echo "OK ${route}: HTTP ${code}" ;;
+                *) echo "ERRO ${route}: HTTP ${code}"; exit 1 ;;
+              esac
+            done
+
+            trap - ERR
+            rm -rf "$STAGE" "$PACKAGE"
+            echo "DEPLOY OK"
+            echo "BACKUP=$BACKUP"
