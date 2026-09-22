@@ -3651,6 +3651,18 @@ def montar_etapas_publicas(status_key, resultado):
         },
     ]
 
+    if status_key == "atencao":
+        stages.insert(4, {
+            "key": "atencao",
+            "title": "Tratativa",
+            "desc": "Ocorrência registrada para tratativa.",
+            "icon": "✓",
+            "date": "",
+            "time": "",
+            "done": True,
+            "attention": False,
+        })
+
     # Preenche a data real de cada etapa. Prioridade: ocorrencia persistida;
     # senao, uma data ja conhecida na linha do rastreio. Etapa sem data fica
     # vazia (o front trata) — nunca se inventa data.
@@ -3687,11 +3699,6 @@ def montar_etapas_publicas(status_key, resultado):
         if data_etapa:
             stage["date"] = data_etapa["date"]
             stage["time"] = data_etapa["time"]
-
-    if status_key == "atencao":
-        for stage in stages:
-            if stage["key"] == "em_rota_entrega":
-                stage["attention"] = True
 
     return stages
 

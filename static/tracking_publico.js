@@ -1022,16 +1022,9 @@ const _pageThemes = {
   }
 
   let activeIndex = normalizeStageIndex(activeStatus, stages);
-  const isAtencao = activeStatus === 'atencao';
-
-  if (isAtencao) {
-    stages = stages.map((s, i) =>
-      i === activeIndex + 1 ? { ...s, done: false, date: '-', time: '' } : s
-    );
-  }
 
   stages = stages.filter((s, i) =>
-    i <= activeIndex || s.done || (isAtencao && i === activeIndex + 1)
+    i <= activeIndex || s.done
   );
 
   // Depois de filtrar/remover etapas, recalcula o índice ativo.
