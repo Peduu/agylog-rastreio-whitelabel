@@ -3341,7 +3341,7 @@ def api_rastrear_publico():
         response.headers["Retry-After"] = str(PUBLIC_TRACKING_RATE_WINDOW)
         return response, 429
 
-    demo = _resposta_demo_caoa(codigo)
+    demo = _resposta_demo_caoa(codigo) if cliente == "caoa" else None   # codigos de demonstracao valem so na pagina do CAOA
     if demo is not None:
         return jsonify(demo)
 
@@ -3462,12 +3462,17 @@ def api_rastrear_publico():
                 resposta_ccxp["kind"] = "reenvio"
             return jsonify(resposta_ccxp)
 
+    etapas_publicas = montar_etapas_publicas(status_key, resultado)
+    if cliente == "ccxp":
+        # O CCXP nao tem devolucao: essas etapas nunca saem na resposta do CCXP.
+        etapas_publicas = [e for e in etapas_publicas if e.get("key") not in {"devolucao", "devolvido"}]
+
     return jsonify({
         "ok": True,
         "cliente": resultado.get("codigoCliente") or resultado.get("codigo") or "-",
         "status": status_key,
         "status_label": resultado.get("statusBadge") or "-",
-        "stages": montar_etapas_publicas(status_key, resultado),
+        "stages": etapas_publicas,
         "history": montar_historico_publico(resultado),
         "rastreioTerceiro": resultado.get("rastreioTerceiro")
     })

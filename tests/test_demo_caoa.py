@@ -32,7 +32,7 @@ class DemoCaoaTest(unittest.TestCase):
     def test_cada_codigo_devolve_o_status_esperado(self):
         for codigo, status in CASOS.items():
             with self.subTest(codigo=codigo):
-                r = self.client.post("/api/rastrear", json={"codigo": codigo})
+                r = self.client.post("/api/rastrear", json={"codigo": codigo, "cliente": "caoa"})
                 self.assertEqual(r.status_code, 200)
                 d = r.get_json()
                 self.assertTrue(d["ok"])
@@ -42,7 +42,7 @@ class DemoCaoaTest(unittest.TestCase):
                 self.assertTrue(d["cliente"])
 
     def test_etapas_ate_o_status_atual_tem_data(self):
-        d = self.client.post("/api/rastrear", json={"codigo": "CAOA2"}).get_json()
+        d = self.client.post("/api/rastrear", json={"codigo": "CAOA2", "cliente": "caoa"}).get_json()
         com_data = [s["key"] for s in d["stages"] if s["date"]]
         self.assertIn("em_rota_entrega", com_data)
         self.assertIn("aguardando_postagem", com_data)
@@ -52,15 +52,21 @@ class DemoCaoaTest(unittest.TestCase):
 
     def test_codigo_desconhecido_segue_o_fluxo_normal(self):
         with patch.object(portal, "buscar_rastreio_publico", return_value=None) as busca:
-            r = self.client.post("/api/rastrear", json={"codigo": "CAOA9"})
+            r = self.client.post("/api/rastrear", json={"codigo": "CAOA9", "cliente": "caoa"})
         self.assertEqual(r.status_code, 404)
         busca.assert_called_once()
 
     def test_demo_nao_consulta_banco_nem_tms(self):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("nao deveria consultar")):
-            r = self.client.post("/api/rastrear", json={"codigo": "CAOA1"})
+            r = self.client.post("/api/rastrear", json={"codigo": "CAOA1", "cliente": "caoa"})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.get_json()["demo"])
+
+    def test_demo_so_vale_na_pagina_do_caoa(self):
+        for cliente in ("ccxp", "panini", ""):
+            with self.subTest(cliente=cliente), patch.object(portal, "buscar_rastreio_publico", return_value=None):
+                r = self.client.post("/api/rastrear", json={"codigo": "CAOA4", "cliente": cliente})
+            self.assertEqual(r.status_code, 404)
 
 
 if __name__ == "__main__":
