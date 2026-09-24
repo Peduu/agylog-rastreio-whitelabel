@@ -1294,7 +1294,7 @@ const _pageThemes = {
     applyClientTheme(_clientSlug);
     if (_clientSlug === 'caoa') {
       const _sc = document.createElement('script');
-      _sc.src = '/static/scenes/caoa.js?v=20260924b';
+      _sc.src = '/static/scenes/caoa.js?v=20260924c';
       _sc.onload = () => { if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
       _sc.onerror = () => { window.AgyScenesFalhou = true; if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
       document.head.appendChild(_sc);
