@@ -413,14 +413,21 @@ def scene_em_rota(k, p):
 
 
 def scene_atencao(k, p):
-    dur = 1.4
+    dur = 2.6
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "atencao")
-    kf = (f'<style>@keyframes {p}fl{{0%,44%{{opacity:1}}50%,94%{{opacity:.04}}100%{{opacity:1}}}}'
-          f'@keyframes {p}bf{{0%,44%{{opacity:1;transform:translateY(0)}}50%,94%{{opacity:.65;transform:translateY(-1.6px)}}100%{{opacity:1;transform:translateY(0)}}}}</style>')
-    s += kf + f'<g style="animation:{p}fl {dur}s linear infinite">' + house(k, p, 262, GROUND + 4, 112, lit=False) + '</g>'
+    kf = (f'<style>@keyframes {p}fl{{0%,34%{{opacity:1}}50%,84%{{opacity:.04}}100%{{opacity:1}}}}'
+          f'@keyframes {p}qm{{0%{{transform:translateY(0) rotate(0) scale(1)}}9%{{transform:translateY(-6px) rotate(-9deg) scale(1.14)}}19%{{transform:translateY(0) rotate(8deg) scale(1)}}'
+          f'30%{{transform:translateY(-3px) rotate(-6deg) scale(1.05)}}42%{{transform:translateY(0) rotate(4deg) scale(1)}}56%,100%{{transform:translateY(0) rotate(0) scale(1)}}}}</style>')
+    s += kf + f'<g style="animation:{p}fl {dur}s ease-in-out infinite">' + house(k, p, 262, GROUND + 4, 112, lit=False) + '</g>'
     s += truck(k, p, 18, VEH_Y, .80, wheels=False)
     kn = "".join(f'<path class="{p}k{i+1}" d="M{236-i*7},{GROUND-38} q-5,4 0,8" fill="none" stroke="{WARN}" stroke-width="2" stroke-linecap="round" transform="translate(0,{i*6})"/>' for i in range(3))
-    s += courier(k, p, 232, GROUND + 8) + kn + f'<g style="animation:{p}bf {dur}s linear infinite">' + bubble(k, p, 295, 104) + '</g>'
+    # interrogacao (desenhada, sem texto) sobre o entregador: ninguem atende
+    duvida = (f'<g transform="translate(232,168)"><g style="transform-box:fill-box;transform-origin:50% 100%;animation:{p}qm {dur}s ease-in-out infinite">'
+              f'<path d="M-8,-12 C-8,-24 8,-24 8,-12 C8,-5 0,-5 0,3" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/>'
+              f'<circle cx="0" cy="12" r="5.6" fill="#fff"/>'
+              f'<path d="M-8,-12 C-8,-24 8,-24 8,-12 C8,-5 0,-5 0,3" fill="none" stroke="{WARN}" stroke-width="5.4" stroke-linecap="round"/>'
+              f'<circle cx="0" cy="12" r="3.4" fill="{WARN}"/></g></g>')
+    s += courier(k, p, 232, GROUND + 8) + kn + duvida + bubble(k, p, 295, 104)
     if k["prop"] == "packs":
         s += pack(196, GROUND - 2, 12)
     if k["prop"] == "cards":
@@ -633,7 +640,7 @@ def scene_aguardando(k, p):
     return frame(k, p, s, f"Aguardando postagem - {k['name']}", trail)
 
 
-def _depot(k, wx, wy, ww, wh, hole, h_logo, logo_w, roof=16):
+def _depot(k, wx, wy, ww, wh, hole, h_logo, logo_w, roof=16, logo_cx=None):
     """Galpao em primeiro plano (base abaixo da faixa do caminhao): a parede oculta o caminhao que passa atras, e o vao (hole) deixa ve-lo.
     A borda do vao e inclinada (ocultacao angular). Retorna (interior, parede) para desenhar o caminhao entre os dois."""
     hy0 = min(y for _, y in hole)
@@ -652,7 +659,7 @@ def _depot(k, wx, wy, ww, wh, hole, h_logo, logo_w, roof=16):
     parede = (f'<path d="{contorno}"{rule} fill="{k["panel"]}"/>'
               f'<path d="{contorno}"{rule} {wall(k)}/>'
               f'<polygon points="{wx-6},{topo} {wx+ww+6},{topo} {wx+ww},{topo-roof} {wx},{topo-roof}" fill="{k["ink"]}" fill-opacity=".26"/>'
-              + plate(k, wx + ww / 2, cy_logo, logo_w, h_logo, r=5, bg=False))
+              + plate(k, wx + ww / 2 if logo_cx is None else logo_cx, cy_logo, logo_w, h_logo, r=5, bg=False))
     return interior, parede
 
 
@@ -661,7 +668,7 @@ def _camadas_caminhao(k, p, base, anims, wheels, dur, sw, b_primeiro, beam=False
     acontece em sw% do ciclo, quando o caminhao esta todo sobre o vao (nenhuma parede o cobre), entao a troca e invisivel.
     Sombra unica (uma so, para nao dobrar a transparencia). Retorna (estilos, sombra, camada_de_tras, camada_da_frente)."""
     if b_primeiro:      # sai da garagem: comeca atras (com fade-in dentro do vao escuro) e termina na frente
-        vb = f"0%{{opacity:0}}5%{{opacity:1}}{sw}%{{opacity:1}}{sw+.01:.2f}%,100%{{opacity:0}}"
+        vb = f"0%,{sw}%{{opacity:1}}{sw+.01:.2f}%,100%{{opacity:0}}"
         va = f"0%,{sw}%{{opacity:0}}{sw+.01:.2f}%,100%{{opacity:1}}"
     else:               # entra na garagem: comeca na frente e termina atras
         va = f"0%,{sw}%{{opacity:1}}{sw+.01:.2f}%,100%{{opacity:0}}"
@@ -676,63 +683,70 @@ def _camadas_caminhao(k, p, base, anims, wheels, dur, sw, b_primeiro, beam=False
         return (f'<g style="animation:{p}{nome} {dur}s linear infinite"><g transform="translate({base[0]},{base[1]}) scale({base[2]})">{abre}'
                 + truck(k, p, 0, 0, 1.0, wheels=wheels, beam=beam, shadow=False) + f'{fecha}</g></g>')
     sombra = (f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})">{abre}'
-              f'<ellipse cx="96" cy="1" rx="102" ry="4" fill="#000" fill-opacity=".28"/>{fecha}</g>')
+              f'<ellipse cx="96" cy="0" rx="100" ry="3" fill="#000" fill-opacity=".28"/>{fecha}</g>')
     return kf, sombra, camada("ob"), camada("oa")
 
 
+def _caixa_portao(k, hx0, hx1, top, h=16):
+    """Parte de cima do portao (rolo/caixa do portao), sempre visivel no alto do vao."""
+    return (f'<rect x="{hx0}" y="{top}" width="{hx1-hx0}" height="{h}" fill="{k["door"]}" fill-opacity=".95"/>'
+            + "".join(f'<line x1="{hx0}" x2="{hx1}" y1="{top+i*5}" y2="{top+i*5}" stroke="#000" stroke-opacity=".28"/>' for i in (1, 2)) +
+            f'<rect x="{hx0}" y="{top+h-3}" width="{hx1-hx0}" height="3" fill="#000" fill-opacity=".35"/>')
+
+
 def scene_transferencia(k, p):
-    """O caminhao (sempre do mesmo tamanho) sai da garagem: comeca no fundo do vao, desce ate a pista (aproximando-se de quem ve) e depois
-    passa a frente da pilastra direita. A troca atras->frente acontece quando ele esta todo sobre o vao."""
-    dur = 7.4
+    """Garagem cortada pela borda esquerda do quadro. O caminhao ja esta na linha da rua, dentro do vao: o portao abre, ele sai (passando a frente
+    da pilastra direita) e o portao fecha. Sem mover o caminhao de lado."""
+    dur = 9.0
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "transf")
-    wx, wy, ww, wh = 52, GROUND + 2, 296, 144
-    hx0, hx1, hh = 112, 288, 92                                            # vao com 176 de largura: cabe o caminhao inteiro (154)
-    hole = [(hx0, wy - hh), (hx1, wy - hh), (hx1, wy), (hx0, wy)]
+    wy, topo = 276, 112
+    wx, ww = -60, 260                                                       # a parede passa da borda esquerda; pilastra direita de 188 a 200
+    hx0, hx1, hy0 = -50, 188, 187
+    hole = [(hx0, hy0), (hx1, hy0), (hx1, wy), (hx0, wy)]
     h_logo = 36 if k["ar"] > 2.5 else 40
-    interior, parede = _depot(k, wx, wy, ww, wh, hole, h_logo, 150)
-    portao = (f'<rect x="{hx0}" y="{wy-hh}" width="{hx1-hx0}" height="18" fill="{k["door"]}" fill-opacity=".95"/>'
-              + "".join(f'<line x1="{hx0}" x2="{hx1}" y1="{wy-hh+i*6}" y2="{wy-hh+i*6}" stroke="#000" stroke-opacity=".28"/>' for i in (1, 2)) +
-              f'<rect x="{hx0}" y="{wy-hh+17}" width="{hx1-hx0}" height="3" fill="#000" fill-opacity=".35"/>')
+    interior, parede = _depot(k, wx, wy, ww, wy - topo, hole, h_logo, 132, roof=14, logo_cx=100)
     placa = (f'<rect x="367" y="176" width="3" height="58" fill="{k["ink"]}" fill-opacity=".5"/>'
              f'<rect x="350" y="160" width="36" height="22" rx="3" fill="{k["cab"]}" stroke="{k["accent"]}" stroke-width="1.6"/>'
              f'<path d="M357,171 H377 M371,165.5 L377,171 L371,176.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>')
-    base = (hx0 + 6, wy - 6, .8)                                            # no fundo do vao (piso ligeiramente para dentro)
-    dy = (VEH_Y - (wy - 6)) / .8
-    kf = (f'<style>@keyframes {p}tx{{0%,12%{{transform:translateX(0)}}100%{{transform:translateX({(470-(hx0+6))/.8:.1f}px)}}}}'
-          f'@keyframes {p}ty{{0%,12%{{transform:translateY(0)}}27%,100%{{transform:translateY({dy:.2f}px)}}}}'
-          f'@keyframes {p}wsp{{0%,12%{{transform:rotate(0)}}100%{{transform:rotate(2400deg)}}}}</style>')
+    base = (24, wy - 2, .8)                                                 # ja na linha da rua, dentro do vao
+    kf = (f'<style>@keyframes {p}tx{{0%,24%{{transform:translateX(0)}}100%{{transform:translateX({(470-24)/.8:.1f}px)}}}}'
+          f'@keyframes {p}wsp{{0%,24%{{transform:rotate(0)}}100%{{transform:rotate(2600deg)}}}}'
+          f'@keyframes {p}gt{{0%,10%{{transform:scaleY(1)}}22%,74%{{transform:scaleY(.02)}}86%,100%{{transform:scaleY(1)}}}}'
+          f'@keyframes {p}gi{{0%,12%{{opacity:0}}22%,74%{{opacity:1}}86%,100%{{opacity:0}}}}</style>')
     estilos, sombra, atras, frente = _camadas_caminhao(
-        k, p, base, [f"animation:{p}tx {dur}s cubic-bezier(.5,0,.8,.8) infinite", f"animation:{p}ty {dur}s ease-in-out infinite"],
-        f"style:animation:{p}wsp {dur}s cubic-bezier(.5,0,.8,.8) infinite", dur, 22, True, beam=True)
-    s += placa + kf + estilos + interior + sombra + atras + parede + portao + frente
-    s += operador(k, p, 44, ROAD_BOTTOM - 2, flip=False, dur=dur, at=14, sc=1.0)
+        k, p, base, f"animation:{p}tx {dur}s cubic-bezier(.5,0,.8,.8) infinite", f"style:animation:{p}wsp {dur}s cubic-bezier(.5,0,.8,.8) infinite", dur, 26, True, beam=True)
+    s += placa + operador(k, p, 228, GROUND + 16, flip=True, dur=dur, at=24, sc=.95)          # na faixa de tras: o caminhao passa a frente dele
+    s += (kf + estilos + interior + f'<g style="opacity:1;animation:{p}gi {dur}s ease-in-out infinite"><rect x="{hx0}" y="{hy0}" width="{hx1-hx0}" height="{wy-hy0}" fill="{k["door"]}" fill-opacity=".12"/></g>'
+          + sombra + atras + rollgate(k, hx0, hy0 + 16, hx1 - hx0, wy - hy0 - 16, f"transform:scaleY(1);animation:{p}gt {dur}s ease-in-out infinite", op="1")
+          + parede + _caixa_portao(k, hx0, hx1, hy0) + frente)
     return frame(k, p, s, f"Pedido em transferencia entre unidades - {k['name']}")
 
 
 def scene_chegada(k, p):
-    """O caminhao chega pela frente da pilastra esquerda ate ficar todo sobre o vao; ai sobe para dentro da garagem (fundo do vao) e o portao fecha."""
+    """Garagem cortada pela borda direita do quadro. O caminhao chega na linha da rua, passa a frente da pilastra esquerda e entra no vao com o
+    portao aberto; o portao fecha. Sem mover o caminhao de lado."""
     dur = 9.0
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "cheg")
-    wx, wy, ww, wh = 170, GROUND + 2, 224, 144
-    hx0, hx1, hh = 196, 372, 92                                            # vao com 176 de largura: cabe o caminhao inteiro (154)
-    hole = [(hx0, wy - hh), (hx1, wy - hh), (hx1, wy), (hx0, wy)]
+    wy, topo = 276, 112
+    wx, ww = 200, 260                                                       # pilastra esquerda de 200 a 212; a parede passa da borda direita
+    hx0, hx1, hy0 = 212, 450, 187
+    hole = [(hx0, hy0), (hx1, hy0), (hx1, wy), (hx0, wy)]
     h_logo = 36 if k["ar"] > 2.5 else 40
-    interior, parede = _depot(k, wx, wy, ww, wh, hole, h_logo, 132)
-    base = (8, VEH_Y, .8)
-    X = lambda x, y: _tf(x, y, .8, base)
-    dentro = (hx0 + 18, wy - 6)
-    kf = (f'<style>@keyframes {p}tr{{0%{{transform:{X(-190, VEH_Y)};animation-timing-function:cubic-bezier(.2,.7,.25,1)}}'
-          f'24%{{transform:{X(8, VEH_Y)};animation-timing-function:linear}}40%{{transform:{X(8, VEH_Y)};animation-timing-function:ease-in-out}}'
-          f'58%{{transform:{X(hx0 + 10, VEH_Y)};animation-timing-function:ease-in-out}}68%,100%{{transform:{X(*dentro)}}}}}'
+    interior, parede = _depot(k, wx, wy, ww, wy - topo, hole, h_logo, 132, roof=14, logo_cx=300)
+    base = (8, wy - 2, .8)
+    X = lambda x: _tf(x, wy - 2, .8, base)
+    kf = (f'<style>@keyframes {p}tr{{0%{{transform:{X(-190)};animation-timing-function:cubic-bezier(.2,.7,.25,1)}}'
+          f'24%{{transform:{X(8)};animation-timing-function:linear}}40%{{transform:{X(8)};animation-timing-function:ease-in-out}}'
+          f'58%,100%{{transform:{X(224)}}}}}'
           f'@keyframes {p}wsp{{0%{{transform:rotate(0);animation-timing-function:cubic-bezier(.2,.7,.25,1)}}24%{{transform:rotate(1000deg);animation-timing-function:linear}}'
-          f'40%{{transform:rotate(1000deg);animation-timing-function:ease-in-out}}58%{{transform:rotate(1900deg);animation-timing-function:ease-in-out}}68%,100%{{transform:rotate(2050deg)}}}}'
-          f'@keyframes {p}gt{{0%,26%{{transform:scaleY(1)}}38%,72%{{transform:scaleY(.07)}}82%,100%{{transform:scaleY(1)}}}}'
+          f'40%{{transform:rotate(1000deg);animation-timing-function:ease-in-out}}58%,100%{{transform:rotate(2000deg)}}}}'
+          f'@keyframes {p}gt{{0%,26%{{transform:scaleY(1)}}38%,72%{{transform:scaleY(.02)}}82%,100%{{transform:scaleY(1)}}}}'
           f'@keyframes {p}gi{{0%,28%{{opacity:0}}38%,72%{{opacity:1}}82%,100%{{opacity:0}}}}</style>')
     estilos, sombra, atras, frente = _camadas_caminhao(k, p, base, f"animation:{p}tr {dur}s linear infinite", f"style:animation:{p}wsp {dur}s linear infinite", dur, 58, False)
-    s += (kf + estilos + interior + f'<g style="opacity:1;animation:{p}gi {dur}s ease-in-out infinite"><rect x="{hx0}" y="{wy-hh}" width="{hx1-hx0}" height="{hh}" fill="{k["door"]}" fill-opacity=".12"/></g>'
-          + sombra + atras + rollgate(k, hx0, wy - hh, hx1 - hx0, hh, f"transform:scaleY(.07);animation:{p}gt {dur}s ease-in-out infinite", op="1") + parede
-          + f'<rect x="{hx0}" y="{wy-hh}" width="{hx1-hx0}" height="6" fill="{k["door"]}"/>' + frente)
-    s += operador(k, p, 380, ROAD_BOTTOM - 2, flip=True, dur=dur, at=26, sc=1.0)          # operador confere a entrada
+    s += operador(k, p, 184, GROUND + 16, flip=True, dur=dur, at=26, sc=.95)          # operador confere a entrada (faixa de tras: o caminhao passa a frente dele)
+    s += (kf + estilos + interior + f'<g style="opacity:1;animation:{p}gi {dur}s ease-in-out infinite"><rect x="{hx0}" y="{hy0}" width="{hx1-hx0}" height="{wy-hy0}" fill="{k["door"]}" fill-opacity=".12"/></g>'
+          + sombra + atras + rollgate(k, hx0, hy0 + 16, hx1 - hx0, wy - hy0 - 16, f"transform:scaleY(1);animation:{p}gt {dur}s ease-in-out infinite", op="1")
+          + parede + _caixa_portao(k, hx0, hx1, hy0) + frente)
     return frame(k, p, s, f"Pedido chegou na franquia - {k['name']}")
 
 
