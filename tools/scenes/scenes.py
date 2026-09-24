@@ -512,7 +512,7 @@ def operador(k, p, x, y, flip=False, dur=6.0, at=45, sc=1.0):
             f'<g transform="translate(5,-35)"><g style="transform-origin:0 0;animation:{p}wr {dur}s ease-in-out infinite">'
             f'<rect x="-1" y="-1.7" width="13" height="3.4" rx="1.7" fill="{k["accent"]}" transform="rotate(28)"/>'
             f'<g transform="translate(9,-3) rotate(-6)"><rect x="0" y="-9" width="13" height="19" rx="1.6" fill="#fff" stroke="#aab0c6" stroke-width=".9"/>'
-            f'<rect x="3.6" y="-10.7" width="5.8" height="3.2" rx=".8" fill="#2b2f3a"/>{lines}{check}</g></g></g></g>')
+            f'<rect x="3.6" y="-10.7" width="5.8" height="3.2" rx=".8" fill="#2b2f3a"/>' + (f'<g transform="translate(13,0) scale(-1,1)">{lines}{check}</g>' if flip else lines + check) + '</g></g></g></g>')
 
 
 def seal(k, p, cx, cy, r=22, dur=6.0, at=10, t0=14, t1=34, out=86):
@@ -542,7 +542,7 @@ def timer(k, p, cx, cy, dur=6.0, sc=1.0):
           f'@keyframes {p}gl{{0%,40%{{transform:scaleY(1);opacity:1}}50%,84%{{transform:scaleY(.35);opacity:0}}96%,100%{{transform:scaleY(1);opacity:1}}}}'
           f'@keyframes {p}tc{{0%,40%{{transform:translateY(0);opacity:1}}48%,88%{{transform:translateY(4px);opacity:0}}97%,100%{{transform:translateY(0);opacity:1}}}}'
           f'@keyframes {p}bc{{0%,40%{{transform:translateY(0);opacity:1}}46%,88%{{transform:translateY(-7px);opacity:0}}97%,100%{{transform:translateY(0);opacity:1}}}}'
-          f'@keyframes {p}st{{0%,6%{{transform:translateY(0)}}38%,90%{{transform:translateY(27px)}}98%,100%{{transform:translateY(0)}}}}'
+          f'@keyframes {p}st{{0%,6%{{transform:translateY(7px)}}38%,90%{{transform:translateY(27px)}}98%,100%{{transform:translateY(7px)}}}}'
           f'@keyframes {p}sb{{0%,6%{{transform:translateY(20px)}}38%,50%{{transform:translateY(0)}}51%,100%{{transform:translateY(20px)}}}}'
           f'@keyframes {p}sm{{0%,6%{{opacity:0}}9%,35%{{opacity:1}}39%,100%{{opacity:0}}}}'
           f'@keyframes {p}dc{{0%,42%{{transform:translateY(9px) scale(0)}}47%{{transform:translateY(5px) scale(.55)}}54%{{transform:translateY(0) scale(1.08)}}58%,82%{{transform:translateY(0) scale(1)}}88%{{transform:translateY(7px) scale(.5)}}93%,100%{{transform:translateY(9px) scale(0)}}}}'
@@ -551,8 +551,8 @@ def timer(k, p, cx, cy, dur=6.0, sc=1.0):
           f'@keyframes {p}hd{{0%,60%{{transform:rotate(0)}}82%,100%{{transform:rotate(720deg)}}}}</style>'
           f'<clipPath id="{p}cu"><path d="{up}"/></clipPath><clipPath id="{p}cl"><path d="{lo}"/></clipPath>')
     glass = (f'<g style="{an("gl")}"><path d="M-15,-25 H15 C15,-11 2.6,-5 2.6,0 C2.6,5 15,11 15,25 H-15 C-15,11 -2.6,5 -2.6,0 C-2.6,-5 -15,-11 -15,-25 Z" fill="#fff" fill-opacity=".28"/>'
-             f'<g clip-path="url(#{p}cu)"><rect x="-16" y="-26" width="32" height="26" fill="{a}" style="{an("st")}"/></g>'
-             f'<g clip-path="url(#{p}cl)"><path d="M-16,27 V21 L0,8 L16,21 V27 Z" fill="{a}" style="{an("sb")}"/></g>'
+             f'<g clip-path="url(#{p}cu)"><rect x="-16" y="-26" width="32" height="26" fill="{a}" style="transform:translateY(7px);{an("st")}"/></g>'
+             f'<g clip-path="url(#{p}cl)"><path d="M-16,27 V21 L0,6 L16,21 V27 Z" fill="{a}" style="{an("sb")}"/></g>'
              f'<line x1="0" y1="-1" x2="0" y2="21" stroke="{a}" stroke-width="1.5" style="{an("sm")}"/>'
              f'<path d="M-15,-25 H15 C15,-11 2.6,-5 2.6,0 C2.6,5 15,11 15,25 H-15 C-15,11 -2.6,5 -2.6,0 C-2.6,-5 -15,-11 -15,-25 Z" fill="none" stroke="{a}" stroke-opacity=".85" stroke-width="1.8"/></g>')
     caps = (f'<rect x="-19" y="-30" width="38" height="4.6" rx="2" fill="{cap}" style="{an("tc")}"/>'
@@ -662,32 +662,33 @@ def scene_transferencia(k, p):
     wx, wy, ww, wh = 88, 272, 212, 150
     hh = 96
     hx0 = 152
-    hole = [(hx0 - 10, wy - hh), (wx + ww, wy - hh), (wx + ww, wy), (hx0, wy)]
+    hole = [(hx0, wy - hh), (wx + ww, wy - hh), (wx + ww, wy), (hx0, wy)]
     h_logo = 36 if k["ar"] > 2.5 else 40
     interior, parede = _depot(k, wx, wy, ww, wh, hole, h_logo, 150)
-    boxes = (f'<rect x="{wx+ww-30}" y="{wy-34}" width="24" height="30" fill="#c9975b" fill-opacity=".9"/><rect x="{wx+ww-26}" y="{wy-52}" width="18" height="18" fill="#a97a44" fill-opacity=".9"/>')
+    portao = (f'<rect x="{hx0}" y="{wy-hh}" width="{wx+ww-hx0}" height="22" fill="{k["door"]}" fill-opacity=".95"/>'
+              + "".join(f'<line x1="{hx0}" x2="{wx+ww}" y1="{wy-hh+i*7}" y2="{wy-hh+i*7}" stroke="#000" stroke-opacity=".28"/>' for i in (1, 2, 3)) +
+              f'<rect x="{hx0}" y="{wy-hh+21}" width="{wx+ww-hx0}" height="3" fill="#000" fill-opacity=".35"/>')
     placa = (f'<rect x="367" y="176" width="3" height="58" fill="{k["ink"]}" fill-opacity=".5"/>'
              f'<rect x="350" y="160" width="36" height="22" rx="3" fill="{k["cab"]}" stroke="{k["accent"]}" stroke-width="1.6"/>'
              f'<path d="M357,171 H377 M371,165.5 L377,171 L371,176.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>')
     base = (130, VEH_Y, .8)
     kf = (f'<style>@keyframes {p}tr{{0%{{transform:{_tf(130,VEH_Y,.8,base)};opacity:0}}5%{{opacity:1}}12%{{transform:{_tf(130,VEH_Y,.8,base)}}}100%{{transform:{_tf(470,VEH_Y,.8,base)};opacity:1}}}}'
           f'@keyframes {p}wsp{{0%,12%{{transform:rotate(0)}}100%{{transform:rotate(2100deg)}}}}</style>')
-    s += (placa + interior + boxes + kf + f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})"><g style="animation:{p}tr {dur}s cubic-bezier(.4,0,.8,.6) infinite">'
-          + truck(k, p, 0, 0, 1.0, wheels=f"style:animation:{p}wsp {dur}s cubic-bezier(.4,0,.8,.6) infinite", beam=True) + '</g></g>' + parede)
+    s += (placa + interior + kf + f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})"><g style="animation:{p}tr {dur}s cubic-bezier(.4,0,.8,.6) infinite">'
+          + truck(k, p, 0, 0, 1.0, wheels=f"style:animation:{p}wsp {dur}s cubic-bezier(.4,0,.8,.6) infinite", beam=True) + '</g></g>' + parede + portao)
     s += operador(k, p, 58, ROAD_BOTTOM - 2, flip=False, dur=dur, at=14, sc=1.0)
     return frame(k, p, s, f"Pedido em transferencia entre unidades - {k['name']}")
 
 
 def scene_chegada(k, p):
-    """O caminhao chega, espera o operador conferir, o portao abre e ele entra no galpao (some atras da parede, pelo vao inclinado); o portao fecha."""
+    """O caminhao chega, espera o operador conferir, o portao abre e ele entra no galpao (some atras da parede, pelo vao); o portao fecha."""
     dur = 9.0
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "cheg")
     wx, wy, ww, wh = 196, 272, 198, 150
     hh = 96
-    hole = [(218, wy - hh), (340, wy - hh), (330, wy), (208, wy)]
+    hole = [(208, wy - hh), (340, wy - hh), (340, wy), (208, wy)]
     h_logo = 36 if k["ar"] > 2.5 else 40
     interior, parede = _depot(k, wx, wy, ww, wh, hole, h_logo, 132)
-    caixas = (f'<rect x="222" y="{wy-26}" width="24" height="24" fill="#c9975b"/><rect x="224" y="{wy-46}" width="18" height="20" fill="#a97a44"/>')
     base = (14, VEH_Y, .8)
     kf = (f'<style>@keyframes {p}tr{{0%{{transform:{_tf(-190,VEH_Y,.8,base)};animation-timing-function:cubic-bezier(.2,.7,.25,1)}}'
           f'24%{{transform:{_tf(14,VEH_Y,.8,base)};animation-timing-function:linear}}40%{{transform:{_tf(14,VEH_Y,.8,base)};animation-timing-function:ease-in-out}}'
@@ -696,7 +697,7 @@ def scene_chegada(k, p):
           f'40%{{transform:rotate(1000deg);animation-timing-function:ease-in-out}}62%,100%{{transform:rotate(1500deg)}}}}'
           f'@keyframes {p}gt{{0%,26%{{transform:scaleY(1)}}38%,72%{{transform:scaleY(.07)}}82%,100%{{transform:scaleY(1)}}}}'
           f'@keyframes {p}gi{{0%,28%{{opacity:0}}38%,72%{{opacity:1}}82%,100%{{opacity:0}}}}</style>')
-    s += (kf + interior + f'<g style="opacity:1;animation:{p}gi {dur}s ease-in-out infinite">{caixas}</g>'
+    s += (kf + interior + f'<g style="opacity:1;animation:{p}gi {dur}s ease-in-out infinite"><rect x="208" y="{wy-hh}" width="132" height="{hh}" fill="{k["door"]}" fill-opacity=".12"/></g>'
           f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})"><g style="animation:{p}tr {dur}s linear infinite">'
           + truck(k, p, 0, 0, 1.0, wheels=f"style:animation:{p}wsp {dur}s linear infinite") + '</g></g>'
           + rollgate(k, 208, wy - hh, 132, hh, f"transform:scaleY(.07);animation:{p}gt {dur}s ease-in-out infinite", op="1") + parede)
