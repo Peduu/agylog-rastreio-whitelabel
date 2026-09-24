@@ -295,9 +295,12 @@ def scene_preparacao(k, p):
     wx, wy, ww, wh = 6, GROUND + 2, 176, 132     # galpao em escala: porta > 2x a altura da caixa
     dw, dh = 104, 84
     dx = wx + ww / 2 - dw / 2
+    topo, porta_topo = wy - wh, wy - dh              # o logo fica centrado no vao entre o telhado e a porta
+    cy_logo, h_logo = (topo + porta_topo) / 2, 36
+    assert topo + 4 <= cy_logo - h_logo / 2 and cy_logo + h_logo / 2 <= porta_topo - 4, "logo do galpao colide com telhado/porta"
     s += (f'<rect x="{wx}" y="{wy-wh}" width="{ww}" height="{wh}" {wall(k)}/>'
           f'<polygon points="{wx-6},{wy-wh} {wx+ww+6},{wy-wh} {wx+ww},{wy-wh-18} {wx},{wy-wh-18}" fill="{k["ink"]}" fill-opacity=".26"/>'
-          + plate(k, wx + ww / 2, wy - wh + 36, 136, 40, r=5, bg=False) +
+          + plate(k, wx + ww / 2, cy_logo, 136, h_logo, r=5, bg=False) +
           f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="{dh}" fill="#000" fill-opacity=".78"/>'
           f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="10" fill="{k["accent"]}" fill-opacity=".92"/>'
           f'<line x1="{dx}" x2="{dx+dw}" y1="{wy-dh+5}" y2="{wy-dh+5}" stroke="#000" stroke-opacity=".28"/>')
@@ -330,9 +333,12 @@ def scene_devolucao(k, p):
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>"
     wx, wy, ww, wh = 6, GROUND + 2, 150, 132     # galpao em escala: porta maior que a pessoa (58 px)
     dw, dh = 78, 80
+    topo, porta_topo = wy - wh, wy - dh
+    cy_logo, h_logo = (topo + porta_topo) / 2, 38
+    assert topo + 4 <= cy_logo - h_logo / 2 and cy_logo + h_logo / 2 <= porta_topo - 4, "logo do galpao colide com telhado/porta"
     s += (f'<rect x="{wx}" y="{wy-wh}" width="{ww}" height="{wh}" {wall(k)}/>'
           f'<polygon points="{wx-6},{wy-wh} {wx+ww+6},{wy-wh} {wx+ww},{wy-wh-15} {wx},{wy-wh-15}" fill="{k["ink"]}" fill-opacity=".26"/>'
-          + plate(k, wx + ww / 2, wy - 100, 112, 34, bg=False) +
+          + plate(k, wx + ww / 2, cy_logo, 112, h_logo, bg=False) +
           f'<rect x="{wx+ww/2-dw/2}" y="{wy-dh}" width="{dw}" height="{dh}" fill="#000" fill-opacity=".72"/>'
           f'<rect x="{wx+ww/2-dw/2}" y="{wy-dh}" width="{dw}" height="7" fill="{k["accent"]}"/>')
     s += uturn_sign(k, p, 188, 88)
