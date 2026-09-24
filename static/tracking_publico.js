@@ -539,6 +539,11 @@ const _pageThemes = {
   const thirdPartyCard = document.getElementById('thirdPartyCard');
   const thirdPartyGrid = document.getElementById('thirdPartyGrid');
 
+  // Clientes com cenas SVG animadas (static/scenes/<cliente>.js, gerado por tools/scenes/build.py).
+  // Suba VERSAO_CENAS sempre que regenerar as cenas (invalida o cache do navegador).
+  const CLIENTES_COM_CENAS = ['panini', 'brb', 'inter', 'brbdux', 'tricard', 'pinbank', 'ip2w', 'caoa', 'ccxp'];
+  const VERSAO_CENAS = '20260924f';
+
   let pollTimer = null;
   let _ultimoDado = null;
 
@@ -894,7 +899,7 @@ const _pageThemes = {
     if (ccxpTreatment) { renderCcXpReenvioAnimation(statusVisualMedia); return; }
 
     const _cliente = detectClient();
-    if (_cliente === 'caoa' && !window.AgyScenes && !window.AgyScenesFalhou) return;
+    if (CLIENTES_COM_CENAS.includes(_cliente) && !window.AgyScenes && !window.AgyScenesFalhou) return;
     const _cena = window.AgyScenes && window.AgyScenes[_cliente] && window.AgyScenes[_cliente][status];
     if (_cena) {
       const chave = `${_cliente}:${status}`;
@@ -1292,9 +1297,9 @@ const _pageThemes = {
   const _clientSlug = detectClient();
   if (_clientSlug) {
     applyClientTheme(_clientSlug);
-    if (_clientSlug === 'caoa') {
+    if (CLIENTES_COM_CENAS.includes(_clientSlug)) {
       const _sc = document.createElement('script');
-      _sc.src = '/static/scenes/caoa.js?v=20260924e';
+      _sc.src = `/static/scenes/${_clientSlug}.js?v=${VERSAO_CENAS}`;
       _sc.onload = () => { if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
       _sc.onerror = () => { window.AgyScenesFalhou = true; if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
       document.head.appendChild(_sc);

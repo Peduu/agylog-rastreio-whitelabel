@@ -14,7 +14,7 @@ import sys
 
 import numpy as np
 from PIL import Image, ImageFilter
-from scipy.ndimage import gaussian_filter, gaussian_filter1d
+from scipy.ndimage import binary_dilation, distance_transform_edt, gaussian_filter, gaussian_filter1d
 from skimage import measure
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -253,8 +253,8 @@ def _caminho(p, quinas):
     return d_out + "Z"
 
 
-def _contornos(cov):
-    campo = np.pad(gaussian_filter(cov.astype(float), SIGMA), 2)
+def _contornos(cov, sigma=SIGMA):
+    campo = np.pad(gaussian_filter(cov.astype(float), sigma), 2)
     partes = []
     for c in measure.find_contours(campo, .5):
         pts = _reamostrar(np.column_stack([c[:, 1] - 2 + .5, c[:, 0] - 2 + .5]))     # (x, y), centro do pixel
@@ -265,34 +265,61 @@ def _contornos(cov):
     return "".join(partes)
 
 
-def vetorizar(png, cores):
-    """cores: lista de (hex, funcao(rgb)->bool) que reconhece cada cor nos pixels cheios (alpha > 90%). Retorna (largura, altura, [(hex, d), ...])."""
+ALVO_LARG = 700      # largura de trabalho (px): todos os logos sao normalizados para ela antes de vetorizar
+
+
+def _hex(rgb):
+    return "#%02X%02X%02X" % tuple(int(round(v)) for v in rgb)
+
+
+def vetorizar(png, paleta, opcoes=None):
+    """paleta: cores aproximadas (RGB) na ordem de pintura; a primeira e a base (sua camada e a silhueta inteira, para nao haver frestas entre
+    cores). Cada pixel cheio (alpha >= 75%) vai para a cor mais proxima; pixels de borda herdam a cor do pixel cheio mais proximo.
+    Retorna (largura, altura, [(hex, d), ...]) na largura de trabalho."""
     im = Image.open(png).convert("RGBA")
-    w, h = im.size
+    w0, h0 = im.size
     a = np.array(im).astype(float)
     alpha = a[:, :, 3] / 255
-    rgb = a[:, :, :3].astype(int)
-    cheio = alpha > .9
-    zonas = []
-    for _, sel in cores:                                               # zona de cada cor = pixels cheios da cor, engordados 4 px
-        z = Image.fromarray(((cheio & sel(rgb)) * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(9))
-        zonas.append(np.array(z) > 0)
+    rgb = a[:, :, :3]
+    if opcoes and "alpha" in opcoes:                                    # logo sobre fundo liso (sem transparencia): a cobertura sai da cor
+        alpha = opcoes["alpha"](rgb)
+    cheio = alpha >= .75
+    pal = np.array(paleta, float)
+    cls = np.argmin(((rgb[:, :, None, :] - pal[None, None, :, :]) ** 2).sum(axis=3), axis=2)
+    _, idx = distance_transform_edt(~cheio, return_indices=True)        # pixel cheio mais proximo (para as bordas)
+    cls = cls[idx[0], idx[1]]
+    ys, xs = np.where(alpha >= .5)                                      # recorta a margem transparente: o simbolo tem so o logo
+    y0, y1, x0, x1 = max(ys.min() - 1, 0), min(ys.max() + 2, h0), max(xs.min() - 1, 0), min(xs.max() + 2, w0)
+    alpha, cls, rgb, cheio = alpha[y0:y1, x0:x1], cls[y0:y1, x0:x1], rgb[y0:y1, x0:x1], cheio[y0:y1, x0:x1]
+    h0, w0 = alpha.shape
+    esc = ALVO_LARG / w0
+    w, h = ALVO_LARG, max(1, int(round(h0 * esc)))
+    sigma = max(SIGMA, .75 * esc)
+    cores = [_hex(np.median(rgb[cheio & (cls == i)], axis=0)) if (cheio & (cls == i)).any() else _hex(pal[i]) for i in range(len(pal))]
+    base = cls == 0
+    perto = binary_dilation(base, iterations=2)
     saida = []
-    for i, (hexa, _) in enumerate(cores):
-        outras = np.zeros_like(zonas[0])
-        for j, z in enumerate(zonas):
-            if j != i:
-                outras |= z
-        dono = zonas[i] & ~(outras & ~zonas[i])
-        saida.append((hexa, _contornos((alpha * dono).astype(np.float32))))
+    for i in range(len(pal)):
+        if i == 0:
+            cov = alpha * (base | ((cls != 0) & perto))                 # base tambem por baixo das vizinhas que a tocam
+        else:
+            cov = alpha * (cls == i)
+        cov = np.array(Image.fromarray((cov * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC), dtype=np.float32) / 255
+        d = _contornos(cov, sigma)
+        if d:
+            saida.append((cores[i], d))
     return w, h, saida
 
 
 CLIENTES = {
-    "caoa": ("static/logos/logo-caoa.png", [
-        ("#0E0149", lambda c: (c.sum(axis=2) < 330)),                    # azul-marinho das letras
-        ("#67C998", lambda c: c[:, :, 1] > c[:, :, 0] + 60),             # verde dos acentos
-    ]),
+    "caoa": ("static/logos/logo-caoa.png", [(14, 1, 73), (103, 201, 152)]),
+    "brb": ("static/logos/logo-brb-card-trim.png", [(252, 252, 252), (16, 181, 229)]),
+    "brbdux": ("static/logos/logo-brbdux-trim.png", [(252, 252, 252)]),
+    "inter": ("static/logos/logo-inter.png", [(255, 255, 255)], {"alpha": lambda c: np.clip(c[:, :, 2] / 255, 0, 1)}),   # so o "inter" branco (o laranja e o fundo)
+    "tricard": ("static/logos/logo-tricard-header-white.png", [(252, 252, 252), (72, 232, 200)]),
+    "pinbank": ("static/logos/logo-pinbank.png", [(245, 166, 35), (0, 229, 255)]),
+    "ip2w": ("static/logos/logo-ip2w.png", [(252, 252, 252), (62, 207, 192)]),
+    "ccxp": ("static/logos/logo-ccxp.png", [(252, 252, 252), (227, 55, 129)]),
 }
 
 if __name__ == "__main__":
@@ -303,8 +330,8 @@ if __name__ == "__main__":
         exec(open(alvo, encoding="utf-8").read(), ns)
         dados = ns.get("LOGOS", {})
     for nome in (sys.argv[1:] or CLIENTES):
-        arq, cores = CLIENTES[nome]
-        w, h, caminhos = vetorizar(os.path.join(RAIZ, arq), cores)
+        arq, paleta, *resto = CLIENTES[nome]
+        w, h, caminhos = vetorizar(os.path.join(RAIZ, arq), paleta, resto[0] if resto else None)
         dados[nome] = dict(w=w, h=h, paths=caminhos)
         print(nome, w, h, [len(d) for _, d in caminhos], "bytes de caminho")
     with open(alvo, "w", encoding="utf-8", newline="\n") as f:

@@ -23,41 +23,48 @@ def _crop(x, y, w, h, W, H):
 
 KITS = {
     "panini": dict(name="Panini", pfx="pa", dark=True, panel="#110500", ink="#FFE9A8", accent="#CC0000", onAccent="#FFFFFF",
-                   body="#CC0000", cab="#B30000", stripe="#FFD600", plate=None, logo="/static/logos/logo-panini.png?v=2",
-                   ar=2000 / 470, prop="packs", glow="#FFD600", sky="fill", door="#FFD600", seal="#FFD600", sealInk="#7a0000"),
+                   body="#CC0000", bodyStroke="#8f0000", cab="#8f0000", stripe="#FFD600", plate=None,
+                   wall="#B30000", wallOp=".96", wallStroke="#FFD600",
+                   logo="/static/logos/logo-panini-cena.png", logo_s="/static/logos/logo-panini-cena-s.png", ar=2000 / 470,
+                   prop="packs", glow="#FFD600", sky="fill", door="#FFD600", seal="#FFD600", sealInk="#7a0000", signFill="#CC0000"),
     "brb": dict(name="BRB", pfx="bb", dark=True, panel="#0d111a", ink="#BBD4FF", accent="#4d9fff", onAccent="#FFFFFF",
-                body="#0d2f6e", bodyStroke="#2f6fd6", cab="#071c47", stripe="#4d9fff", plate="#000000", plateStroke="#4d9fff",
-                wall="#0d2f6e", wallOp=".96", wallStroke="#2f6fd6", logo="/static/logos/logo-brb.png?v=2", blend=True,
-                prop="cards", glow="#4d9fff", sky="fill", door="#4d9fff", **_crop(70, 171, 387, 173, 512, 512)),
+                body="#0d2f6e", bodyStroke="#2f6fd6", cab="#071c47", stripe="#4d9fff", plate="#0d2f6e", plateStroke="#4d9fff",
+                wall="#0d2f6e", wallOp=".96", wallStroke="#2f6fd6", vetor="brb", ar=700 / 452,
+                prop="cards", glow="#4d9fff", sky="fill", door="#4d9fff", signFill="#1f6fd0"),
     "inter": dict(name="Inter", pfx="in", dark=True, panel="#110500", ink="#FFD9B8", accent="#FF7A00", onAccent="#FFFFFF",
-                  body="#F6EFE8", bodyStroke="#e2d2c2", cab="#FF7A00", stripe="#FF7A00", plate=None,
-                  wall="#F6EFE8", wallOp=".92", wallStroke="#e2d2c2", logo="/static/logos/logo-inter.png?v=2", ar=370 / 260,
-                  prop="cards", glow="#FF7A00", sky="fill", door="#FF7A00"),
-    "brbdux": dict(name="BRB DUX", pfx="bd", dark=True, panel="#000000", ink="#FFFFFF", accent="#FFFFFF", onAccent="#0b0b0e",
+                  body="#FF7A00", bodyStroke="#ffa24d", cab="#a84a00", stripe="#FFD9B8", plate="#FF7A00", plateStroke="#ffb56b",
+                  wall="#FF7A00", wallOp=".96", wallStroke="#ffa24d", vetor="inter", ar=700 / 181,
+                  prop="cards", glow="#FF7A00", sky="fill", door="#8a3c00", signFill="#e56a00"),
+    "brbdux": dict(name="BRB DUX", pfx="bd", dark=True, panel="#000000", ink="#FFFFFF", accent="#E8E8EE", onAccent="#0b0b0e",
                    body="#15151a", bodyStroke="#5a5a64", cab="#0a0a0d", stripe="#FFFFFF", plate="#000000", plateStroke="#FFFFFF",
-                   wall="#0f0f13", wallOp=".97", wallStroke="#6a6a74", logo="/static/logos/logo-brbdux.png", blend=True,
-                   prop=None, glow="#FFFFFF", sky="fill", door="#b8b8c2", signFill="#2b2b31", **_crop(93, 164, 326, 207, 512, 512)),
+                   wall="#0f0f13", wallOp=".97", wallStroke="#6a6a74", vetor="brbdux", ar=700 / 430,
+                   prop=None, glow="#FFFFFF", sky="fill", door="#b8b8c2", signFill="#2b2b31"),
     "tricard": dict(name="Tricard", pfx="tr", dark=True, panel="#0d111a", ink="#B7E9E1", accent="#00B8A0", onAccent="#FFFFFF",
                     body="#1B3F7A", bodyStroke="#2a58a6", cab="#132E5C", stripe="#00B8A0", plate="#1B3F7A", plateStroke="#00B8A0",
-                    wall="#1B3F7A", wallOp=".96", wallStroke="#2a58a6", logo="/static/logos/logo-tricard-header-white.png",
-                    prop="cards", glow="#00B8A0", sky="fill", door="#00B8A0", **_crop(40, 40, 1279, 391, 1359, 471)),
+                    wall="#1B3F7A", wallOp=".96", wallStroke="#2a58a6", vetor="tricard", ar=700 / 207,
+                    prop="cards", glow="#00B8A0", sky="fill", door="#00B8A0", signFill="#00937f"),
     "pinbank": dict(name="PinBank", pfx="pb", dark=True, panel="#0d111a", ink="#FFE2B0", accent="#F5A623", onAccent="#1a1206",
                     body="#1f2b45", bodyStroke="#3a4a70", cab="#111827", stripe="#F5A623", plate="#111827", plateStroke="#F5A623",
-                    wall="#1a2338", wallOp=".96", wallStroke="#3a4a70", logo="/static/logos/logo-pinbank.png",
-                    prop="cards", glow="#F5A623", sky="fill", door="#F5A623", signFill="#D9800F", **_crop(105, 42, 391, 125, 600, 202)),
+                    wall="#1a2338", wallOp=".96", wallStroke="#3a4a70", vetor="pinbank", ar=700 / 201,
+                    prop="cards", glow="#F5A623", sky="fill", door="#F5A623", signFill="#D9800F"),
     "ip2w": dict(name="IP2W", pfx="ip", dark=True, panel="#0d111a", ink="#BFF3EC", accent="#3ECFC0", onAccent="#06302c",
                  body="#14283f", bodyStroke="#2b4a6b", cab="#0a1624", stripe="#3ECFC0", plate="#0d1b2a", plateStroke="#3ECFC0",
-                 wall="#13263b", wallOp=".96", wallStroke="#2b4a6b", logo="/static/logos/logo-ip2w.png?v=1", ar=925 / 408,
+                 wall="#13263b", wallOp=".96", wallStroke="#2b4a6b", vetor="ip2w", ar=700 / 309,
                  prop=None, glow="#3ECFC0", sky="fill", door="#3ECFC0", signFill="#1f9e92"),
     "caoa": dict(name="CAOA", pfx="ca", dark=False, panel="#eef0f6", ink="#100c5a", accent="#5dba8d", onAccent="#FFFFFF",
                  body="#FFFFFF", bodyStroke="#c9cee0", cab="#100c5a", wall="#FFFFFF", wallOp=".92", wallStroke="#c9cee0",
-                 stripe="#5dba8d", plate="#FFFFFF", plateStroke="#d5d8e6", logo="/static/logos/logo-caoa.png?v=1", ar=698 / 198,
+                 stripe="#5dba8d", plate="#FFFFFF", plateStroke="#d5d8e6", ar=698 / 198,
                  prop="car", glow="#5dba8d", sky="fill", door="#5dba8d", vetor="caoa"),
     "ccxp": dict(name="CCXP 26", pfx="cx", dark=True, panel="#000000", ink="#FFFFFF", accent="#E33781", onAccent="#FFFFFF",
                  body="#17171d", cab="#101015", stripe="#E33781", plate="#000000", plateStroke="#E33781",
-                 logo="/static/logos/logo-ccxp.png?v=1", blend=True, prop="spot", glow="#E33781", sky="outline", door="#E33781",
-                 neon=True, wall="#0b0b10", wallOp=".95", wallStroke="#E33781", **_crop(4, 5, 539, 125, 545, 140)),
+                 vetor="ccxp", ar=700 / 155, prop="spot", glow="#E33781", sky="outline", door="#E33781",
+                 neon=True, wall="#0b0b10", wallOp=".95", wallStroke="#E33781"),
 }
+
+for _k in KITS.values():                       # com logo em vetor, a proporcao vem do proprio vetor
+    _v = LOGOS_VETOR.get(_k.get("vetor"))
+    if _v:
+        _k["ar"] = _v["w"] / _v["h"]
 
 # O CCXP trata os status de problema com a animacao de reenvio propria (resolveCcXpTreatment no front): nao ganha essas cenas.
 SEM_CENA = {"ccxp": {"atencao", "devolucao", "devolvido"}}
@@ -209,12 +216,13 @@ def logo_img(k, x, y, w, h):
     if k.get("vetor") and k["vetor"] in LOGOS_VETOR:
         return f'<use href="#{k["lgid"]}" x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}"/>'
     blend = ' style="mix-blend-mode:screen"' if k.get("blend") else ""
+    src = k["logo_s"] if k.get("logo_s") and w < 80 else k["logo"]
     c = k.get("crop")
     if c:
         sx, sy, sw, sh, W, H = c
         return (f'<svg x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}" viewBox="{sx} {sy} {sw} {sh}" '
                 f'preserveAspectRatio="xMidYMid meet" overflow="hidden"{blend}><image href="{k["logo"]}" width="{W}" height="{H}"/></svg>')
-    return f'<image href="{k["logo"]}" x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}" preserveAspectRatio="xMidYMid meet"{blend}/>'
+    return f'<image href="{src}" x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}" preserveAspectRatio="xMidYMid meet"{blend}/>'
 
 
 def simbolo_logo(k):
