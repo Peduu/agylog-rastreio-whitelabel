@@ -56,7 +56,7 @@ CSS = """
 .__P__lift{animation:__P__lift 4s ease-in-out infinite}
 @keyframes __P__lift{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.25)}}
 .__P__walk{animation:__P__walk 6s ease-in-out infinite}
-@keyframes __P__walk{0%,4%{transform:translateX(0);opacity:0}12%{opacity:1}80%{transform:translateX(-96px);opacity:1}92%,100%{transform:translateX(-104px);opacity:0}}
+@keyframes __P__walk{0%,4%{transform:translateX(0);opacity:0}12%{opacity:1}80%{transform:translateX(-122px);opacity:1}92%,100%{transform:translateX(-132px);opacity:0}}
 .__P__swing{animation:__P__swing 3.6s ease-in-out infinite}
 @keyframes __P__swing{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
 .__P__draw{stroke-dasharray:100;animation:__P__draw 3.4s ease-in-out infinite}
@@ -292,14 +292,15 @@ def scene_atencao(k, p):
 def scene_preparacao(k, p):
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + f'<rect x="0" y="{GROUND}" width="400" height="{ROAD_BOTTOM-GROUND}" fill="{k["ink"]}" fill-opacity=".10"/>' + "</g>"
     s += props_ambient(k, p, "prep")
-    wx, wy, ww = 6, GROUND + 2, 128
-    dx, dw = wx + ww / 2 - 32, 64
-    s += (f'<rect x="{wx}" y="{wy-92}" width="{ww}" height="92" {wall(k)}/>'
-          f'<polygon points="{wx-6},{wy-92} {wx+ww+6},{wy-92} {wx+ww},{wy-108} {wx},{wy-108}" fill="{k["ink"]}" fill-opacity=".26"/>'
-          + plate(k, wx + ww / 2, wy - 76, 100, 32, r=5, bg=False) +
-          f'<rect x="{dx}" y="{wy-46}" width="{dw}" height="46" fill="#000" fill-opacity=".78"/>'
-          f'<rect x="{dx}" y="{wy-46}" width="{dw}" height="9" fill="{k["accent"]}" fill-opacity=".92"/>'
-          f'<line x1="{dx}" x2="{dx+dw}" y1="{wy-41.5}" y2="{wy-41.5}" stroke="#000" stroke-opacity=".28"/>')
+    wx, wy, ww, wh = 6, GROUND + 2, 176, 132     # galpao em escala: porta > 2x a altura da caixa
+    dw, dh = 104, 84
+    dx = wx + ww / 2 - dw / 2
+    s += (f'<rect x="{wx}" y="{wy-wh}" width="{ww}" height="{wh}" {wall(k)}/>'
+          f'<polygon points="{wx-6},{wy-wh} {wx+ww+6},{wy-wh} {wx+ww},{wy-wh-18} {wx},{wy-wh-18}" fill="{k["ink"]}" fill-opacity=".26"/>'
+          + plate(k, wx + ww / 2, wy - wh + 36, 136, 40, r=5, bg=False) +
+          f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="{dh}" fill="#000" fill-opacity=".78"/>'
+          f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="10" fill="{k["accent"]}" fill-opacity=".92"/>'
+          f'<line x1="{dx}" x2="{dx+dw}" y1="{wy-dh+5}" y2="{wy-dh+5}" stroke="#000" stroke-opacity=".28"/>')
     by, bdx, bdy = 226, 16, -14          # bdx/bdy: profundidade da esteira (mesma perspectiva das caixas e do arco)
     x0 = dx + 4
     pernas = [150 + i * 60 for i in range(4)]
@@ -327,13 +328,14 @@ def scene_preparacao(k, p):
 
 def scene_devolucao(k, p):
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>"
-    wx, wy, ww = 6, GROUND + 2, 150
-    s += (f'<rect x="{wx}" y="{wy-98}" width="{ww}" height="98" {wall(k)}/>'
-          f'<polygon points="{wx-6},{wy-98} {wx+ww+6},{wy-98} {wx+ww},{wy-113} {wx},{wy-113}" fill="{k["ink"]}" fill-opacity=".26"/>'
-          + plate(k, wx + ww / 2, wy - 72, 108, 32, bg=False) +
-          f'<rect x="{wx+ww/2-34}" y="{wy-46}" width="68" height="46" fill="#000" fill-opacity=".72"/>'
-          f'<rect x="{wx+ww/2-34}" y="{wy-46}" width="68" height="6" fill="{k["accent"]}"/>')
-    s += uturn_sign(k, p, 182, 88)
+    wx, wy, ww, wh = 6, GROUND + 2, 150, 132     # galpao em escala: porta maior que a pessoa (58 px)
+    dw, dh = 78, 80
+    s += (f'<rect x="{wx}" y="{wy-wh}" width="{ww}" height="{wh}" {wall(k)}/>'
+          f'<polygon points="{wx-6},{wy-wh} {wx+ww+6},{wy-wh} {wx+ww},{wy-wh-15} {wx},{wy-wh-15}" fill="{k["ink"]}" fill-opacity=".26"/>'
+          + plate(k, wx + ww / 2, wy - 100, 112, 34, bg=False) +
+          f'<rect x="{wx+ww/2-dw/2}" y="{wy-dh}" width="{dw}" height="{dh}" fill="#000" fill-opacity=".72"/>'
+          f'<rect x="{wx+ww/2-dw/2}" y="{wy-dh}" width="{dw}" height="7" fill="{k["accent"]}"/>')
+    s += uturn_sign(k, p, 188, 88)
     s += truck(k, p, 214, VEH_Y, .86, wheels=False)
     s += f'<polygon points="212,{VEH_Y-22} 186,{VEH_Y} 194,{VEH_Y} 218,{VEH_Y-18}" fill="#3a3e4a"/>'
     s += walker(k, p, 214, GROUND + 14)
