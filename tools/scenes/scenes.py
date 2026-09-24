@@ -4,8 +4,16 @@ Cada cliente e um "kit" (cores, logo, personalidade). As cenas sao as mesmas par
 """
 
 import math
+import os
 import random
 import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from logos_vetor import LOGOS as LOGOS_VETOR  # logos em vetor (nitidos em qualquer tamanho); gerados por vetorizar_logo.py
+except ImportError:
+    LOGOS_VETOR = {}
 
 
 def _crop(x, y, w, h, W, H):
@@ -44,7 +52,7 @@ KITS = {
     "caoa": dict(name="CAOA", pfx="ca", dark=False, panel="#eef0f6", ink="#100c5a", accent="#5dba8d", onAccent="#FFFFFF",
                  body="#FFFFFF", bodyStroke="#c9cee0", cab="#100c5a", wall="#FFFFFF", wallOp=".92", wallStroke="#c9cee0",
                  stripe="#5dba8d", plate="#FFFFFF", plateStroke="#d5d8e6", logo="/static/logos/logo-caoa.png?v=1", ar=698 / 198,
-                 prop="car", glow="#5dba8d", sky="fill", door="#5dba8d"),
+                 prop="car", glow="#5dba8d", sky="fill", door="#5dba8d", vetor="caoa"),
     "ccxp": dict(name="CCXP 26", pfx="cx", dark=True, panel="#000000", ink="#FFFFFF", accent="#E33781", onAccent="#FFFFFF",
                  body="#17171d", cab="#101015", stripe="#E33781", plate="#000000", plateStroke="#E33781",
                  logo="/static/logos/logo-ccxp.png?v=1", blend=True, prop="spot", glow="#E33781", sky="outline", door="#E33781",
@@ -161,7 +169,7 @@ def frame(k, p, inner, label, defs=""):
             f'<linearGradient id="{p}fadeg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".07" stop-color="#fff"/><stop offset=".93" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>'
             f'<mask id="{p}fade"><rect width="400" height="300" fill="url(#{p}fadeg)"/></mask>'
             f'<linearGradient id="{p}spotA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{k["accent"]}" stop-opacity=".42"/>'
-            f'<stop offset="1" stop-color="{k["accent"]}" stop-opacity="0"/></linearGradient>{defs}</defs>'
+            f'<stop offset="1" stop-color="{k["accent"]}" stop-opacity="0"/></linearGradient>{simbolo_logo(k)}{defs}</defs>'
             f'<rect width="400" height="300" fill="url(#{p}glow)"/>{inner}</svg>')
 
 
@@ -196,7 +204,10 @@ def road(k, p, moving=True, cy=None):
 
 
 def logo_img(k, x, y, w, h):
-    """Logo do cliente numa area x,y,w,h (com recorte e mistura 'screen' quando o arquivo tem fundo preto)."""
+    """Logo do cliente numa area x,y,w,h. Vetor (<use> do simbolo da cena) quando o cliente tem; senao a imagem (com recorte e mistura
+    'screen' quando o arquivo tem fundo preto)."""
+    if k.get("vetor") and k["vetor"] in LOGOS_VETOR:
+        return f'<use href="#{k["lgid"]}" x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}"/>'
     blend = ' style="mix-blend-mode:screen"' if k.get("blend") else ""
     c = k.get("crop")
     if c:
@@ -206,8 +217,16 @@ def logo_img(k, x, y, w, h):
     return f'<image href="{k["logo"]}" x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}" preserveAspectRatio="xMidYMid meet"{blend}/>'
 
 
-def plate(k, cx, cy, w, h, unflip=False, r=4, bg=True):
-    pad = 3
+def simbolo_logo(k):
+    """<symbol> com o logo em vetor (uma copia por cena; as demais partes usam <use>)."""
+    v = LOGOS_VETOR.get(k.get("vetor"))
+    if not v:
+        return ""
+    paths = "".join(f'<path fill="{c}" fill-rule="evenodd" d="{d}"/>' for c, d in v["paths"])
+    return f'<symbol id="{k["lgid"]}" viewBox="0 0 {v["w"]} {v["h"]}" preserveAspectRatio="xMidYMid meet">{paths}</symbol>'
+
+
+def plate(k, cx, cy, w, h, unflip=False, r=4, bg=True, pad=3):
     iw, ih = w - 2 * pad, h - 2 * pad
     lw, lh = (ih * k["ar"], ih) if iw / ih > k["ar"] else (iw, iw / k["ar"])
     s = ""
@@ -317,7 +336,7 @@ def courier(k, p, x, y, knock=True):
     return (f'<g transform="translate({x},{y})"><rect x="-6" y="-16" width="5" height="16" fill="#2a2f3a"/><rect x="1" y="-16" width="5" height="16" fill="#2a2f3a"/>'
             f'<rect x="-9" y="-40" width="18" height="26" rx="5" fill="{k["accent"]}"/><circle cx="0" cy="-47" r="7" fill="#f0c9a6"/>'
             f'<path d="M-7,-49 A7,7 0 0 1 7,-49 L9,-49 L-7,-49Z" fill="{k["cab"] if k["dark"] else k["body"]}"/>{arm}'
-            f'<g transform="translate(-24,-32)"><rect width="22" height="17" rx="2" fill="#c9975b"/><rect x="9" width="4" height="17" fill="#e6c48f"/></g></g>')
+            f'<g transform="translate(-32,-14) scale(.58)">{box(k, p, 0, 0)}</g></g>')
 
 
 def bubble(k, p, cx, cy):
@@ -342,12 +361,11 @@ def props_ambient(k, p, scene):
 
 
 def box(k, p, x, y, w=54, h=40):
-    lw, lh = 40, 21
     return (f'<g transform="translate({x},{y})"><rect x="0" y="{-h}" width="{w}" height="{h}" fill="#c9975b"/>'
             f'<polygon points="0,{-h} 9,{-h-10} {w+9},{-h-10} {w},{-h}" fill="#e2bb86"/>'
             f'<polygon points="{w},{-h} {w+9},{-h-10} {w+9},-10 {w},0" fill="#a97a44"/>'
             f'<rect x="{w/2-5}" y="{-h}" width="10" height="{h}" fill="#e6c48f" fill-opacity=".85"/>'
-            + plate(k, w / 2, -h / 2 + 2, lw, lh, r=3) + '</g>')
+            + plate(k, w / 2, -h / 2 + 2, w * .88, h * .52, r=3, pad=2) + '</g>')
 
 
 def circ_arrow(R=13.5, a0=150, a1=-100, head=10.5, hw=7.2):
@@ -659,8 +677,8 @@ def scene_aguardando(k, p):
           f'<polygon points="0,{-bh} {dx},{-bh-dy} {bw+dx},{-bh-dy} {bw},{-bh}" fill="#e2bb86"/>'
           f'<polygon points="{bw},{-bh} {bw+dx},{-bh-dy} {bw+dx},{-dy} {bw},0" fill="#a97a44"/>'
           f'<polygon points="{bw*.30},{-bh} {bw*.30+dx},{-bh-dy} {bw*.30+dx+14},{-bh-dy} {bw*.30+14},{-bh}" fill="#e6c48f" fill-opacity=".9"/>'
-          + plate(k, 40, -bh / 2, 64, 34, r=3) +
-          f'<g transform="translate(78,{-bh+14})"><g class="{p}drop"><rect width="28" height="38" rx="2.5" fill="#fff" stroke="#00000022"/>'
+          + plate(k, 42, -bh / 2, 72, 40, r=3, pad=2) +
+          f'<g transform="translate(80,{-bh+14})"><g class="{p}drop"><rect width="28" height="38" rx="2.5" fill="#fff" stroke="#00000022"/>'
           f'<rect x="4" y="4" width="9" height="9" fill="{k["accent"]}"/><rect x="16" y="5" width="8" height="2" fill="#2b2f3a"/><rect x="16" y="9" width="8" height="2" fill="#2b2f3a"/>'
           + "".join(f'<rect x="{4+i*3.1:.1f}" y="18" width="{1 if i%3 else 2}" height="16" fill="#1c202b"/>' for i in range(8)) +
           f'</g></g>'
@@ -794,7 +812,7 @@ def scene_devolvido(k, p):
           f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="80" fill="{k["door"]}" fill-opacity=".10"/>'
           f'<rect x="{dx+18}" y="{wy-10}" width="{dw-36}" height="7" rx="1.5" fill="{k["ink"]}" fill-opacity=".34"/>'
           f'<g class="{p}bob">{box(k, p, dx+dw/2-33, wy-8, 66, 48)}</g>' + kf +
-          rollgate(k, dx, wy - dh, dw, dh, f"transform:scaleY(1);animation:{p}gt {dur}s ease-in-out infinite") +
+          rollgate(k, dx, wy - dh, dw, dh, f"transform:scaleY(1);animation:{p}gt {dur}s ease-in-out infinite", op="1") +
           f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="7" fill="{k["door"]}"/>')
     s += operador(k, p, 46, GROUND + 16, flip=False, dur=dur, at=40, sc=.95)
     s += seal(k, p, wx + ww - 4, wy - wh - 6, 24, dur=dur, at=6, t0=8, t1=40, out=84)
@@ -897,4 +915,9 @@ def prefixo(client, sid):
 def scenes_for(client):
     """{status: svg} do cliente (sem os status que o cliente trata a parte)."""
     kit, skip = KITS[client], SEM_CENA.get(client, set())
-    return {sid: fn(kit, prefixo(client, sid)) for sid, fn in SCENE_FUNCS.items() if sid not in skip}
+    out = {}
+    for sid, fn in SCENE_FUNCS.items():
+        if sid not in skip:
+            p = prefixo(client, sid)
+            out[sid] = fn(dict(kit, lgid=p + "lg"), p)
+    return out
