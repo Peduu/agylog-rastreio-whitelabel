@@ -540,6 +540,7 @@ const _pageThemes = {
   const thirdPartyGrid = document.getElementById('thirdPartyGrid');
 
   let pollTimer = null;
+  let _ultimoDado = null;
 
   const STATUS_THEME = {
     aguardando_postagem: 'violet',
@@ -893,6 +894,7 @@ const _pageThemes = {
     if (ccxpTreatment) { renderCcXpReenvioAnimation(statusVisualMedia); return; }
 
     const _cliente = detectClient();
+    if (_cliente === 'caoa' && !window.AgyScenes && !window.AgyScenesFalhou) return;
     const _cena = window.AgyScenes && window.AgyScenes[_cliente] && window.AgyScenes[_cliente][status];
     if (_cena) {
       const chave = `${_cliente}:${status}`;
@@ -1120,6 +1122,7 @@ const _pageThemes = {
   }
 
   function applyStatusVisuals(data) {
+    _ultimoDado = data;
     const ccxpTreatment = resolveCcXpTreatment(data);
     statusPill.className = ccxpTreatment
       ? 'status-pill'
@@ -1291,7 +1294,9 @@ const _pageThemes = {
     applyClientTheme(_clientSlug);
     if (_clientSlug === 'caoa') {
       const _sc = document.createElement('script');
-      _sc.src = '/static/scenes/caoa.js?v=20260924';
+      _sc.src = '/static/scenes/caoa.js?v=20260924b';
+      _sc.onload = () => { if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
+      _sc.onerror = () => { window.AgyScenesFalhou = true; if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
       document.head.appendChild(_sc);
     }
     // Pre-fill code from URL: /tracking/SLUG/CODE

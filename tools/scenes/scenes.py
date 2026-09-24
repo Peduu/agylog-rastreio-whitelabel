@@ -303,10 +303,16 @@ def scene_preparacao(k, p):
     by = 226
     s += (f'<rect x="{dx+4}" y="{by}" width="{400-dx-4}" height="10" rx="5" fill="#2a2d36"/><line class="{p}dash" x1="{dx+8}" x2="400" y1="{by+5}" y2="{by+5}" stroke="#666b78" stroke-width="2"/>'
           + "".join(f'<rect x="{150+i*60}" y="{by+10}" width="6" height="{ROAD_BOTTOM-by-10}" fill="#2a2d36"/>' for i in range(4)))
-    s += (f'<g transform="translate(262,{by})"><rect x="-30" y="-78" width="6" height="78" fill="#3a3e4a"/><rect x="30" y="-78" width="6" height="78" fill="#3a3e4a"/>'
-          f'<rect x="-30" y="-84" width="66" height="8" rx="3" fill="#3a3e4a"/><rect class="{p}tw" x="-24" y="-74" width="54" height="2.4" fill="{k["accent"]}" style="animation-duration:1.4s"/></g>')
+    sx = 262
+    # arco em duas camadas: a de tras fica ATRAS das caixas e a da frente POR CIMA delas, para a caixa passar por dentro
+    s += (f'<g transform="translate({sx+9},{by-7})"><rect x="-30" y="-78" width="6" height="78" fill="#2c303b"/><rect x="30" y="-78" width="6" height="78" fill="#2c303b"/>'
+          f'<rect x="-30" y="-84" width="66" height="8" rx="3" fill="#2c303b"/></g>'
+          f'<polygon points="{sx-30},{by-84} {sx-21},{by-91} {sx+45},{by-91} {sx+36},{by-84}" fill="#4a4f5c"/>'
+          f'<rect x="{sx-24}" y="{by-78}" width="54" height="78" fill="#000" fill-opacity=".14"/>')
     for d in (0, -2.2, -4.4):
         s += (f'<g transform="translate({dx+6},{by})"><g style="animation:{p}belt 6.6s linear infinite;animation-delay:{d}s">{box(k, p, 0, 0)}</g></g>')
+    s += (f'<g transform="translate({sx},{by})"><rect x="-30" y="-78" width="6" height="78" fill="#3f4451"/><rect x="30" y="-78" width="6" height="78" fill="#3f4451"/>'
+          f'<rect x="-30" y="-84" width="66" height="8" rx="3" fill="#3f4451"/><rect class="{p}tw" x="-24" y="-74" width="54" height="2.4" fill="{k["accent"]}" style="animation-duration:1.4s"/></g>')
     s += f'<style>@keyframes {p}belt{{0%{{transform:translateX(0);opacity:0}}5%{{opacity:1}}90%{{opacity:1}}100%{{transform:translateX(320px);opacity:0}}}}</style>'
     return frame(k, p, s, f"Pedido em preparacao para transporte - {k['name']}")
 
