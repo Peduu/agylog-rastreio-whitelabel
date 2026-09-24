@@ -9,7 +9,7 @@ O portal só carrega `static/scenes/<cliente>.js` (gerado); nada aqui roda em pr
 | `scenes.py` | **Fonte da verdade**: kits dos clientes (`KITS`) e as 9 cenas (`SCENE_FUNCS`). Mudou uma cena, muda para todos. |
 | `build.py` | Gera `static/scenes/<cliente>.js` (`python tools/scenes/build.py` = todos; ou passe o slug). Só usa a biblioteca padrão. |
 | `logos_vetor.py` | Logos em vetor (GERADO). É o que deixa o logo nítido em qualquer tamanho. |
-| `vetorizar_logo.py` | Regenera `logos_vetor.py` a partir dos PNGs de `static/logos` (`pip install scikit-image scipy pillow numpy`, só no build). |
+| `vetorizar_logo.py` | Regenera `logos_vetor.py` a partir dos PNGs de `static/logos` com o potrace (`pip install potracer scipy pillow numpy`, só no build). Use o mesmo PNG que o cabeçalho do portal exibe (ex.: PinBank = `logo-pinbank-real.png`). |
 
 ## Regras do desenho
 - Menos texto: só o balão do "Insucesso" tem texto (fonte Inter, já carregada pelo portal).
@@ -33,4 +33,4 @@ O portal só carrega `static/scenes/<cliente>.js` (gerado); nada aqui roda em pr
 ## Observações
 - `static/logos/logo-ccxp.png` é só a fonte do vetor do CCXP (extraída do cabeçalho do portal); não vai no manifesto.
 - `logo-panini-cena*.png` são versões reduzidas do logo ilustrado da Panini (ele não vira vetor limpo): entram no manifesto.
-- Sem gzip no nginx cada arquivo de cenas pesa 120 a 200 KB; ligar `gzip on` derruba isso para ~20 a 30 KB.
+- Sem gzip no nginx cada arquivo de cenas pesa 115 a 205 KB; ligar `gzip on` derruba isso para ~20 a 30 KB.

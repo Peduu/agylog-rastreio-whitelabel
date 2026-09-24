@@ -721,7 +721,20 @@ def _depot(k, wx, wy, ww, wh, hole, h_logo, logo_w, roof=16, logo_cx=None):
     return interior, parede
 
 
-def _camadas_caminhao(k, p, base, anims, wheels, dur, sw, b_primeiro, beam=False):
+def _instante_do_avanco(x1, y1, x2, y2, y):
+    """Fracao do tempo (0..1) em que um cubic-bezier(x1,y1,x2,y2) chega ao avanco y (0..1)."""
+    lo, hi = 0.0, 1.0
+    for _ in range(50):
+        t = (lo + hi) / 2
+        if 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t * t * y2 + t ** 3 < y:
+            lo = t
+        else:
+            hi = t
+    t = (lo + hi) / 2
+    return 3 * (1 - t) ** 2 * t * x1 + 3 * (1 - t) * t * t * x2 + t ** 3
+
+
+def _camadas_caminhao(k, p, base, anims, wheels, dur, sw, b_primeiro, farol_on=None):
     """Caminhao em duas camadas com a MESMA animacao: ATRAS da parede (dentro da garagem) e NA FRENTE dela (na pista). A troca de camada
     acontece em sw% do ciclo, quando o caminhao esta todo sobre o vao (nenhuma parede o cobre), entao a troca e invisivel.
     Sombra unica (uma so, para nao dobrar a transparencia). Retorna (estilos, sombra, camada_de_tras, camada_da_frente)."""
@@ -731,7 +744,8 @@ def _camadas_caminhao(k, p, base, anims, wheels, dur, sw, b_primeiro, beam=False
     else:               # entra na garagem: comeca na frente e termina atras
         va = f"0%,{sw}%{{opacity:1}}{sw+.01:.2f}%,100%{{opacity:0}}"
         vb = f"0%,{sw}%{{opacity:0}}{sw+.01:.2f}%,100%{{opacity:1}}"
-    kf = f'<style>@keyframes {p}ob{{{vb}}}@keyframes {p}oa{{{va}}}</style>'
+    fa = f"@keyframes {p}fa{{0%,{farol_on-3:.2f}%{{opacity:0}}{farol_on:.2f}%,100%{{opacity:1}}}}" if farol_on is not None else ""
+    kf = f'<style>@keyframes {p}ob{{{vb}}}@keyframes {p}oa{{{va}}}{fa}</style>'
 
     anims = [anims] if isinstance(anims, str) else list(anims)
     abre = "".join(f'<g style="{a}">' for a in anims)
@@ -739,10 +753,14 @@ def _camadas_caminhao(k, p, base, anims, wheels, dur, sw, b_primeiro, beam=False
 
     def camada(nome):
         return (f'<g style="animation:{p}{nome} {dur}s linear infinite"><g transform="translate({base[0]},{base[1]}) scale({base[2]})">{abre}'
-                + truck(k, p, 0, 0, 1.0, wheels=wheels, beam=beam, shadow=False) + f'{fecha}</g></g>')
+                + truck(k, p, 0, 0, 1.0, wheels=wheels, shadow=False) + f'{fecha}</g></g>')
     sombra = (f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})">{abre}'
               f'<ellipse cx="96" cy="0" rx="100" ry="3" fill="#000" fill-opacity=".28"/>{fecha}</g>')
-    return kf, sombra, camada("ob"), camada("oa")
+    farol = ""
+    if farol_on is not None and k["dark"]:      # o farol so acende depois que o focinho passa da pilastra (nunca atravessa a parede)
+        farol = (f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})">{abre}<g style="opacity:0;animation:{p}fa {dur}s linear infinite">'
+                 f'<polygon points="192,-36 250,-52 250,-14" fill="url(#{p}beam)"/></g>{fecha}</g>')
+    return kf, sombra, camada("ob"), camada("oa") + farol
 
 
 def _caixa_portao(k, hx0, hx1, top, h=16):
@@ -771,8 +789,11 @@ def scene_transferencia(k, p):
           f'@keyframes {p}wsp{{0%,24%{{transform:rotate(0)}}100%{{transform:rotate(2600deg)}}}}'
           f'@keyframes {p}gt{{0%,10%{{transform:scaleY(1)}}22%,74%{{transform:scaleY(.02)}}86%,100%{{transform:scaleY(1)}}}}'
           f'@keyframes {p}gi{{0%,12%{{opacity:0}}22%,74%{{opacity:1}}86%,100%{{opacity:0}}}}</style>')
+    nariz0, curso = base[0] + 192 * base[2], 470 - base[0]                     # focinho em repouso e deslocamento total (px na tela)
+    quando = _instante_do_avanco(.5, 0, .8, .8, (hx1 + 14 - nariz0) / curso)   # instante em que o focinho passa da pilastra (com folga)
+    farol_on = 24 + 76 * quando
     estilos, sombra, atras, frente = _camadas_caminhao(
-        k, p, base, f"animation:{p}tx {dur}s cubic-bezier(.5,0,.8,.8) infinite", f"style:animation:{p}wsp {dur}s cubic-bezier(.5,0,.8,.8) infinite", dur, 26, True, beam=True)
+        k, p, base, f"animation:{p}tx {dur}s cubic-bezier(.5,0,.8,.8) infinite", f"style:animation:{p}wsp {dur}s cubic-bezier(.5,0,.8,.8) infinite", dur, 26, True, farol_on=farol_on)
     s += placa + operador(k, p, 228, GROUND + 16, flip=True, dur=dur, at=24, sc=.95)          # na faixa de tras: o caminhao passa a frente dele
     s += (kf + estilos + interior + f'<g style="opacity:1;animation:{p}gi {dur}s ease-in-out infinite"><rect x="{hx0}" y="{hy0}" width="{hx1-hx0}" height="{wy-hy0}" fill="{k["door"]}" fill-opacity=".12"/></g>'
           + sombra + atras + rollgate(k, hx0, hy0 + 16, hx1 - hx0, wy - hy0 - 16, f"transform:scaleY(1);animation:{p}gt {dur}s ease-in-out infinite", op="1")
