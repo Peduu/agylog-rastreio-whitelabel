@@ -222,7 +222,7 @@ def plate(k, cx, cy, w, h, unflip=False, r=4, bg=True):
     return s
 
 
-def truck(k, p, x, y, scale=1.0, flip=False, wheels=True, beam=False, inner_class="", extra="", shadow=True):
+def truck(k, p, x, y, scale=1.0, flip=False, wheels=True, beam=False, inner_class="", extra="", shadow=True, skirt=False):
     """Caminhao baú virado p/ direita; ground y=0. flip espelha (logo desespelhado). wheels: True gira sempre, 'arrive' gira ao chegar."""
     fx = -scale if flip else scale
     g = f'<g transform="translate({x},{y}) scale({fx},{scale})"><g class="{inner_class}">'
@@ -233,6 +233,8 @@ def truck(k, p, x, y, scale=1.0, flip=False, wheels=True, beam=False, inner_clas
     neon = 'style="filter:drop-shadow(0 0 3px %s) drop-shadow(0 0 9px rgba(227,55,129,.55))"' % k["accent"] if k.get("neon") else ""
     g += f'<g {neon}>'
     g += '<rect x="0" y="-24" width="192" height="8" rx="2" fill="#15151b"/>'
+    if skirt:                                                            # saia entre as rodas (esconde quem passa por tras do caminhao)
+        g += '<rect x="44" y="-17" width="96" height="14" fill="#1b1c23"/>'
     g += f'<rect x="0" y="-84" width="130" height="60" rx="6" fill="{k["body"]}"' + (f' stroke="{k["accent"]}" stroke-width="1.6"' if k.get("neon") else (f' stroke="{k["bodyStroke"]}" stroke-width="1.4"' if k.get("bodyStroke") else "")) + '/>'
     g += '<rect x="0" y="-84" width="130" height="7" rx="6" fill="#fff" fill-opacity=".16"/>'
     g += f'<rect x="0" y="-36" width="130" height="8" fill="{k["stripe"]}"/>'
@@ -413,9 +415,9 @@ def scene_em_rota(k, p):
 
 
 def scene_atencao(k, p):
-    dur = 2.6
+    dur = 2.4
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "atencao")
-    kf = (f'<style>@keyframes {p}fl{{0%,34%{{opacity:1}}50%,84%{{opacity:.04}}100%{{opacity:1}}}}'
+    kf = (f'<style>@keyframes {p}fl{{0%,62%{{opacity:1}}72%,78%{{opacity:.04}}88%,100%{{opacity:1}}}}'
           f'@keyframes {p}qm{{0%{{transform:translateY(0) rotate(0) scale(1)}}9%{{transform:translateY(-6px) rotate(-9deg) scale(1.14)}}19%{{transform:translateY(0) rotate(8deg) scale(1)}}'
           f'30%{{transform:translateY(-3px) rotate(-6deg) scale(1.05)}}42%{{transform:translateY(0) rotate(4deg) scale(1)}}56%,100%{{transform:translateY(0) rotate(0) scale(1)}}}}</style>')
     s += kf + f'<g style="animation:{p}fl {dur}s ease-in-out infinite">' + house(k, p, 262, GROUND + 4, 112, lit=False) + '</g>'
@@ -472,18 +474,35 @@ def scene_preparacao(k, p):
 
 
 def scene_devolucao(k, p):
+    """Ciclo infinito: o operador sai de tras do caminhao com uma caixa, entrega no galpao do remetente (a caixa desliza para dentro da porta),
+    volta para tras do caminhao para pegar outra e recomeca. Ninguem aparece nem some do nada."""
+    dur, SP = 8.0, .85
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>"
-    wx, wy, ww, wh = 6, GROUND + 2, 150, 132     # galpao em escala: porta maior que a pessoa (58 px)
+    wx, wy, ww, wh = 6, GROUND + 2, 150, 132     # galpao em escala: porta maior que a pessoa
     dw, dh = 78, 80
     h_logo = 38 if k["ar"] > 2.5 else 40
     fs, dx = facade(k, wx, wy, ww, wh, dw, dh, h_logo, roof=15, logo_w=112)
+    porta_e = wx + ww / 2 - dw / 2
     s += (fs +
-          f'<rect x="{wx+ww/2-dw/2}" y="{wy-dh}" width="{dw}" height="{dh}" fill="#000" fill-opacity=".72"/>'
-          f'<rect x="{wx+ww/2-dw/2}" y="{wy-dh}" width="{dw}" height="7" fill="{k["door"]}"/>')
+          f'<rect x="{porta_e}" y="{wy-dh}" width="{dw}" height="{dh}" fill="#000" fill-opacity=".72"/>'
+          f'<rect x="{porta_e}" y="{wy-dh}" width="{dw}" height="7" fill="{k["door"]}"/>'
+          f'<rect x="{porta_e}" y="{wy-6}" width="{dw}" height="6" fill="#3a3e4a"/><rect x="{porta_e}" y="{wy-6}" width="{dw}" height="1.6" fill="#fff" fill-opacity=".25"/>')
     s += uturn_sign(k, p, 188, 88)
-    s += truck(k, p, 214, VEH_Y, .86, wheels=False)
+    x0, cy, D = 292, GROUND + 14, 176                                       # comeca escondido atras do caminhao (que vai de 214 a 379)
+    bl_x, bl_y = x0 - 44, cy - 35 * SP + 10                                 # caixa nas maos (virado para a esquerda)
+    kf = (f'<style>@keyframes {p}wk{{0%,8%{{transform:translateX(0) scaleX(-1)}}46%,57%{{transform:translateX({-D}px) scaleX(-1)}}58%{{transform:translateX({-D}px) scaleX(1)}}'
+          f'92%{{transform:translateX(0) scaleX(1)}}93%,100%{{transform:translateX(0) scaleX(-1)}}}}'
+          f'@keyframes {p}bx{{0%,8%{{transform:translateX(0)}}46%{{transform:translateX({-D}px)}}58%,94%{{transform:translateX({-D-100}px)}}94.01%,100%{{transform:translateX(0)}}}}'
+          f'@keyframes {p}pu{{0%,44%{{transform:translateX(0)}}50%{{transform:translateX(7px)}}56%,100%{{transform:translateX(0)}}}}</style>'
+          f'<clipPath id="{p}bc"><rect x="{porta_e}" y="0" width="{400-porta_e}" height="300"/></clipPath>')
+    s += kf
+    s += (f'<g transform="translate({x0},{cy})"><g style="animation:{p}wk {dur}s ease-in-out infinite"><g transform="scale({SP})"><g class="{p}bob">'
+          + person(k, k["accent"], cap=k["cab"]) +
+          f'<g transform="translate(5,-35)"><g style="transform-origin:0 0;animation:{p}pu {dur}s ease-in-out infinite"><rect x="0" y="-2" width="15" height="4" rx="2" fill="{k["accent"]}"/></g></g></g></g></g></g>')
+    s += (f'<g clip-path="url(#{p}bc)"><g transform="translate({bl_x:.1f},{bl_y:.1f})"><g style="animation:{p}bx {dur}s ease-in-out infinite">'
+          f'<g transform="scale(.55)">{box(k, p, 0, 0)}</g></g></g></g>')
+    s += truck(k, p, 214, VEH_Y, .86, wheels=False, skirt=True)             # o caminhao esconde o operador quando ele sai/volta
     s += f'<polygon points="212,{VEH_Y-22} 186,{VEH_Y} 194,{VEH_Y} 218,{VEH_Y-18}" fill="#3a3e4a"/>'
-    s += walker(k, p, 214, GROUND + 14)
     return frame(k, p, s, f"Pedido em devolucao ao remetente - {k['name']}")
 
 
