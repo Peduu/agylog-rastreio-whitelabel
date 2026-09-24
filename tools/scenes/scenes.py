@@ -222,11 +222,12 @@ def plate(k, cx, cy, w, h, unflip=False, r=4, bg=True):
     return s
 
 
-def truck(k, p, x, y, scale=1.0, flip=False, wheels=True, beam=False, inner_class="", extra=""):
+def truck(k, p, x, y, scale=1.0, flip=False, wheels=True, beam=False, inner_class="", extra="", shadow=True):
     """Caminhao baú virado p/ direita; ground y=0. flip espelha (logo desespelhado). wheels: True gira sempre, 'arrive' gira ao chegar."""
     fx = -scale if flip else scale
     g = f'<g transform="translate({x},{y}) scale({fx},{scale})"><g class="{inner_class}">'
-    g += '<ellipse cx="96" cy="1" rx="102" ry="4" fill="#000" fill-opacity=".28"/>'
+    if shadow:
+        g += '<ellipse cx="96" cy="1" rx="102" ry="4" fill="#000" fill-opacity=".28"/>'
     if beam and k["dark"]:
         g += f'<polygon points="192,-36 250,-52 250,-14" fill="url(#{p}beam)"/>'
     neon = 'style="filter:drop-shadow(0 0 3px %s) drop-shadow(0 0 9px rgba(227,55,129,.55))"' % k["accent"] if k.get("neon") else ""
@@ -655,53 +656,74 @@ def _depot(k, wx, wy, ww, wh, hole, h_logo, logo_w, roof=16):
     return interior, parede
 
 
+def _copias_caminhao(k, p, base, anim_x, anim_y, wheels_style, sx, lado, beam=False):
+    """Duas copias do mesmo caminhao (mesma animacao): uma ATRAS da parede (recortada de um lado da borda sx) e outra NA FRENTE dela
+    (recortada do outro lado). Assim ele passa a frente da pilastra e entra/sai pelo vao, sem atravessar a parede."""
+    def uma(cid, atras):
+        return (f'<g clip-path="url(#{cid})"><g transform="translate({base[0]},{base[1]}) scale({base[2]})"><g style="{anim_x}"><g style="{anim_y}">'
+                + truck(k, p, 0, 0, 1.0, wheels=wheels_style, beam=beam, shadow=False) + '</g></g></g></g>')
+    if lado == "esq":      # atras da parede: x >= sx (dentro do vao); na frente: x < sx (diante da pilastra esquerda); 1px de sobreposicao evita fresta
+        clips = (f'<clipPath id="{p}cb"><rect x="{sx-1}" y="0" width="{401-sx}" height="300"/></clipPath>'
+                 f'<clipPath id="{p}cf"><rect x="-200" y="0" width="{sx+201}" height="300"/></clipPath>')
+    else:                  # atras da parede: x < sx (dentro do vao); na frente: x >= sx (diante da pilastra direita)
+        clips = (f'<clipPath id="{p}cb"><rect x="-200" y="0" width="{sx+201}" height="300"/></clipPath>'
+                 f'<clipPath id="{p}cf"><rect x="{sx-1}" y="0" width="{401-sx}" height="300"/></clipPath>')
+    sombra = (f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})"><g style="{anim_x}"><g style="{anim_y}">'
+              '<ellipse cx="96" cy="1" rx="102" ry="4" fill="#000" fill-opacity=".28"/></g></g></g>')
+    return clips, uma(f"{p}cb", True), uma(f"{p}cf", False), sombra
+
+
 def scene_transferencia(k, p):
-    """O caminhao (sempre do mesmo tamanho) sai do galpao: ele esta atras da parede e aparece pelo vao inclinado, seguindo para a direita."""
+    """O caminhao (sempre do mesmo tamanho) sai da garagem: comeca atras da parede, aparece pelo vao e passa a frente da pilastra direita."""
     dur = 7.4
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "transf")
-    wx, wy, ww, wh = 88, 272, 212, 150
-    hh = 96
-    hx0 = 152
-    hole = [(hx0, wy - hh), (wx + ww, wy - hh), (wx + ww, wy), (hx0, wy)]
+    wx, wy, ww, wh = 72, GROUND + 2, 240, 140
+    hx0, hx1, hh = 130, 260, 92
+    hole = [(hx0, wy - hh), (hx1, wy - hh), (hx1, wy), (hx0, wy)]
     h_logo = 36 if k["ar"] > 2.5 else 40
     interior, parede = _depot(k, wx, wy, ww, wh, hole, h_logo, 150)
-    portao = (f'<rect x="{hx0}" y="{wy-hh}" width="{wx+ww-hx0}" height="22" fill="{k["door"]}" fill-opacity=".95"/>'
-              + "".join(f'<line x1="{hx0}" x2="{wx+ww}" y1="{wy-hh+i*7}" y2="{wy-hh+i*7}" stroke="#000" stroke-opacity=".28"/>' for i in (1, 2, 3)) +
-              f'<rect x="{hx0}" y="{wy-hh+21}" width="{wx+ww-hx0}" height="3" fill="#000" fill-opacity=".35"/>')
+    portao = (f'<rect x="{hx0}" y="{wy-hh}" width="{hx1-hx0}" height="22" fill="{k["door"]}" fill-opacity=".95"/>'
+              + "".join(f'<line x1="{hx0}" x2="{hx1}" y1="{wy-hh+i*7}" y2="{wy-hh+i*7}" stroke="#000" stroke-opacity=".28"/>' for i in (1, 2, 3)) +
+              f'<rect x="{hx0}" y="{wy-hh+21}" width="{hx1-hx0}" height="3" fill="#000" fill-opacity=".35"/>')
     placa = (f'<rect x="367" y="176" width="3" height="58" fill="{k["ink"]}" fill-opacity=".5"/>'
              f'<rect x="350" y="160" width="36" height="22" rx="3" fill="{k["cab"]}" stroke="{k["accent"]}" stroke-width="1.6"/>'
              f'<path d="M357,171 H377 M371,165.5 L377,171 L371,176.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>')
-    base = (130, VEH_Y, .8)
-    kf = (f'<style>@keyframes {p}tr{{0%{{transform:{_tf(130,VEH_Y,.8,base)};opacity:0}}5%{{opacity:1}}12%{{transform:{_tf(130,VEH_Y,.8,base)}}}100%{{transform:{_tf(470,VEH_Y,.8,base)};opacity:1}}}}'
-          f'@keyframes {p}wsp{{0%,12%{{transform:rotate(0)}}100%{{transform:rotate(2100deg)}}}}</style>')
-    s += (placa + interior + kf + f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})"><g style="animation:{p}tr {dur}s cubic-bezier(.4,0,.8,.6) infinite">'
-          + truck(k, p, 0, 0, 1.0, wheels=f"style:animation:{p}wsp {dur}s cubic-bezier(.4,0,.8,.6) infinite", beam=True) + '</g></g>' + parede + portao)
-    s += operador(k, p, 58, ROAD_BOTTOM - 2, flip=False, dur=dur, at=14, sc=1.0)
+    base = (wx, wy + 1, .8)                                                  # comeca dentro da garagem (no piso do vao)
+    kf = (f'<style>@keyframes {p}tx{{0%{{transform:translateX(0);opacity:0}}5%{{opacity:1}}10%{{transform:translateX(0)}}100%{{transform:translateX({(470-wx)/.8:.1f}px);opacity:1}}}}'
+          f'@keyframes {p}ty{{0%,30%{{transform:translateY(0)}}58%,100%{{transform:translateY({(VEH_Y-wy-1)/.8:.2f}px)}}}}'
+          f'@keyframes {p}wsp{{0%,10%{{transform:rotate(0)}}100%{{transform:rotate(2200deg)}}}}</style>')
+    ax = f"animation:{p}tx {dur}s cubic-bezier(.45,0,.9,.75) infinite"
+    ay = f"animation:{p}ty {dur}s ease-in-out infinite"
+    clips, atras, frente, sombra = _copias_caminhao(k, p, base, ax, ay, f"style:animation:{p}wsp {dur}s cubic-bezier(.45,0,.9,.75) infinite", hx1, "dir", beam=True)
+    s += placa + kf + clips + interior + atras + parede + portao + sombra + frente
+    s += operador(k, p, 44, ROAD_BOTTOM - 2, flip=False, dur=dur, at=14, sc=1.0)
     return frame(k, p, s, f"Pedido em transferencia entre unidades - {k['name']}")
 
 
 def scene_chegada(k, p):
-    """O caminhao chega, espera o operador conferir, o portao abre e ele entra no galpao (some atras da parede, pelo vao); o portao fecha."""
+    """O caminhao chega pela frente da pilastra esquerda e entra na garagem (passa para tras da parede pelo vao); o portao fecha."""
     dur = 9.0
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "cheg")
-    wx, wy, ww, wh = 196, 272, 198, 150
-    hh = 96
-    hole = [(208, wy - hh), (340, wy - hh), (340, wy), (208, wy)]
+    wx, wy, ww, wh = 196, GROUND + 2, 198, 140
+    hx0, hx1, hh = 222, 350, 92
+    hole = [(hx0, wy - hh), (hx1, wy - hh), (hx1, wy), (hx0, wy)]
     h_logo = 36 if k["ar"] > 2.5 else 40
     interior, parede = _depot(k, wx, wy, ww, wh, hole, h_logo, 132)
     base = (14, VEH_Y, .8)
+    fin = (hx0 + 4, wy - 1, .8)
     kf = (f'<style>@keyframes {p}tr{{0%{{transform:{_tf(-190,VEH_Y,.8,base)};animation-timing-function:cubic-bezier(.2,.7,.25,1)}}'
           f'24%{{transform:{_tf(14,VEH_Y,.8,base)};animation-timing-function:linear}}40%{{transform:{_tf(14,VEH_Y,.8,base)};animation-timing-function:ease-in-out}}'
-          f'62%,100%{{transform:{_tf(214,VEH_Y,.8,base)}}}}}'
+          f'62%,100%{{transform:{_tf(*fin,base)}}}}}'
           f'@keyframes {p}wsp{{0%{{transform:rotate(0);animation-timing-function:cubic-bezier(.2,.7,.25,1)}}24%{{transform:rotate(1000deg);animation-timing-function:linear}}'
           f'40%{{transform:rotate(1000deg);animation-timing-function:ease-in-out}}62%,100%{{transform:rotate(1500deg)}}}}'
           f'@keyframes {p}gt{{0%,26%{{transform:scaleY(1)}}38%,72%{{transform:scaleY(.07)}}82%,100%{{transform:scaleY(1)}}}}'
           f'@keyframes {p}gi{{0%,28%{{opacity:0}}38%,72%{{opacity:1}}82%,100%{{opacity:0}}}}</style>')
-    s += (kf + interior + f'<g style="opacity:1;animation:{p}gi {dur}s ease-in-out infinite"><rect x="208" y="{wy-hh}" width="132" height="{hh}" fill="{k["door"]}" fill-opacity=".12"/></g>'
-          f'<g transform="translate({base[0]},{base[1]}) scale({base[2]})"><g style="animation:{p}tr {dur}s linear infinite">'
-          + truck(k, p, 0, 0, 1.0, wheels=f"style:animation:{p}wsp {dur}s linear infinite") + '</g></g>'
-          + rollgate(k, 208, wy - hh, 132, hh, f"transform:scaleY(.07);animation:{p}gt {dur}s ease-in-out infinite", op="1") + parede)
-    s += operador(k, p, 360, ROAD_BOTTOM - 2, flip=True, dur=dur, at=26, sc=1.0)          # operador confere a entrada
+    ax = f"animation:{p}tr {dur}s linear infinite"
+    clips, atras, frente, sombra = _copias_caminhao(k, p, base, ax, "", f"style:animation:{p}wsp {dur}s linear infinite", hx0, "esq")
+    s += (kf + clips + interior + f'<g style="opacity:1;animation:{p}gi {dur}s ease-in-out infinite"><rect x="{hx0}" y="{wy-hh}" width="{hx1-hx0}" height="{hh}" fill="{k["door"]}" fill-opacity=".12"/></g>'
+          + atras + rollgate(k, hx0, wy - hh, hx1 - hx0, hh, f"transform:scaleY(.07);animation:{p}gt {dur}s ease-in-out infinite", op="1") + parede
+          + f'<rect x="{hx0}" y="{wy-hh}" width="{hx1-hx0}" height="6" fill="{k["door"]}"/>' + sombra + frente)
+    s += operador(k, p, 372, ROAD_BOTTOM - 2, flip=True, dur=dur, at=26, sc=1.0)          # operador confere a entrada
     return frame(k, p, s, f"Pedido chegou na franquia - {k['name']}")
 
 
