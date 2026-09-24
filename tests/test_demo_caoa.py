@@ -18,10 +18,10 @@ sys.path.insert(0, ROOT)
 import app as portal  # noqa: E402
 
 CASOS = {
-    "CAOATESTE01": "preparacao_transporte",
-    "CAOATESTE02": "em_rota_entrega",
-    "CAOATESTE03": "atencao",
-    "CAOATESTE04": "devolucao",
+    "CAOA1": "preparacao_transporte",
+    "CAOA2": "em_rota_entrega",
+    "CAOA3": "atencao",
+    "CAOA4": "devolucao",
 }
 
 
@@ -42,7 +42,7 @@ class DemoCaoaTest(unittest.TestCase):
                 self.assertTrue(d["cliente"])
 
     def test_etapas_ate_o_status_atual_tem_data(self):
-        d = self.client.post("/api/rastrear", json={"codigo": "CAOATESTE02"}).get_json()
+        d = self.client.post("/api/rastrear", json={"codigo": "CAOA2"}).get_json()
         com_data = [s["key"] for s in d["stages"] if s["date"]]
         self.assertIn("em_rota_entrega", com_data)
         self.assertIn("aguardando_postagem", com_data)
@@ -52,13 +52,13 @@ class DemoCaoaTest(unittest.TestCase):
 
     def test_codigo_desconhecido_segue_o_fluxo_normal(self):
         with patch.object(portal, "buscar_rastreio_publico", return_value=None) as busca:
-            r = self.client.post("/api/rastrear", json={"codigo": "CAOATESTE99"})
+            r = self.client.post("/api/rastrear", json={"codigo": "CAOA9"})
         self.assertEqual(r.status_code, 404)
         busca.assert_called_once()
 
     def test_demo_nao_consulta_banco_nem_tms(self):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("nao deveria consultar")):
-            r = self.client.post("/api/rastrear", json={"codigo": "CAOATESTE01"})
+            r = self.client.post("/api/rastrear", json={"codigo": "CAOA1"})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.get_json()["demo"])
 
