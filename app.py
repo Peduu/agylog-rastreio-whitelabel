@@ -3341,6 +3341,10 @@ def api_rastrear_publico():
         response.headers["Retry-After"] = str(PUBLIC_TRACKING_RATE_WINDOW)
         return response, 429
 
+    demo = _resposta_demo_caoa(codigo)
+    if demo is not None:
+        return jsonify(demo)
+
     resultado = buscar_rastreio_publico(codigo, cliente)
 
     if not resultado:
@@ -3722,6 +3726,59 @@ def montar_historico_publico(resultado):
     })
 
     return historico
+
+
+# Códigos fixos de demonstração do CAOA: dados fictícios, sem banco e sem TMS.
+# (status_badge, descricao, [(chave_da_etapa, dias_atras, "HH:MM"), ...])
+DEMO_CAOA = {
+    "CAOATESTE01": ("EM SEPARAÇÃO", "Pedido em separação no centro de distribuição.", [
+        ("aguardando_postagem", 1, "09:10"), ("preparacao_transporte", 0, "08:40")]),
+    "CAOATESTE02": ("EM ROTA", "Pedido em rota para o destinatário.", [
+        ("aguardando_postagem", 3, "09:10"), ("preparacao_transporte", 3, "14:05"),
+        ("transferencia_franquia", 2, "10:32"), ("chegada_franquia", 1, "16:48"),
+        ("em_rota_entrega", 0, "08:15")]),
+    "CAOATESTE03": ("REENTREGAR", "Destinatário ausente. Nova tentativa em breve.", [
+        ("aguardando_postagem", 3, "09:10"), ("preparacao_transporte", 3, "14:05"),
+        ("transferencia_franquia", 2, "10:32"), ("chegada_franquia", 1, "16:48"),
+        ("em_rota_entrega", 1, "08:15"), ("atencao", 0, "14:20")]),
+    "CAOATESTE04": ("EM DEVOLUÇÃO", "Pedido em retorno ao remetente.", [
+        ("aguardando_postagem", 5, "09:10"), ("preparacao_transporte", 5, "14:05"),
+        ("transferencia_franquia", 4, "10:32"), ("chegada_franquia", 3, "16:48"),
+        ("em_rota_entrega", 2, "08:15"), ("devolucao", 0, "10:05")]),
+}
+
+
+def _resposta_demo_caoa(codigo):
+    caso = DEMO_CAOA.get(codigo)
+    if not caso:
+        return None
+    status_badge, descricao, etapas = caso
+    agora = datetime.now()
+    datas, ultimo = {}, agora
+    for chave, dias, hora in etapas:
+        h, m = hora.split(":")
+        momento = (agora - timedelta(days=dias)).replace(hour=int(h), minute=int(m), second=0, microsecond=0)
+        datas[chave] = {"date": momento.strftime("%d/%m/%Y"), "time": hora}
+        ultimo = momento
+    resultado = {
+        "previsao": (agora + timedelta(days=1)).strftime("%d/%m/%Y"),
+        "statusBadge": status_badge,
+        "ultimoStatus": descricao,
+        "dataBaixa": ultimo.strftime("%d/%m/%Y %H:%M"),
+        "codigoCliente": f"CAOA-DEMO-{codigo[-2:]}",
+        "datasEtapas": datas,
+    }
+    status_key = converter_status_publico(status_badge)
+    return {
+        "ok": True,
+        "demo": True,
+        "cliente": resultado["codigoCliente"],
+        "status": status_key,
+        "status_label": status_badge,
+        "stages": montar_etapas_publicas(status_key, resultado),
+        "history": montar_historico_publico(resultado),
+        "rastreioTerceiro": None,
+    }
 
 
 garantir_tabelas_app()
