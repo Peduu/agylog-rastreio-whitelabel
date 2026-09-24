@@ -892,6 +892,18 @@ const _pageThemes = {
 
     if (ccxpTreatment) { renderCcXpReenvioAnimation(statusVisualMedia); return; }
 
+    const _cliente = detectClient();
+    const _cena = window.AgyScenes && window.AgyScenes[_cliente] && window.AgyScenes[_cliente][status];
+    if (_cena) {
+      const chave = `${_cliente}:${status}`;
+      if (statusVisualMedia.dataset.scene !== chave) {
+        statusVisualMedia.innerHTML = _cena;
+        statusVisualMedia.dataset.scene = chave;
+      }
+      return;
+    }
+    statusVisualMedia.dataset.scene = '';
+
     if (visual.media) {
       const isLottie = visual.media.endsWith('.json');
 
@@ -1195,6 +1207,7 @@ const _pageThemes = {
     currentStageTitle.textContent = 'Acompanhamento da entrega';
     journeyMessage.textContent = 'Consulte o código do pedido para visualizar a etapa atual da entrega.';
     statusVisualMedia.innerHTML = '';
+    statusVisualMedia.dataset.scene = '';
     visualTags.innerHTML = '';
     timeline.innerHTML = '';
     historyList.innerHTML = '';
@@ -1276,6 +1289,11 @@ const _pageThemes = {
   const _clientSlug = detectClient();
   if (_clientSlug) {
     applyClientTheme(_clientSlug);
+    if (_clientSlug === 'caoa') {
+      const _sc = document.createElement('script');
+      _sc.src = '/static/scenes/caoa.js?v=20260924';
+      document.head.appendChild(_sc);
+    }
     // Pre-fill code from URL: /tracking/SLUG/CODE
     const _urlCode = getTrackingCodeFromURL();
     if (_urlCode && codigoInput && !codigoInput.value) {
