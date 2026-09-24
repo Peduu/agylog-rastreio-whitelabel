@@ -105,10 +105,6 @@ CSS = """
 @keyframes __P__draw{0%{stroke-dashoffset:100;opacity:0}3%{opacity:1}26%{stroke-dashoffset:0}90%{stroke-dashoffset:0;opacity:1}98%{stroke-dashoffset:0;opacity:0}100%{stroke-dashoffset:100;opacity:0}}
 .__P__head{animation:__P__head 3.4s ease-in-out infinite}
 @keyframes __P__head{0%,22%{opacity:0}30%,90%{opacity:1}98%,100%{opacity:0}}
-.__P__tick{stroke-dasharray:100;animation:__P__tick 3.6s ease-in-out infinite}
-@keyframes __P__tick{0%,8%{stroke-dashoffset:100;opacity:0}10%{opacity:1}30%{stroke-dashoffset:0}90%{stroke-dashoffset:0;opacity:1}97%,100%{stroke-dashoffset:0;opacity:0}}
-.__P__spop{animation:__P__spop 3.6s cubic-bezier(.3,1.5,.5,1) infinite;transform-box:fill-box;transform-origin:center}
-@keyframes __P__spop{0%{transform:scale(0)}12%{transform:scale(1)}90%{transform:scale(1)}97%,100%{transform:scale(0)}}
 .__P__cross{animation:__P__cross 7.4s linear infinite}
 @keyframes __P__cross{0%{transform:translateX(-290px)}100%{transform:translateX(290px)}}
 .__P__arrive{animation:__P__arrive 9s cubic-bezier(.2,.7,.25,1) infinite}
@@ -119,9 +115,9 @@ CSS = """
 @keyframes __P__gate{0%,32%{transform:scaleY(1)}44%,86%{transform:scaleY(.07)}96%,100%{transform:scaleY(1)}}
 .__P__glowin{animation:__P__glowin 9s ease-in-out infinite}
 @keyframes __P__glowin{0%,32%{opacity:0}44%,86%{opacity:1}96%,100%{opacity:0}}
-.__P__drop{animation:__P__drop 5.4s ease-in-out infinite}
+.__P__drop{animation:__P__drop 6s ease-in-out infinite}
 @keyframes __P__drop{0%{transform:translate(16px,-50px) rotate(12deg) scale(1);opacity:0}8%{opacity:1}22%{transform:translate(0,0) rotate(0) scale(1);opacity:1}28%{transform:translate(0,1.5px) rotate(0) scale(.95);opacity:1}33%{transform:translate(0,0) rotate(0) scale(1);opacity:1}90%{transform:translate(0,0) rotate(0) scale(1);opacity:1}98%,100%{transform:translate(0,0) rotate(0) scale(1);opacity:0}}
-.__P__laser{animation:__P__laser 5.4s ease-in-out infinite}
+.__P__laser{animation:__P__laser 6s ease-in-out infinite}
 @keyframes __P__laser{0%,34%{transform:translateX(0);opacity:0}38%{opacity:1}58%{transform:translateX(104px);opacity:1}62%,100%{transform:translateX(104px);opacity:0}}
 .__P__dot{animation:__P__dot 1.4s ease-in-out infinite}
 @keyframes __P__dot{0%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
@@ -353,16 +349,6 @@ def box(k, p, x, y, w=54, h=40):
             + plate(k, w / 2, -h / 2 + 2, lw, lh, r=3) + '</g>')
 
 
-def seal(k, p, cx, cy, r=22):
-    """Selo de check animado (cor da marca): aparece, desenha o check e pulsa."""
-    ring = k.get("seal", k["accent"])
-    ink = k.get("sealInk", k["onAccent"])
-    return (f'<g transform="translate({cx},{cy})"><circle class="{p}pulse" r="{r}" fill="none" stroke="{ring}" stroke-width="2.4"/>'
-            f'<g class="{p}spop"><circle r="{r}" fill="{ring}" stroke="#fff" stroke-opacity=".9" stroke-width="2.6"/>'
-            f'<path class="{p}tick" pathLength="100" d="M{-r*.42:.1f},{r*.04:.1f} L{-r*.1:.1f},{r*.36:.1f} L{r*.46:.1f},{-r*.32:.1f}" fill="none" '
-            f'stroke="{ink}" stroke-width="{r*.21:.1f}" stroke-linecap="round" stroke-linejoin="round"/></g></g>')
-
-
 def circ_arrow(R=13.5, a0=150, a1=-100, head=10.5, hw=7.2):
     """Seta circular aberta (anti-horaria): comeca embaixo a esquerda, contorna pela direita, sobe e termina no alto a esquerda apontando p/ a esquerda."""
     r0, r1 = math.radians(a0), math.radians(a1)
@@ -474,6 +460,88 @@ def scene_devolucao(k, p):
     return frame(k, p, s, f"Pedido em devolucao ao remetente - {k['name']}")
 
 
+# --- personagens e pecas das cenas novas
+
+SKIN = "#f0c9a6"
+SHIRT = "#8b93b8"
+
+
+def person(k, vest, cap=None, hair=None, stripes=True):
+    """Pessoa virada p/ a direita (o chamador espelha com scale(-1,1)); sem bracos: cada cena desenha os seus."""
+    s = ('<rect x="-6" y="-16" width="5" height="16" fill="#2a2f3a"/><rect x="1" y="-16" width="5" height="16" fill="#2a2f3a"/>'
+         f'<rect x="-9" y="-40" width="18" height="26" rx="5" fill="{vest}"/>')
+    if stripes:
+        s += '<rect x="-9" y="-31" width="18" height="2.4" fill="#fff" fill-opacity=".55"/><rect x="-9" y="-25" width="18" height="2.4" fill="#fff" fill-opacity=".55"/>'
+    s += f'<circle cx="0" cy="-47" r="7" fill="{SKIN}"/>'
+    if cap:
+        s += f'<path d="M-7,-49 A7,7 0 0 1 7,-49 L10,-49 L-7,-49Z" fill="{cap}"/>'
+    if hair:
+        s += f'<path d="M-7.2,-48 A7.2,7.2 0 0 1 7.2,-48 L5,-51 Q0,-53 -5,-51 Z" fill="{hair}"/>'
+    return s
+
+
+def operador(k, p, x, y, flip=False, dur=6.0, at=45):
+    """Operador com prancheta (colete na cor da marca). O check da prancheta aparece em at% do ciclo de dur segundos."""
+    fx = -1 if flip else 1
+    kf = (f'<style>@keyframes {p}ck{{0%,{at}%{{stroke-dashoffset:100;opacity:0}}{at+1}%{{stroke-dashoffset:100;opacity:1}}{at+8}%{{stroke-dashoffset:0;opacity:1}}'
+          f'90%{{stroke-dashoffset:0;opacity:1}}96%,100%{{stroke-dashoffset:0;opacity:0}}}}'
+          f'@keyframes {p}wr{{0%,100%{{transform:rotate(0)}}22%{{transform:rotate(-5deg)}}46%{{transform:rotate(1deg)}}70%{{transform:rotate(-4deg)}}}}</style>')
+    lines = "".join(f'<rect x="3" y="{-3+i*3.6:.1f}" width="{8.4 if i != 2 else 5.6}" height="1.2" rx=".6" fill="#2b2f3a" fill-opacity=".38"/>' for i in range(3))
+    check = (f'<path pathLength="100" stroke-dasharray="100" d="M3.2,7 l2.3,2.4 l4.6,-5" fill="none" stroke="{k["accent"]}" stroke-width="1.7" '
+             f'stroke-linecap="round" stroke-linejoin="round" style="animation:{p}ck {dur}s ease-in-out infinite"/>')
+    return (kf + f'<g transform="translate({x},{y}) scale({fx},1)">' + person(k, k["accent"], cap=k["cab"]) +
+            f'<g transform="translate(5,-35)"><g style="transform-origin:0 0;animation:{p}wr {dur}s ease-in-out infinite">'
+            f'<rect x="-1" y="-1.7" width="13" height="3.4" rx="1.7" fill="{k["accent"]}" transform="rotate(28)"/>'
+            f'<g transform="translate(9,-3) rotate(-6)"><rect x="0" y="-9" width="13" height="19" rx="1.6" fill="#fff" stroke="#aab0c6" stroke-width=".9"/>'
+            f'<rect x="3.6" y="-10.7" width="5.8" height="3.2" rx=".8" fill="#2b2f3a"/>{lines}{check}</g></g></g></g>')
+
+
+def seal(k, p, cx, cy, r=22, dur=6.0, at=10, t0=14, t1=34, out=86):
+    """Selo de check animado na cor da marca: aparece em at%, desenha o check de t0% a t1% e some em out% (ciclo de dur s)."""
+    ring = k.get("seal", k["accent"])
+    ink = k.get("sealInk", k["onAccent"])
+    kf = (f'<style>@keyframes {p}sp{{0%,{at-1}%{{transform:scale(0)}}{at+5}%{{transform:scale(1)}}{out}%{{transform:scale(1)}}{out+6}%,100%{{transform:scale(0)}}}}'
+          f'@keyframes {p}tk{{0%,{t0-1}%{{stroke-dashoffset:100;opacity:0}}{t0}%{{stroke-dashoffset:100;opacity:1}}{t1}%{{stroke-dashoffset:0;opacity:1}}'
+          f'{out}%{{stroke-dashoffset:0;opacity:1}}{out+5}%,100%{{stroke-dashoffset:0;opacity:0}}}}</style>')
+    return (kf + f'<g transform="translate({cx},{cy})"><g style="transform-box:fill-box;transform-origin:center;animation:{p}sp {dur}s cubic-bezier(.3,1.4,.5,1) infinite">'
+            f'<circle class="{p}pulse" r="{r}" fill="none" stroke="{ring}" stroke-width="2.4"/>'
+            f'<circle r="{r}" fill="{ring}" stroke="#fff" stroke-opacity=".9" stroke-width="2.6"/>'
+            f'<path pathLength="100" stroke-dasharray="100" d="M{-r*.42:.1f},{r*.04:.1f} L{-r*.1:.1f},{r*.36:.1f} L{r*.46:.1f},{-r*.32:.1f}" fill="none" '
+            f'stroke="{ink}" stroke-width="{r*.21:.1f}" stroke-linecap="round" stroke-linejoin="round" style="animation:{p}tk {dur}s ease-in-out infinite"/></g></g>')
+
+
+def timer(k, p, cx, cy, dur=6.0, sc=1.0):
+    """Relogio (cronometro) que vira ampulheta (inspirado na animacao antiga): areia cai, a ampulheta vira e morfa no relogio, e volta."""
+    cap = k["ink"] if k["dark"] else k["cab"]
+    a = k["accent"]
+    kf = (f'<style>@keyframes {p}hg{{0%,50%{{transform:scale(1);opacity:1}}57%,88%{{transform:scale(0);opacity:0}}96%,100%{{transform:scale(1);opacity:1}}}}'
+          f'@keyframes {p}hr{{0%,38%{{transform:rotate(0)}}50%,100%{{transform:rotate(180deg)}}}}'
+          f'@keyframes {p}st{{0%,6%{{transform:scaleY(1)}}38%,100%{{transform:scaleY(.001)}}}}'
+          f'@keyframes {p}sb{{0%,6%{{transform:scaleY(.001)}}38%,100%{{transform:scaleY(1)}}}}'
+          f'@keyframes {p}sm{{0%,6%{{opacity:0}}9%,35%{{opacity:1}}39%,100%{{opacity:0}}}}'
+          f'@keyframes {p}sw{{0%,50%{{transform:scale(0)}}57%{{transform:scale(1.12)}}60%,86%{{transform:scale(1)}}94%,100%{{transform:scale(0)}}}}'
+          f'@keyframes {p}hd{{0%,58%{{transform:rotate(0)}}88%,100%{{transform:rotate(720deg)}}}}</style>')
+    box = "transform-box:fill-box;transform-origin:50% 100%"
+    hour = (f'<path d="M-15,-25 H15 C15,-11 2.6,-5 2.6,0 C2.6,5 15,11 15,25 H-15 C-15,11 -2.6,5 -2.6,0 C-2.6,-5 -15,-11 -15,-25 Z" fill="#fff" fill-opacity=".28" stroke="{a}" stroke-opacity=".8" stroke-width="1.8"/>'
+            f'<path d="M-12.5,-22 H12.5 C11,-12 2,-7 0,-2 C-2,-7 -11,-12 -12.5,-22 Z" fill="{a}" style="{box};animation:{p}st {dur}s ease-in-out infinite"/>'
+            f'<path d="M-12.5,23 H12.5 C10,19 4,12 0,7 C-4,12 -10,19 -12.5,23 Z" fill="{a}" style="{box};transform:scaleY(.001);animation:{p}sb {dur}s ease-in-out infinite"/>'
+            f'<line x1="0" y1="-2" x2="0" y2="22" stroke="{a}" stroke-width="1.6" style="animation:{p}sm {dur}s ease-in-out infinite"/>'
+            f'<rect x="-19" y="-30" width="38" height="4.6" rx="2" fill="{cap}"/><rect x="-19" y="25.4" width="38" height="4.6" rx="2" fill="{cap}"/>')
+    watch = (f'<rect x="-4.5" y="-29" width="9" height="6" rx="1.8" fill="{a}"/><circle r="22" fill="{a}"/><circle r="17" fill="#fff"/>'
+             + "".join(f'<line x1="0" y1="-14.6" x2="0" y2="-12" stroke="#2b2f3a" stroke-opacity=".45" stroke-width="1.6" transform="rotate({d})"/>' for d in (0, 90, 180, 270)) +
+             f'<g style="animation:{p}hd {dur}s ease-in-out infinite"><line x1="0" y1="0" x2="0" y2="-11.5" stroke="#1c202b" stroke-width="2.6" stroke-linecap="round"/></g>'
+             f'<circle r="2.8" fill="#1c202b"/>')
+    return (kf + f'<g transform="translate({cx},{cy}) scale({sc})"><g class="{p}bob">'
+            f'<g style="animation:{p}hg {dur}s ease-in-out infinite"><g style="animation:{p}hr {dur}s ease-in-out infinite">{hour}</g></g>'
+            f'<g style="transform:scale(0);animation:{p}sw {dur}s ease-in-out infinite">{watch}</g></g></g>')
+
+
+def rollgate(k, dx, top, dw, dh, style):
+    """Portao de enrolar (cor da porta); style = animacao inline (senao o portao fica fechado)."""
+    return (f'<g style="transform-box:fill-box;transform-origin:50% 0;{style}"><rect x="{dx}" y="{top}" width="{dw}" height="{dh}" fill="{k["door"]}" fill-opacity=".92"/>'
+            + "".join(f'<line x1="{dx}" x2="{dx+dw}" y1="{top+i*10}" y2="{top+i*10}" stroke="#000" stroke-opacity=".28"/>' for i in range(1, int(dh // 10) + 1)) + '</g>')
+
+
 # --- cenas novas (todos os clientes)
 
 def _rack(k, p, x, w=84, top=100):
@@ -500,19 +568,16 @@ def _rack(k, p, x, w=84, top=100):
 
 
 def scene_aguardando(k, p):
+    dur = 6.0
     s = f'<rect x="0" y="{GROUND}" width="400" height="{ROAD_BOTTOM-GROUND}" fill="{k["ink"]}" fill-opacity=".10"/>'
     s += f'<line x1="0" x2="400" y1="{GROUND}" y2="{GROUND}" stroke="{k["ink"]}" stroke-opacity=".28" stroke-width="1.5"/>'
     s += _rack(k, p, 12) + _rack(k, p, 304)
     s += props_ambient(k, p, "aguard")
-    # lampada pendurada
-    s += (f'<g transform="translate(200,0)"><g class="{p}swing" style="transform-origin:0 0"><line x1="0" y1="0" x2="0" y2="34" stroke="{k["ink"]}" stroke-opacity=".4" stroke-width="1.6"/>'
-          f'<path d="M-15,52 L-7,34 L7,34 L15,52 Z" fill="{k["ink"]}" fill-opacity=".38"/>'
-          f'<polygon points="-15,52 15,52 62,196 -62,196" fill="#fff6c8" fill-opacity=".07"/></g></g>')
     # bancada
     s += (f'<rect x="108" y="206" width="184" height="8" rx="2" fill="{k["ink"]}" fill-opacity=".36"/>'
           f'<rect x="118" y="214" width="6" height="{GROUND-214}" fill="{k["ink"]}" fill-opacity=".28"/><rect x="276" y="214" width="6" height="{GROUND-214}" fill="{k["ink"]}" fill-opacity=".28"/>')
     # caixa grande em 3D com logo a esquerda e etiqueta a direita
-    bx, by, bw, bh, dx, dy = 138, 206, 112, 70, 12, 12
+    bx, by, bw, bh, dx, dy = 128, 206, 112, 70, 12, 12
     s += (f'<g transform="translate({bx},{by})"><rect x="0" y="{-bh}" width="{bw}" height="{bh}" fill="#c9975b"/>'
           f'<polygon points="0,{-bh} {dx},{-bh-dy} {bw+dx},{-bh-dy} {bw},{-bh}" fill="#e2bb86"/>'
           f'<polygon points="{bw},{-bh} {bw+dx},{-bh-dy} {bw+dx},{-dy} {bw},0" fill="#a97a44"/>'
@@ -523,18 +588,33 @@ def scene_aguardando(k, p):
           + "".join(f'<rect x="{4+i*3.1:.1f}" y="18" width="{1 if i%3 else 2}" height="16" fill="#1c202b"/>' for i in range(8)) +
           f'</g></g>'
           f'<g style="opacity:0" class="{p}laser"><rect x="-6" y="{-bh}" width="14" height="{bh}" fill="url(#{p}trail)"/><rect x="7" y="{-bh}" width="2.4" height="{bh}" fill="{k["accent"]}"/></g></g>')
-    # tres pontos: aguardando
-    s += "".join(f'<circle class="{p}dot" style="animation-delay:{i*.2}s" cx="{194+i*14}" cy="{by-bh-dy-16}" r="3.4" fill="{k["accent"]}"/>' for i in range(3))
+    s += timer(k, p, bx + 62, 72, dur, 1.3)
+    s += operador(k, p, 328, GROUND + 14, flip=True, dur=dur, at=62)
     trail = (f'<linearGradient id="{p}trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="{k["accent"]}" stop-opacity="0"/>'
              f'<stop offset="1" stop-color="{k["accent"]}" stop-opacity=".55"/></linearGradient>')
     return frame(k, p, s, f"Aguardando postagem - {k['name']}", trail)
 
 
 def scene_transferencia(k, p):
+    """O caminhao sai da franquia (baia aberta), acelera pela estrada e segue para a proxima unidade."""
+    dur = 7.4
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p) + "</g>" + props_ambient(k, p, "transf")
-    s += warehouse(k, p, -8, GROUND + 2, 104, logo=False) + warehouse(k, p, 304, GROUND + 2, 110, logo=False)
-    rear = "".join(f'<line class="{p}dashl" style="animation-delay:{i*.15}s" x1="98" x2="120" y1="{VEH_Y-30+i*14}" y2="{VEH_Y-30+i*14}" stroke="{k["ink"]}" stroke-opacity=".28" stroke-width="2" stroke-linecap="round"/>' for i in range(3))
-    s += f'<g class="{p}cross">' + rear + truck(k, p, 124, VEH_Y, .8, beam=True, inner_class=f"{p}bob") + '</g>'
+    s += warehouse(k, p, 322, GROUND + 2, 96, op=.9, logo=False)           # proxima unidade, ao longe
+    wx, wy, ww, wh = 4, GROUND + 2, 212, 132
+    bx, bh = 100, 84                                                          # baia aberta na direita do galpao
+    h_logo = 36 if k["ar"] > 2.5 else 40
+    fs, _ = facade(k, wx, wy, ww, wh, ww - (bx - wx), bh, h_logo, roof=18, logo_w=140, door_x=bx)
+    s += (fs + f'<rect x="{bx}" y="{wy-bh}" width="{wx+ww-bx}" height="{bh}" fill="#000" fill-opacity=".8"/>'
+          f'<rect x="{bx}" y="{wy-bh}" width="{wx+ww-bx}" height="{bh}" fill="{k["door"]}" fill-opacity=".10"/>'
+          f'<rect x="{bx+6}" y="{wy-26}" width="26" height="24" fill="#c9975b"/><rect x="{bx+34}" y="{wy-18}" width="20" height="16" fill="#a97a44"/>'
+          f'<rect x="{bx+8}" y="{wy-46}" width="20" height="20" fill="#c9975b"/>'
+          f'<rect x="{bx}" y="{wy-bh}" width="{wx+ww-bx}" height="7" fill="{k["door"]}"/>')
+    s += operador(k, p, 236, GROUND + 14, flip=True, dur=dur, at=12)
+    puffs = "".join(f'<circle class="{p}pulse" style="animation-delay:{i*.5}s" cx="{160-i*7}" cy="{VEH_Y-16-i*3}" r="7" fill="{k["ink"]}" fill-opacity=".22"/>' for i in range(3))
+    s += (f'<clipPath id="{p}bay"><rect x="{bx}" y="0" width="{400-bx}" height="300"/></clipPath>'
+          f'<style>@keyframes {p}exit{{0%{{transform:translateX(-226px)}}100%{{transform:translateX(330px)}}}}</style>'
+          f'<g clip-path="url(#{p}bay)"><g style="animation:{p}exit {dur}s cubic-bezier(.35,.1,.75,.7) infinite">' + puffs
+          + truck(k, p, 170, VEH_Y, .8, beam=True, inner_class=f"{p}bob") + '</g></g>')
     return frame(k, p, s, f"Pedido em transferencia entre unidades - {k['name']}")
 
 
@@ -553,58 +633,84 @@ def scene_chegada(k, p):
           f'<g class="{p}gate" style="transform:scaleY(.07)"><rect x="{dx}" y="{wy-dh}" width="{dw}" height="{dh}" fill="{k["door"]}" fill-opacity=".9"/>'
           + "".join(f'<line x1="{dx}" x2="{dx+dw}" y1="{wy-dh+i*10}" y2="{wy-dh+i*10}" stroke="#000" stroke-opacity=".28"/>' for i in range(1, 8)) + '</g>'
           f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="6" fill="{k["door"]}"/>')
-    s += f'<g class="{p}arrive">' + truck(k, p, 28, VEH_Y, .8, wheels="arrive") + '</g>'
+    s += operador(k, p, 206, GROUND + 14, flip=True, dur=9.0, at=33)          # operador confere a entrada
+    s += f'<g class="{p}arrive">' + truck(k, p, 20, VEH_Y, .8, wheels="arrive") + '</g>'
     return frame(k, p, s, f"Pedido chegou na franquia - {k['name']}")
 
 
 def scene_devolvido(k, p):
+    """Caixa dentro do galpao do remetente: o portao fecha em sincronia com o check sendo desenhado."""
+    dur = 6.0
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "devd")
     wx, wy, ww, wh = 84, GROUND + 2, 232, 140
     dw, dh = 132, 90
     fs, dx = facade(k, wx, wy, ww, wh, dw, dh, 40 if k["ar"] <= 2.5 else 36, roof=16, logo_w=150)
+    kf = f'<style>@keyframes {p}gt{{0%,8%{{transform:scaleY(.07)}}40%,84%{{transform:scaleY(1)}}100%{{transform:scaleY(.07)}}}}</style>'
     s += (fs + f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="{dh}" fill="#000" fill-opacity=".78"/>'
           f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="80" fill="{k["door"]}" fill-opacity=".10"/>'
           f'<rect x="{dx+18}" y="{wy-10}" width="{dw-36}" height="7" rx="1.5" fill="{k["ink"]}" fill-opacity=".34"/>'
-          f'<g class="{p}bob">{box(k, p, dx+dw/2-33, wy-8, 66, 48)}</g>'
+          f'<g class="{p}bob">{box(k, p, dx+dw/2-33, wy-8, 66, 48)}</g>' + kf +
+          rollgate(k, dx, wy - dh, dw, dh, f"transform:scaleY(1);animation:{p}gt {dur}s ease-in-out infinite") +
           f'<rect x="{dx}" y="{wy-dh}" width="{dw}" height="7" fill="{k["door"]}"/>')
-    s += seal(k, p, wx + ww - 4, wy - wh - 6, 24)
+    s += seal(k, p, wx + ww - 4, wy - wh - 6, 24, dur=dur, at=6, t0=8, t1=40, out=84)
     return frame(k, p, s, f"Pedido devolvido ao remetente - {k['name']}")
 
 
-def _confete(k, p):
-    s = ""
-    pos = [(70, 70, .0), (118, 92, 1.1), (168, 62, .5), (214, 84, 1.7), (262, 60, .9), (312, 88, 2.3), (356, 66, 1.4)]
-    cores = [k["accent"], "#ffffff", k["ink"], k["accent"], "#ffffff", k["ink"], k["accent"]]
-    for i, (x, y, d) in enumerate(pos):
+def _burst(k, p, ox, oy, dur, at):
+    """Confete que estoura em at% do ciclo (itens da personalidade: figurinhas, cartoes, estrelas)."""
+    kf = (f'<style>@keyframes {p}bu{{0%,{at}%{{opacity:0;transform:translate(0,0) rotate(0)}}{at+3}%{{opacity:1}}{at+22}%{{transform:translate(var(--dx),calc(var(--dy) - 22px)) rotate(120deg)}}'
+          f'{at+44}%{{opacity:1}}{min(at+50, 96)}%,100%{{opacity:0;transform:translate(var(--dx),calc(var(--dy) + 46px)) rotate(240deg)}}}}</style>')
+    pos = [(-62, -46), (-40, -70), (-14, -84), (14, -84), (40, -70), (62, -46), (-52, -20), (52, -20)]
+    cores = [k["accent"], "#ffffff", k["ink"], k["accent"], "#ffffff", k["ink"], k["accent"], "#ffffff"]
+    s = kf
+    for i, (dx, dy) in enumerate(pos):
         if k["prop"] == "packs" and i % 2 == 0:
             item = pack(0, 0, 0, "")
         elif k["prop"] == "cards" and i % 2 == 0:
             item = cardpiece(k, 0, 0, 0, "", .8)
         elif k["prop"] == "spot" and i % 2 == 0:
-            item = f'<path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6 Z" fill="#fff"/>'
+            item = '<path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6 Z" fill="#fff"/>'
         else:
             item = f'<rect x="-3" y="-3" width="6" height="6" rx="1" fill="{cores[i]}"/>'
-        s += f'<g transform="translate({x},{y})"><g class="{p}conf" style="animation-delay:{d}s">{item}</g></g>'
+        s += f'<g transform="translate({ox},{oy})"><g style="opacity:0;--dx:{dx}px;--dy:{dy}px;animation:{p}bu {dur}s ease-out infinite">{item}</g></g>'
     return s
 
 
 def scene_entregue(k, p):
+    """O entregador leva a caixa ate a porta, entrega ao morador; check e confete."""
+    dur = 7.0
     s = f'<g mask="url(#{p}fade)">' + skyline(k, p, scroll=False) + road(k, p, moving=False) + "</g>" + props_ambient(k, p, "entr")
-    # casa grande com porta na cor da marca
-    hx, hy, hw, hh = 176, GROUND + 4, 204, 98
-    s += (f'<rect x="{hx}" y="{hy-hh}" width="{hw}" height="{hh}" fill="{k["panel"]}"/><polygon points="{hx-10},{hy-hh} {hx+hw/2},{hy-hh-42} {hx+hw+10},{hy-hh}" fill="{k["panel"]}"/>'
+    hx, hy, hw, hh = 150, GROUND + 4, 220, 98
+    dcx, dw, dh = 262, 54, 88
+    dx = dcx - dw / 2
+    roof = f'{hx-10},{hy-hh} {hx+hw/2},{hy-hh-42} {hx+hw+10},{hy-hh}'
+    s += (f'<rect x="{hx}" y="{hy-hh}" width="{hw}" height="{hh}" fill="{k["panel"]}"/><polygon points="{roof}" fill="{k["panel"]}"/>'
           f'<rect x="{hx}" y="{hy-hh}" width="{hw}" height="{hh}" fill="{k["ink"]}" fill-opacity=".14" stroke="{k["ink"]}" stroke-opacity=".28"/>'
-          f'<polygon points="{hx-10},{hy-hh} {hx+hw/2},{hy-hh-42} {hx+hw+10},{hy-hh}" fill="{k["ink"]}" fill-opacity=".22"/>'
-          f'<rect x="{hx+22}" y="{hy-72}" width="46" height="34" rx="2" fill="{k["ink"]}" fill-opacity=".10" stroke="{k["ink"]}" stroke-opacity=".3"/>'
-          f'<line x1="{hx+45}" x2="{hx+45}" y1="{hy-72}" y2="{hy-38}" stroke="{k["ink"]}" stroke-opacity=".3"/>'
-          f'<rect x="{hx+122}" y="{hy-84}" width="48" height="84" rx="3" fill="{k["door"]}"/>'
-          f'<circle cx="{hx+161}" cy="{hy-40}" r="2.4" fill="#fff3c4"/>')
-    if k["prop"] == "car":
-        s += car(k, p, 122, GROUND + 12, .8)
-    # caixa da marca na porta + selo de check
-    s += box(k, p, hx + 60, hy + 6, 66, 48)
-    s += seal(k, p, 269, 164, 19)
-    s += _confete(k, p)
+          f'<polygon points="{roof}" fill="{k["ink"]}" fill-opacity=".22"/>'
+          f'<rect x="{hx+20}" y="{hy-72}" width="46" height="34" rx="2" fill="#ffd27a" fill-opacity=".22" stroke="{k["ink"]}" stroke-opacity=".3"/>'
+          f'<line x1="{hx+43}" x2="{hx+43}" y1="{hy-72}" y2="{hy-38}" stroke="{k["ink"]}" stroke-opacity=".3"/>'
+          # porta aberta: interior aceso + folha aberta
+          f'<rect x="{dx}" y="{hy-dh}" width="{dw}" height="{dh}" fill="#241b2b" fill-opacity=".94"/>'
+          f'<rect x="{dx}" y="{hy-dh+18}" width="{dw}" height="{dh-18}" fill="#ffd27a" fill-opacity=".30"/>'
+          f'<polygon points="{dx},{hy-dh} {dx-13},{hy-dh+5} {dx-13},{hy-5} {dx},{hy}" fill="{k["door"]}"/>')
+    s += truck(k, p, 4, VEH_Y, .6, wheels=False)                             # van estacionada
+    kf = (f'<style>@keyframes {p}cw{{0%,4%{{transform:translateX(-84px);opacity:0}}9%{{opacity:1}}30%,88%{{transform:translateX(0);opacity:1}}95%,100%{{transform:translateX(0);opacity:0}}}}'
+          f'@keyframes {p}bx{{0%,4%{{transform:translate(-100px,12px);opacity:0}}9%{{opacity:1}}30%,34%{{transform:translate(-16px,12px);opacity:1}}44%,88%{{transform:translate(0,0);opacity:1}}95%,100%{{transform:translate(0,0);opacity:0}}}}'
+          f'@keyframes {p}wv{{0%,44%{{transform:rotate(0)}}50%{{transform:rotate(-72deg)}}55%{{transform:rotate(-48deg)}}60%{{transform:rotate(-72deg)}}65%{{transform:rotate(-48deg)}}72%,100%{{transform:rotate(0)}}}}'
+          f'@keyframes {p}hp{{0%,46%{{transform:translateY(0)}}50%{{transform:translateY(-5px)}}54%{{transform:translateY(0)}}58%{{transform:translateY(-5px)}}62%,100%{{transform:translateY(0)}}}}</style>')
+    s += kf
+    # morador na porta (virado p/ a esquerda)
+    s += (f'<g transform="translate({dcx},{hy-2}) scale(-1,1)"><g style="animation:{p}hp {dur}s ease-in-out infinite">' + person(k, SHIRT, hair="#3a2c24", stripes=False) +
+          f'<rect x="4" y="-35" width="15" height="4" rx="2" fill="{SHIRT}"/></g></g>')
+    # entregador chegando com a caixa (vira o aceno depois da entrega)
+    cx0 = 186
+    s += (f'<g transform="translate({cx0},{GROUND+14})"><g style="animation:{p}cw {dur}s ease-in-out infinite"><g class="{p}bob">' + person(k, k["accent"], cap=k["cab"]) +
+          f'<g transform="translate(5,-35)"><g style="transform-origin:0 0;animation:{p}wv {dur}s ease-in-out infinite"><rect x="-1" y="-2" width="16" height="4" rx="2" fill="{k["accent"]}"/></g></g></g></g></g>')
+    # caixa: acompanha o entregador e passa para as maos do morador
+    bxx, byy = 210, hy - 2 - 21
+    s += (f'<g transform="translate({bxx},{byy})"><g style="animation:{p}bx {dur}s ease-in-out infinite"><g transform="scale(.7)">{box(k, p, 0, 0)}</g></g></g>')
+    s += seal(k, p, dcx, 56, 20, dur=dur, at=44, t0=48, t1=56, out=90)
+    s += _burst(k, p, dcx, hy - 92, dur, 44)
     return frame(k, p, s, f"Pedido entregue - {k['name']}")
 
 
