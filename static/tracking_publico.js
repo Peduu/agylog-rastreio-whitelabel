@@ -540,6 +540,7 @@ const _pageThemes = {
   const thirdPartyGrid = document.getElementById('thirdPartyGrid');
 
   let pollTimer = null;
+  let _ultimoDado = null;
 
   const STATUS_THEME = {
     aguardando_postagem: 'violet',
@@ -892,6 +893,19 @@ const _pageThemes = {
 
     if (ccxpTreatment) { renderCcXpReenvioAnimation(statusVisualMedia); return; }
 
+    const _cliente = detectClient();
+    if (_cliente === 'caoa' && !window.AgyScenes && !window.AgyScenesFalhou) return;
+    const _cena = window.AgyScenes && window.AgyScenes[_cliente] && window.AgyScenes[_cliente][status];
+    if (_cena) {
+      const chave = `${_cliente}:${status}`;
+      if (statusVisualMedia.dataset.scene !== chave) {
+        statusVisualMedia.innerHTML = _cena;
+        statusVisualMedia.dataset.scene = chave;
+      }
+      return;
+    }
+    statusVisualMedia.dataset.scene = '';
+
     if (visual.media) {
       const isLottie = visual.media.endsWith('.json');
 
@@ -1108,6 +1122,7 @@ const _pageThemes = {
   }
 
   function applyStatusVisuals(data) {
+    _ultimoDado = data;
     const ccxpTreatment = resolveCcXpTreatment(data);
     statusPill.className = ccxpTreatment
       ? 'status-pill'
@@ -1195,6 +1210,7 @@ const _pageThemes = {
     currentStageTitle.textContent = 'Acompanhamento da entrega';
     journeyMessage.textContent = 'Consulte o código do pedido para visualizar a etapa atual da entrega.';
     statusVisualMedia.innerHTML = '';
+    statusVisualMedia.dataset.scene = '';
     visualTags.innerHTML = '';
     timeline.innerHTML = '';
     historyList.innerHTML = '';
@@ -1276,6 +1292,13 @@ const _pageThemes = {
   const _clientSlug = detectClient();
   if (_clientSlug) {
     applyClientTheme(_clientSlug);
+    if (_clientSlug === 'caoa') {
+      const _sc = document.createElement('script');
+      _sc.src = '/static/scenes/caoa.js?v=20260924e';
+      _sc.onload = () => { if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
+      _sc.onerror = () => { window.AgyScenesFalhou = true; if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
+      document.head.appendChild(_sc);
+    }
     // Pre-fill code from URL: /tracking/SLUG/CODE
     const _urlCode = getTrackingCodeFromURL();
     if (_urlCode && codigoInput && !codigoInput.value) {
