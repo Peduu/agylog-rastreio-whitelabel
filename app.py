@@ -3345,7 +3345,9 @@ def api_rastrear_publico():
     if demo is not None:
         return jsonify(demo)
 
-    resultado = buscar_rastreio_publico(codigo, cliente)
+    resultado = _resultado_demo_agy(codigo)
+    if resultado is None:
+        resultado = buscar_rastreio_publico(codigo, cliente)
 
     if not resultado:
         return jsonify({
@@ -3355,7 +3357,7 @@ def api_rastrear_publico():
 
     status_badge = str(resultado.get("statusBadge") or "").upper()
 
-    status_key = converter_status_publico(status_badge)
+    status_key = resultado.get("_demo_status") or converter_status_publico(status_badge)
 
     # Hotfix público exclusivo do CCXP: o TMS continua sendo a fonte da
     # ocorrência, mas nenhum estado de insucesso/reenvio vaza como devolução.
@@ -3451,6 +3453,7 @@ def api_rastrear_publico():
 
             resposta_ccxp = {
                 "ok": True,
+                "demo": bool(resultado.get("_demo_status")),
                 "cliente": resultado.get("codigoCliente") or resultado.get("codigo") or "-",
                 "status": status_ccxp,
                 "status_label": titulo_ccxp,
@@ -3469,6 +3472,7 @@ def api_rastrear_publico():
 
     return jsonify({
         "ok": True,
+        "demo": bool(resultado.get("_demo_status")),
         "cliente": resultado.get("codigoCliente") or resultado.get("codigo") or "-",
         "status": status_key,
         "status_label": resultado.get("statusBadge") or "-",
@@ -3488,7 +3492,8 @@ def api_rastrear_simplecompany():
     if not codigo or len(codigo) > 80 or not re.fullmatch(r"[A-Z0-9._/-]+", codigo):
         return jsonify({"ok": False, "error": "Informe um número de pedido válido."}), 400
 
-    nome_cadastrado = _buscar_nome_pedido_simplecompany(codigo)
+    demo = _resultado_demo_agy(codigo)
+    nome_cadastrado = "Demonstração AGY" if demo else _buscar_nome_pedido_simplecompany(codigo)
     if not nome_cadastrado or not nome_informado or _normalizar_nome_validacao(nome_informado) != _normalizar_nome_validacao(nome_cadastrado):
         return jsonify({"ok": False, "error": "O nome informado não confere com o pedido."}), 403
 
@@ -3501,14 +3506,15 @@ def api_rastrear_simplecompany():
         return response, 429
 
     # Simple Company consulta exclusivamente a listaPedidos do TMS.
-    resultado = buscar_rastreio_na_api(codigo, cnpj_simplecompany, somente_pedido=True)
+    resultado = demo if demo is not None else buscar_rastreio_na_api(codigo, cnpj_simplecompany, somente_pedido=True)
     if not resultado:
         return jsonify({"ok": False, "error": "Pedido não encontrado."}), 404
 
     status_badge = str(resultado.get("statusBadge") or "").upper()
-    status_key = converter_status_publico(status_badge)
+    status_key = resultado.get("_demo_status") or converter_status_publico(status_badge)
     return jsonify({
         "ok": True,
+        "demo": demo is not None,
         "pedido": codigo,
         "status": status_key,
         "status_label": resultado.get("statusBadge") or "-",
@@ -3522,7 +3528,7 @@ def api_dica_simplecompany():
     codigo = str(request.args.get("codigo", "")).strip().upper()
     if not codigo or len(codigo) > 80 or not re.fullmatch(r"[A-Z0-9._/-]+", codigo):
         return jsonify({"ok": False, "error": "Pedido inválido."}), 400
-    nome = _buscar_nome_pedido_simplecompany(codigo)
+    nome = "Demonstração AGY" if _resultado_demo_agy(codigo) else _buscar_nome_pedido_simplecompany(codigo)
     if not nome:
         return jsonify({"ok": False, "error": "Pedido não encontrado."}), 404
     return jsonify({"ok": True, "nome_mascarado": _nome_mascarado_simplecompany(nome)})
@@ -3731,6 +3737,54 @@ def montar_historico_publico(resultado):
     })
 
     return historico
+
+
+# Códigos reservados de demonstração: somente dados fictícios, sem banco/TMS.
+# O resultado percorre a mesma apresentação pública e as mesmas regras do CCXP.
+DEMO_AGY = {
+    "AGY1": ("aguardando_postagem", "AGUARDANDO POSTAGEM", "Pedido recebido; aguardando postagem."),
+    "AGY2": ("preparacao_transporte", "EM SEPARAÇÃO", "Pedido em preparação para transporte."),
+    "AGY3": ("transferencia_franquia", "EM TRANSFERÊNCIA", "Pedido em transferência entre unidades."),
+    "AGY4": ("chegada_franquia", "RECEBIDO", "Pedido recebido na unidade final."),
+    "AGY5": ("em_rota_entrega", "EM ROTA", "Pedido em rota para entrega."),
+    "AGY6": ("atencao", "CUSTODIA", "Insucesso na tentativa. Aguardando tratativa."),
+    "AGY7": ("devolucao", "EM DEVOLUÇÃO", "Pedido em retorno ao remetente."),
+    "AGY8": ("devolvido", "DEVOLVIDO", "Pedido devolvido ao remetente."),
+    "AGY9": ("entregue", "ENTREGUE", "Pedido entregue ao destinatário."),
+    "AGY10": ("atencao", "REENTREGAR", "Tratamento de pendência: REENTREGAR. Nova tentativa programada."),
+}
+
+
+def _resultado_demo_agy(codigo):
+    caso = DEMO_AGY.get(codigo)
+    if caso is None:
+        return None
+    status_key, badge, descricao = caso
+    percurso = ["aguardando_postagem", "preparacao_transporte",
+                "transferencia_franquia", "chegada_franquia", "em_rota_entrega"]
+    if status_key in percurso:
+        percurso = percurso[:percurso.index(status_key) + 1]
+    else:
+        if status_key in {"devolucao", "devolvido"}:
+            percurso.append("atencao")
+        if status_key == "devolvido":
+            percurso.append("devolucao")
+        percurso.append(status_key)
+    agora = datetime.now().replace(second=0, microsecond=0)
+    datas = {}
+    for indice, chave in enumerate(percurso):
+        momento = agora - timedelta(days=len(percurso) - indice - 1)
+        datas[chave] = {"date": momento.strftime("%d/%m/%Y"), "time": momento.strftime("%H:%M")}
+    return {
+        "_demo_status": status_key,
+        "codigoCliente": f"DEMONSTRAÇÃO AGY · {codigo}",
+        "statusBadge": badge,
+        "ultimoStatus": descricao,
+        "dataBaixa": agora.strftime("%d/%m/%Y %H:%M"),
+        "previsao": (agora + timedelta(days=1)).strftime("%d/%m/%Y"),
+        "datasEtapas": datas,
+        "rastreioTerceiro": None,
+    }
 
 
 # Códigos fixos de demonstração do CAOA: dados fictícios, sem banco e sem TMS.
