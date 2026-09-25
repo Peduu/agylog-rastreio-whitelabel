@@ -418,6 +418,43 @@ importRastreiosForm?.addEventListener("submit", async (event) => {
   }
 });
 
+const codigosCorreiosForm = document.getElementById("codigosCorreiosForm");
+const codigosCorreiosTexto = document.getElementById("codigosCorreiosTexto");
+const codigosCorreiosAlert = document.getElementById("codigosCorreiosAlert");
+
+codigosCorreiosForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setAlert(codigosCorreiosAlert);
+
+  try {
+    const response = await fetch("/api/admin/codigos-correios", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto: codigosCorreiosTexto?.value || "" })
+    });
+    const data = await response.json();
+    if (!data.success) {
+      setAlert(codigosCorreiosAlert, data.message || "Erro ao gravar codigos.", true);
+      return;
+    }
+
+    const partes = [`Gravados: ${data.gravados.length}`];
+    if (data.nao_encontrados.length) {
+      partes.push(`Pedido nao encontrado no portal: ${data.nao_encontrados.join(", ")}`);
+    }
+    if (data.linhas_invalidas.length) {
+      partes.push(`Linha nao entendida: ${data.linhas_invalidas.join(" | ")}`);
+    }
+    const temProblema = data.nao_encontrados.length || data.linhas_invalidas.length;
+    setAlert(codigosCorreiosAlert, partes.join(" — "), Boolean(temProblema));
+    if (!temProblema) codigosCorreiosForm.reset();
+    await carregarLogUpdates();
+  } catch (error) {
+    console.error(error);
+    setAlert(codigosCorreiosAlert, "Erro ao conectar com o servidor.", true);
+  }
+});
+
 importarRegrasCsvForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   setAlert(regrasPrevisaoAlert);

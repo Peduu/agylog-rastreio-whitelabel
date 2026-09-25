@@ -412,6 +412,9 @@ def garantir_tabelas_app():
     if "data_cadastro_portal" not in colunas_rastreios:
         cursor.execute("ALTER TABLE rastreios ADD COLUMN data_cadastro_portal TEXT")
 
+    if "codigo_correios" not in colunas_rastreios:
+        cursor.execute("ALTER TABLE rastreios ADD COLUMN codigo_correios TEXT")
+
     colunas_regras = {
         row[1]
         for row in cursor.execute("PRAGMA table_info(regras_previsao)").fetchall()
@@ -2326,6 +2329,88 @@ def importar_rastreios_admin():
     finally:
         if caminho_temp and os.path.exists(caminho_temp):
             os.remove(caminho_temp)
+
+
+# ============================================================
+# ADMIN - CODIGOS DOS CORREIOS (pedidos que seguem via Total)
+# ============================================================
+
+REGEX_CODIGO_CORREIOS = re.compile(r"^[A-Z]{2}[0-9]{9}[A-Z]{2}$")
+
+
+def interpretar_codigos_correios(texto):
+    """Cada linha: pedido e codigo dos Correios, em qualquer ordem, separados
+    por espaco, tab, ponto e virgula, virgula ou '='. Retorna (pares, invalidas)."""
+    pares = OrderedDict()
+    invalidas = []
+    for linha in str(texto or "").splitlines():
+        partes = [p for p in re.split(r"[\s;,=]+", linha.strip().upper()) if p]
+        if not partes:
+            continue
+        correios = [p for p in partes if REGEX_CODIGO_CORREIOS.match(p)]
+        pedidos = [p for p in partes if not REGEX_CODIGO_CORREIOS.match(p)]
+        if len(correios) != 1 or len(pedidos) != 1:
+            invalidas.append(linha.strip())
+            continue
+        pares[pedidos[0]] = correios[0]
+    return pares, invalidas
+
+
+@app.route("/api/admin/codigos-correios", methods=["POST"])
+def gravar_codigos_correios_admin():
+    if "usuario_id" not in session:
+        return jsonify({"success": False, "message": "Não autenticado."}), 401
+
+    if session.get("is_admin") != 1:
+        return jsonify({"success": False, "message": "Acesso negado."}), 403
+
+    dados = request.get_json(silent=True) or {}
+    pares, invalidas = interpretar_codigos_correios(dados.get("texto"))
+    if not pares and not invalidas:
+        return jsonify({"success": False, "message": "Cole ao menos uma linha: pedido e código dos Correios."}), 400
+    if len(pares) > 2000:
+        return jsonify({"success": False, "message": "Envie no máximo 2000 linhas por vez."}), 400
+
+    gravados = []
+    nao_encontrados = []
+    conn = get_db_connection()
+    try:
+        for pedido, correios in pares.items():
+            alterados = conn.execute(
+                "UPDATE rastreios SET codigo_correios = ? WHERE codigo = ?",
+                (correios, pedido),
+            ).rowcount
+            if alterados:
+                gravados.append({"pedido": pedido, "correios": correios})
+            else:
+                nao_encontrados.append(pedido)
+
+        conn.execute("""
+            INSERT INTO log_updates (
+                usuario_id, nome_usuario, tipo_importacao, nome_arquivo,
+                inseridos, atualizados, ignorados, data_hora
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            session["usuario_id"],
+            session.get("usuario_nome"),
+            "codigos_correios",
+            "colado na tela",
+            0,
+            len(gravados),
+            len(nao_encontrados) + len(invalidas),
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({
+        "success": True,
+        "gravados": gravados,
+        "nao_encontrados": nao_encontrados,
+        "linhas_invalidas": invalidas,
+    })
 
 
 # ============================================================
