@@ -84,5 +84,9 @@ Objetivo: cartão discreto, legível e consistente entre os clientes.
   "Copiar" no estilo do "Colar" e botão no estilo do "Rastrear encomenda" de
   cada tema; lógica compartilhada em `static/correios_tracking.js` (CSP bloqueia
   script inline). Aprovado pelo Pedro em 28/09 (rótulo em texto normal).
-- [ ] Publicar a alteração visual.
+- [x] Publicar a alteração visual (28/09, commit `b8aac3e`, GitHub Actions
+  https://github.com/Peduu/agylog-rastreio-whitelabel/actions/runs/36441771721;
+  backup `/home/rastreamento/backups/deploy-20260928-121242-github-actions-16`).
+  Pós-deploy: estáticos iguais ao commit, integração Total intacta nos dois
+  pedidos, cartão renderizado abaixo do status na página real.
 Aceite: manter a integração automática e exibir o cartão apenas com código disponível.
