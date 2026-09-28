@@ -9,6 +9,7 @@
   <meta name="referrer" content="no-referrer" />
   <title>Rastreamento · Simple Company</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='tracking_simplecompany.css') }}?v=4" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='correios_tracking.css') }}?v=20260928" />
 </head>
 <body>
   <header class="topbar">
@@ -33,9 +34,9 @@
     <section id="resultArea" class="result hidden">
       <div class="result-head"><div><span class="eyebrow">PEDIDO</span><strong id="pedidoCode">-</strong></div><span id="statusPill" class="status-pill">-</span></div>
       <h2 id="statusTitle">Acompanhamento da entrega</h2><p id="statusMessage">-</p>
-      <a id="correiosTracking" class="correios-card hidden" target="_blank" rel="noopener">
-        <span><small>Codigo Correios</small><strong id="correiosCode">-</strong></span><span aria-hidden="true">&rarr;</span>
-      </a>
+      {% with card_id='correiosTracking', card_class='', head_class='', kicker_class='eyebrow', code_id='correiosCode', link_id='correiosLink' %}
+        {% include '_correios_tracking.html' %}
+      {% endwith %}
       <div class="timeline-container">
         <div class="timeline-head"><div><span class="eyebrow">LINHA DE STATUS</span><h3>Etapas do pedido</h3></div></div>
         <div class="progress-track"><div class="progress-line"></div><div id="progressFill" class="progress-line-fill"></div><div id="timeline" class="timeline"></div></div>
@@ -45,6 +46,7 @@
     </section>
   </main>
   <footer>&copy; 2026 <strong>AGYLOG</strong> · Todos os direitos reservados</footer>
-  <script src="{{ url_for('static', filename='tracking_simplecompany.js') }}?v=7"></script>
+  <script src="{{ url_for('static', filename='correios_tracking.js') }}?v=20260928"></script>
+  <script src="{{ url_for('static', filename='tracking_simplecompany.js') }}?v=8"></script>
 </body>
 </html>

@@ -537,7 +537,6 @@ const _pageThemes = {
   const lastUpdateLabel = document.getElementById('lastUpdateLabel');
   const novaBuscaBtn = document.getElementById('novaBuscaBtn');
   const thirdPartyCard = document.getElementById('thirdPartyCard');
-  const thirdPartyGrid = document.getElementById('thirdPartyGrid');
 
   // Clientes com cenas SVG animadas (static/scenes/<cliente>.js, gerado por tools/scenes/build.py).
   // Suba VERSAO_CENAS sempre que regenerar as cenas (invalida o cache do navegador).
@@ -640,23 +639,8 @@ const _pageThemes = {
   }
 
   function renderThirdPartyTracking(tracking) {
-    if (!thirdPartyCard || !thirdPartyGrid) return;
-
-    const codigoTerceiro = String(tracking?.codigoTerceiro || '').trim();
-
-    if (!codigoTerceiro) {
-      thirdPartyGrid.innerHTML = '';
-      thirdPartyCard.classList.add('hidden');
-      return;
-    }
-
-    thirdPartyGrid.innerHTML = `
-      <div class="info-item" style="padding-top:6px;">
-        <a href="https://rastreamento.correios.com.br/app/index.php?objetos=${escapeHtml(codigoTerceiro)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 18px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);color:inherit;font-size:14px;font-weight:700;text-decoration:none;letter-spacing:1px;cursor:pointer;box-sizing:border-box;"><span style="display:flex;align-items:center;gap:10px;">&#128230; <span><span style="font-size:11px;font-weight:400;opacity:0.6;display:block;letter-spacing:2px;text-transform:uppercase;">C&#243;digo Correios</span>${escapeHtml(codigoTerceiro)}</span></span><span style="font-size:20px;opacity:0.7;">&rarr;</span></a>
-      </div>
-    `;
-
-    thirdPartyCard.classList.remove('hidden');
+    if (!thirdPartyCard || !window.AgyCorreios) return;
+    window.AgyCorreios.render(thirdPartyCard, tracking);
   }
 
   function formatNow() {

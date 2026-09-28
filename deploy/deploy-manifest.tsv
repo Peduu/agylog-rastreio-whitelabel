@@ -69,3 +69,7 @@ static/scenes/ip2w.js	/home/rastreamento/static/scenes/ip2w.js
 static/scenes/ccxp.js	/home/rastreamento/static/scenes/ccxp.js
 static/logos/logo-panini-cena.png	/home/rastreamento/static/logos/logo-panini-cena.png
 static/logos/logo-panini-cena-s.png	/home/rastreamento/static/logos/logo-panini-cena-s.png
+templates/_correios_tracking.html	/home/rastreamento/templates/_correios_tracking.html
+static/correios_tracking.css	/home/rastreamento/static/correios_tracking.css
+static/logos/correios.svg	/home/rastreamento/static/logos/correios.svg
+static/correios_tracking.js	/home/rastreamento/static/correios_tracking.js

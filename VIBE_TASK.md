@@ -19,7 +19,7 @@ Deploy: https://github.com/Peduu/agylog-rastreio-whitelabel/actions/runs/3614246
 Resultado: todos os códigos validados no CAOA; regras CCXP validadas em AGY6/7/8/10;
 amostras Panini, IP2W e Simple Company confirmadas. Sem bloqueios pendentes nesta tarefa.
 
-## Integração automática Total → Correios (em investigação)
+## Integração automática Total → Correios (publicada e validada)
 
 Objetivo: obter automaticamente o código postal por pedido e disponibilizar o
 botão em todos os clientes, preservando associação correta entre remessas.
@@ -53,14 +53,34 @@ botão em todos os clientes, preservando associação correta entre remessas.
 - [x] Pedro autorizou ativar a integração na VPS com backup, configuração
   das duas variáveis no serviço, publicação e validação.
 - [x] Segredos da Total cadastrados no GitHub Actions sem valores no Git.
-- [ ] Publicar o código com backup e rollback do código e do ambiente.
-- [ ] Validar os dois exemplos no portal público após publicação.
+- [x] Publicar o código com backup e rollback do código e do ambiente.
+- [x] Validar os dois exemplos no portal público após publicação.
 
 Login restabelecido pelo usuário. O segundo exemplo foi localizado na Total,
 com Número redespacho preenchido e evento Disponível para retirada.
 O relatorio real foi fornecido pelo usuario e contem os dois vinculos esperados.
 A API oficial foi comprovada com autenticação direta; os dois pedidos de exemplo
-retornaram o mesmo código dos Correios já visto no relatório. O serviço precisa
-receber `TOTAL_EXPRESS_API_USER` e `TOTAL_EXPRESS_API_PASSWORD` por ambiente na
-VPS antes da publicação. Nenhuma alteração em produção foi feita nesta etapa.
+retornaram o mesmo código dos Correios já visto no relatório. O serviço recebeu
+`TOTAL_EXPRESS_API_USER` e `TOTAL_EXPRESS_API_PASSWORD` por ambiente na VPS.
+Deploy concluído em 28/09/2026: commit `922787b`, GitHub Actions
+https://github.com/Peduu/agylog-rastreio-whitelabel/actions/runs/36432807395
+com resultado success. Backup: `/home/rastreamento/backups/deploy-20260928-110133-github-actions-15`.
+Validação pública pós-deploy e reconferência: HTTP 200 nos dois pedidos,
+`OMLTCO4BFTYE8QC` → `AD943406192BR` e `OMLTCO7QHQHLTSC` → `AD943409123BR`.
+Suite pré-deploy: 33 testes aprovados. Sem bloqueios pendentes nesta integração.
 Não reinterpretar ENTREGUE como envio aos Correios sem comprovar a semântica do evento.
+
+## Visual do rastreamento Correios
+
+Objetivo: cartão discreto, legível e consistente entre os clientes.
+- [x] Inspecionar os temas e os dois fluxos públicos.
+- [x] Criar componente compartilhado com marca oficial, código e ação explícita.
+- [x] Incluir arquivos no manifesto e atualizar versão dos assets.
+- [x] Validar visual claro/escuro, celular, links e ausência de código
+  (Claude, 28/09: 9 temas + Simple Company + 390 px; sem código o cartão some;
+  copiar grava o código sem espaços; link abre nova aba com noopener).
+- [x] Cartão movido para logo abaixo do status, no padrão etiqueta + título dos
+  outros cartões; código agrupado (AD 943 406 192 BR) e botão de copiar;
+  lógica compartilhada em `static/correios_tracking.js` (CSP bloqueia script inline).
+- [ ] Publicar a alteração visual.
+Aceite: manter a integração automática e exibir o cartão apenas com código disponível.

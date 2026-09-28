@@ -1,0 +1,111 @@
+/* Cartão de rastreio dos Correios (portal dos clientes e Simple Company).
+   Cores neutras derivadas de currentColor para servir a todos os temas;
+   só o botão usa o amarelo/azul da marca Correios. */
+.postal-card.hidden { display: none; }
+.postal-card { position: relative; animation: postal-in .45s cubic-bezier(.2, .7, .2, 1) both; }
+.postal-card:not(.history-card) { margin: 24px 0 28px; }
+.postal-card .postal-head { margin-bottom: 18px; }
+.postal-card .postal-head .eyebrow { text-transform: uppercase; }
+.postal-card .postal-head h3 { margin: 6px 0 0; font-size: 1rem; line-height: 1.35; letter-spacing: -.02em; font-weight: 700; color: inherit; }
+
+.postal-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 16px 16px 18px;
+  border-radius: 14px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.postal-logo {
+  display: grid;
+  place-items: center;
+  width: 116px;
+  height: 52px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(20, 43, 69, .08);
+}
+.postal-logo img { display: block; width: 96px; height: auto; }
+
+.postal-code-wrap { min-width: 0; }
+.postal-code-label { display: block; font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
+.postal-code-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.postal-card .postal-code {
+  display: block;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  color: inherit;
+}
+.postal-code span + span { margin-left: .38em; }
+
+.postal-card .postal-copy {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: .8;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.postal-card .postal-copy:hover { opacity: 1; background: color-mix(in srgb, currentColor 8%, transparent); }
+.postal-card .postal-copy:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.postal-copy svg { grid-area: 1 / 1; transition: opacity .15s ease, transform .2s ease; }
+.postal-copy .postal-icon-check { opacity: 0; transform: scale(.6); }
+.postal-copy.is-copied { opacity: 1; border-color: #22a55a; color: #22a55a; }
+.postal-copy.is-copied .postal-icon-copy { opacity: 0; transform: scale(.6); }
+.postal-copy.is-copied .postal-icon-check { opacity: 1; transform: none; }
+
+.postal-card a.postal-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 0;
+  background: #ffcf32 !important;
+  color: #142b45 !important;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background .15s ease, transform .15s ease;
+}
+.postal-card a.postal-action svg { flex-shrink: 0; transition: transform .2s ease; }
+.postal-card a.postal-action:hover { background: #ffdc66 !important; }
+.postal-card a.postal-action:hover svg { transform: translate(2px, -2px); }
+.postal-card a.postal-action:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+
+.postal-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@keyframes postal-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 600px) {
+  .postal-body { grid-template-columns: auto minmax(0, 1fr); gap: 14px 16px; padding: 14px; }
+  .postal-logo { width: 84px; height: 44px; border-radius: 9px; }
+  .postal-logo img { width: 70px; }
+  .postal-card .postal-code { font-size: 1.12rem; }
+  .postal-card a.postal-action { grid-column: 1 / -1; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .postal-card, .postal-copy svg, .postal-card a.postal-action, .postal-card a.postal-action svg { animation: none; transition: none; }
+}

@@ -3,10 +3,8 @@
   const esc=v=>String(v??'-').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function renderCorreios(tracking){
     const codigo=String(tracking?.codigoTerceiro||'').trim().toUpperCase();
-    if(!codigo){correiosCode.textContent='-';correiosTracking.removeAttribute('href');correiosTracking.classList.add('hidden');return}
-    correiosCode.textContent=codigo;
-    correiosTracking.href=`https://rastreamento.correios.com.br/app/index.php?objetos=${encodeURIComponent(codigo)}`;
-    correiosTracking.classList.remove('hidden');
+    if(window.AgyCorreios){window.AgyCorreios.render(correiosTracking,{codigoTerceiro:codigo});return}
+    correiosTracking.classList.add('hidden');
   }
   function render(data){
     document.getElementById('pedidoCode').textContent=data.pedido||input.value.trim();
