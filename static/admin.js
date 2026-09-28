@@ -420,18 +420,31 @@ importRastreiosForm?.addEventListener("submit", async (event) => {
 
 const codigosCorreiosForm = document.getElementById("codigosCorreiosForm");
 const codigosCorreiosTexto = document.getElementById("codigosCorreiosTexto");
+const arquivoCodigosCorreios = document.getElementById("arquivoCodigosCorreios");
 const codigosCorreiosAlert = document.getElementById("codigosCorreiosAlert");
 
 codigosCorreiosForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   setAlert(codigosCorreiosAlert);
 
+  const arquivo = arquivoCodigosCorreios?.files?.[0];
+  const texto = codigosCorreiosTexto?.value?.trim() || "";
+  if (!arquivo && !texto) {
+    setAlert(codigosCorreiosAlert, "Selecione o CSV da Total ou cole os codigos.", true);
+    return;
+  }
+
   try {
-    const response = await fetch("/api/admin/codigos-correios", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texto: codigosCorreiosTexto?.value || "" })
-    });
+    const opcoes = { method: "POST" };
+    if (arquivo) {
+      const formData = new FormData();
+      formData.append("arquivo", arquivo);
+      opcoes.body = formData;
+    } else {
+      opcoes.headers = { "Content-Type": "application/json" };
+      opcoes.body = JSON.stringify({ texto });
+    }
+    const response = await fetch("/api/admin/codigos-correios", opcoes);
     const data = await response.json();
     if (!data.success) {
       setAlert(codigosCorreiosAlert, data.message || "Erro ao gravar codigos.", true);
@@ -445,7 +458,11 @@ codigosCorreiosForm?.addEventListener("submit", async (event) => {
     if (data.linhas_invalidas.length) {
       partes.push(`Linha nao entendida: ${data.linhas_invalidas.join(" | ")}`);
     }
-    const temProblema = data.nao_encontrados.length || data.linhas_invalidas.length;
+    const conflitos = Object.entries(data.conflitos || {});
+    if (conflitos.length) {
+      partes.push(`Conflito nao gravado: ${conflitos.map(([pedido, codigos]) => `${pedido} (${codigos.join(" / ")})`).join(", ")}`);
+    }
+    const temProblema = data.nao_encontrados.length || data.linhas_invalidas.length || conflitos.length;
     setAlert(codigosCorreiosAlert, partes.join(" — "), Boolean(temProblema));
     if (!temProblema) codigosCorreiosForm.reset();
     await carregarLogUpdates();

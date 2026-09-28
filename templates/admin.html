@@ -113,11 +113,12 @@
 
       <section class="admin-card">
         <h2>Codigos dos Correios</h2>
-        <p>Pedidos que seguem pelos Correios (via Total). Cole uma linha por pedido: numero do pedido e codigo dos Correios. O cliente passa a ver o botao "Codigo Correios" no rastreio.</p>
+        <p>Pedidos que seguem pelos Correios (via Total). Envie o CSV gerado em Relatorios &gt; Busca por lote, ou cole uma linha por pedido. O cliente passa a ver o botao "Codigo Correios" no rastreio.</p>
 
         <form id="codigosCorreiosForm" class="admin-form">
-          <textarea id="codigosCorreiosTexto" rows="5" placeholder="OMLTCO4BFTYE8QC   AD943406192BR" required></textarea>
-          <button class="primary-btn" type="submit">Gravar codigos</button>
+          <input type="file" id="arquivoCodigosCorreios" accept=".csv,text/csv" />
+          <textarea id="codigosCorreiosTexto" rows="5" placeholder="Ou cole: OMLTCO4BFTYE8QC   AD943406192BR"></textarea>
+          <button class="primary-btn" type="submit">Importar codigos</button>
         </form>
 
         <div id="codigosCorreiosAlert" class="admin-alert hidden"></div>

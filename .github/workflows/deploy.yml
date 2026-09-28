@@ -75,11 +75,15 @@ jobs:
 
       - name: Aplicar deploy com backup e rollback
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          TOTAL_EXPRESS_API_USER: ${{ secrets.TOTAL_EXPRESS_API_USER }}
+          TOTAL_EXPRESS_API_PASSWORD: ${{ secrets.TOTAL_EXPRESS_API_PASSWORD }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          envs: TOTAL_EXPRESS_API_USER,TOTAL_EXPRESS_API_PASSWORD
           script: |
             set -euo pipefail
 
@@ -89,6 +93,12 @@ jobs:
             BACKUP="/home/rastreamento/backups/deploy-${TS}-github-actions-${{ github.run_number }}"
             MANIFEST="$STAGE/deploy/deploy-manifest.tsv"
             APPLIED=0
+            ENV_UPDATED=0
+
+            if [ -z "${TOTAL_EXPRESS_API_USER:-}" ] || [ -z "${TOTAL_EXPRESS_API_PASSWORD:-}" ]; then
+              echo "ERRO: credenciais da Total nao configuradas. Nada foi alterado."
+              exit 1
+            fi
 
             MAINPID="$(systemctl show -p MainPID --value rastreamento.service)"
             if [ -z "$MAINPID" ] || [ "$MAINPID" = "0" ]; then
@@ -105,6 +115,8 @@ jobs:
             done
 
             mkdir -p "$STAGE" "$BACKUP"
+            test "$(stat -c '%a' /etc/rastreamento.env)" = "600"
+            cp -a /etc/rastreamento.env "$BACKUP/rastreamento.env"
             rm -rf "$STAGE"/*
             tar -xzf "$PACKAGE" -C "$STAGE"
 
@@ -142,6 +154,9 @@ jobs:
 
             rollback() {
               echo "ERRO no deploy. Restaurando arquivos do backup: $BACKUP"
+              if [ "$ENV_UPDATED" = "1" ]; then
+                cp -a "$BACKUP/rastreamento.env" /etc/rastreamento.env
+              fi
               for target in "${TARGETS[@]}"; do
                 if [ -e "$BACKUP$target" ]; then
                   cp -a "$BACKUP$target" "$target"
@@ -152,6 +167,33 @@ jobs:
               fi
             }
             trap rollback ERR
+
+            python3 - <<'PY'
+            import os
+            import re
+            import tempfile
+            from pathlib import Path
+
+            path = Path('/etc/rastreamento.env')
+            keys = ('TOTAL_EXPRESS_API_USER', 'TOTAL_EXPRESS_API_PASSWORD')
+            values = {key: os.environ[key] for key in keys}
+            if any(not re.fullmatch(r'[A-Za-z0-9._@+-]+', value) for value in values.values()):
+                raise SystemExit('Credencial com formato inesperado; ambiente preservado.')
+            original = path.read_text(encoding='utf-8')
+            kept = [line for line in original.splitlines()
+                    if not any(line.startswith(key + '=') for key in keys)]
+            updated = '\n'.join(kept + [f'{key}={values[key]}' for key in keys]) + '\n'
+            stat = path.stat()
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
+                                             dir=path.parent, prefix='.rastreamento-env-',
+                                             delete=False) as temp:
+                temp.write(updated)
+                temp_path = Path(temp.name)
+            os.chown(temp_path, stat.st_uid, stat.st_gid)
+            os.chmod(temp_path, 0o600)
+            os.replace(temp_path, path)
+            PY
+            ENV_UPDATED=1
 
             for line in "${MANIFEST_LINES[@]}"; do
               IFS=$'\t' read -r source target <<< "$line"
@@ -167,6 +209,11 @@ jobs:
             systemctl restart rastreamento.service
             sleep 2
             systemctl is-active --quiet rastreamento.service
+            MAINPID="$(systemctl show -p MainPID --value rastreamento.service)"
+            for required_env in TOTAL_EXPRESS_API_USER TOTAL_EXPRESS_API_PASSWORD; do
+              grep -qz "^${required_env}=..*" "/proc/$MAINPID/environ"
+              echo "OK ${required_env} carregada pelo servico (valor nao exibido)"
+            done
 
             for route in /tracking/tricard/ /tracking/BRB/ /tracking/panini/; do
               code="$(curl -k -s -o /dev/null -w '%{http_code}' "https://rastreamento.agylog.com.br${route}")"

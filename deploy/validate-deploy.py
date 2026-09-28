@@ -102,7 +102,10 @@ def validate_env_example() -> None:
     if not env_example.exists():
         fail(".env.example ausente")
     text = env_example.read_text(encoding="utf-8")
-    for forbidden in ("TMS_API_TOKEN=", "SECRET_KEY=", "INTERLOG_API_TOKEN="):
+    for forbidden in (
+        "TMS_API_TOKEN=", "SECRET_KEY=", "INTERLOG_API_TOKEN=",
+        "TOTAL_EXPRESS_API_USER=", "TOTAL_EXPRESS_API_PASSWORD=",
+    ):
         for line in text.splitlines():
             if line.startswith(forbidden) and line.strip() != forbidden:
                 fail(f".env.example contem valor real em {forbidden.rstrip('=')}")

@@ -1,6 +1,13 @@
 (function(){
-  const input=document.getElementById('pedidoInput'), button=document.getElementById('consultarBtn'), alertBox=document.getElementById('alertBox'), result=document.getElementById('resultArea'), nameBox=document.getElementById('nameValidation'), nameInput=document.getElementById('nomeInput'), nameHint=document.getElementById('nomeHint');
+  const input=document.getElementById('pedidoInput'), button=document.getElementById('consultarBtn'), alertBox=document.getElementById('alertBox'), result=document.getElementById('resultArea'), nameBox=document.getElementById('nameValidation'), nameInput=document.getElementById('nomeInput'), nameHint=document.getElementById('nomeHint'), correiosTracking=document.getElementById('correiosTracking'), correiosCode=document.getElementById('correiosCode');
   const esc=v=>String(v??'-').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function renderCorreios(tracking){
+    const codigo=String(tracking?.codigoTerceiro||'').trim().toUpperCase();
+    if(!codigo){correiosCode.textContent='-';correiosTracking.removeAttribute('href');correiosTracking.classList.add('hidden');return}
+    correiosCode.textContent=codigo;
+    correiosTracking.href=`https://rastreamento.correios.com.br/app/index.php?objetos=${encodeURIComponent(codigo)}`;
+    correiosTracking.classList.remove('hidden');
+  }
   function render(data){
     document.getElementById('pedidoCode').textContent=data.pedido||input.value.trim();
     document.getElementById('statusPill').textContent=data.status_label||'-';
@@ -21,6 +28,7 @@
     fill.style.transform=`scaleX(${stages.length>1?activeIndex/(stages.length-1):0})`;
     timeline.innerHTML=stages.map((s,i)=>{const done=Boolean(s.done)||i<activeIndex, active=i===activeIndex;return `<article class="timeline-stage ${done?'done':''} ${active?'active':''} ${s.key==='entregue'?'final':''}"><div class="timeline-node">${done?'<span class="timeline-node-check">✓</span>':active?`<span class="timeline-node-emoji">${esc(s.icon||'•')}</span>`:'<span class="timeline-node-pending">•</span>'}</div><h4>${esc(s.title||'Etapa')}</h4><time>${esc(s.time?`${s.date} · ${s.time}`:(s.date||'-'))}</time><p>${esc(s.desc||'')}</p></article>`}).join('');
     document.getElementById('historyList').innerHTML=(data.history||[]).map(h=>`<div class="history-item"><strong>${esc(h.title||h.status||'Atualização')}</strong><p>${esc(h.desc||h.description||h.when||h.date||'')}</p></div>`).join('')||'<p>Sem atualizações adicionais.</p>';
+    renderCorreios(data.rastreioTerceiro);
     result.classList.remove('hidden'); result.scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function carregarDica(){
@@ -35,6 +43,6 @@
     button.disabled=true; button.textContent='Consultando...'; result.classList.add('hidden');
     try{const r=await fetch('/api/rastrear/simplecompany',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo,nome})});const data=await r.json();if(!r.ok)throw new Error(data.error||'Pedido não encontrado.');render(data)}catch(e){alertBox.textContent=e.message}finally{button.disabled=false;button.textContent='Consultar pedido'}
   }
-  button.addEventListener('click',consultar); input.addEventListener('blur',carregarDica); input.addEventListener('keydown',e=>{if(e.key==='Enter')consultar()}); document.getElementById('novaBuscaBtn').addEventListener('click',()=>{input.value='';nameInput.value='';nameBox.classList.add('hidden');input.focus();result.classList.add('hidden')});
+  button.addEventListener('click',consultar); input.addEventListener('blur',carregarDica); input.addEventListener('keydown',e=>{if(e.key==='Enter')consultar()}); document.getElementById('novaBuscaBtn').addEventListener('click',()=>{input.value='';nameInput.value='';nameBox.classList.add('hidden');renderCorreios(null);input.focus();result.classList.add('hidden')});
   if(input.value.trim()) carregarDica();
 })();

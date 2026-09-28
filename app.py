@@ -53,6 +53,14 @@ TMS_API_DEBUG = os.getenv("TMS_API_DEBUG", "").strip() == "1"
 INTERLOG_API_BASE_URL = os.getenv("INTERLOG_API_BASE_URL", "https://www.sicloweb.com.br/api/v1")
 INTERLOG_API_TOKEN = os.getenv("INTERLOG_API_TOKEN", "").strip()
 INTERLOG_API_TIMEOUT = 20
+TOTAL_EXPRESS_API_USER = os.getenv("TOTAL_EXPRESS_API_USER", "").strip()
+TOTAL_EXPRESS_API_PASSWORD = os.getenv("TOTAL_EXPRESS_API_PASSWORD", "")
+TOTAL_EXPRESS_API_URL = "https://apis.totalexpress.com.br/ics-tracking-encomenda-lv/v1/tracking"
+TOTAL_EXPRESS_API_TIMEOUT = (2, 5)
+TOTAL_EXPRESS_CACHE_TTL = 1800
+TOTAL_EXPRESS_MISS_CACHE_TTL = 300
+_TOTAL_EXPRESS_CACHE = {}
+_TOTAL_EXPRESS_CACHE_LOCK = threading.Lock()
 MODELOS_DB_PATH = os.getenv("MODELOS_DB_PATH", "").strip()
 
 PUBLIC_TRACKING_CACHE_TTL = max(5, int(os.getenv("PUBLIC_TRACKING_CACHE_TTL", "45")))
@@ -1163,6 +1171,69 @@ def buscar_codigo_correios_manual(codigo):
         conn.close()
 
 
+def extrair_codigo_correios_total(payload, codigo):
+    """Aceita apenas um codigo postal sem conflito, em evento do pedido exato."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+        return ""
+
+    codigos = set()
+    for encomenda in payload["data"]:
+        if not isinstance(encomenda, dict):
+            continue
+        if str(encomenda.get("pedido") or "").strip().upper() != codigo:
+            continue
+        for evento in encomenda.get("tracking") or []:
+            if not isinstance(evento, dict):
+                continue
+            descricao = str(evento.get("descricao") or "").upper()
+            if "REDESPACHAD" not in descricao or "CORREIO" not in descricao:
+                continue
+            codigos.update(re.findall(
+                r"(?<![A-Z0-9])([A-Z]{2}[0-9]{9}BR)(?![A-Z0-9])",
+                descricao,
+            ))
+
+    return next(iter(codigos)) if len(codigos) == 1 else ""
+
+
+def buscar_codigo_correios_total(codigo):
+    codigo = str(codigo or "").strip().upper()
+    if (not codigo or not REGEX_PEDIDO_TOTAL.fullmatch(codigo)
+            or not TOTAL_EXPRESS_API_USER or not TOTAL_EXPRESS_API_PASSWORD):
+        return ""
+
+    agora = time.monotonic()
+    with _TOTAL_EXPRESS_CACHE_LOCK:
+        entrada = _TOTAL_EXPRESS_CACHE.get(codigo)
+        if entrada and entrada[0] > agora:
+            return entrada[1]
+
+    try:
+        response = requests.post(
+            TOTAL_EXPRESS_API_URL,
+            json={"pedidos": [codigo], "comprovanteEntrega": False},
+            auth=(TOTAL_EXPRESS_API_USER, TOTAL_EXPRESS_API_PASSWORD),
+            headers={"Accept": "application/json", "User-Agent": "AgyLog-Rastreamento/1.0"},
+            timeout=TOTAL_EXPRESS_API_TIMEOUT,
+        )
+        if response.status_code == 404:
+            codigo_correios = ""
+        else:
+            response.raise_for_status()
+            codigo_correios = extrair_codigo_correios_total(response.json(), codigo)
+    except (requests.RequestException, ValueError):
+        # Erros de rede e autenticacao nao devem ser confundidos com ausencia
+        # de redespacho, nem gravados no cache de resultados negativos.
+        return ""
+
+    validade = TOTAL_EXPRESS_CACHE_TTL if codigo_correios else TOTAL_EXPRESS_MISS_CACHE_TTL
+    with _TOTAL_EXPRESS_CACHE_LOCK:
+        if len(_TOTAL_EXPRESS_CACHE) >= 10000:
+            _TOTAL_EXPRESS_CACHE.clear()
+        _TOTAL_EXPRESS_CACHE[codigo] = (time.monotonic() + validade, codigo_correios)
+    return codigo_correios
+
+
 def buscar_rastreio_na_api(codigo, cnpj_cliente, somente_pedido=False):
     if not cnpj_cliente:
         print(f"[API] Codigo {codigo}: sem cnpj_cliente")
@@ -1361,10 +1432,13 @@ def anexar_rastreio_terceiro(resultado):
         return resultado
 
     codigo_referencia = resultado.get("codigoReferencia") or resultado.get("codigo")
-    codigo_correios_manual = buscar_codigo_correios_manual(codigo_referencia)
+    codigo_correios_total = (
+        "" if resultado.get("_demo_status") else buscar_codigo_correios_total(codigo_referencia)
+    )
+    codigo_correios_manual = "" if codigo_correios_total else buscar_codigo_correios_manual(codigo_referencia)
     rastreio_terceiro = (
-        {"codigoTerceiro": codigo_correios_manual}
-        if codigo_correios_manual
+        {"codigoTerceiro": codigo_correios_total or codigo_correios_manual}
+        if codigo_correios_total or codigo_correios_manual
         else buscar_rastreio_terceiro(codigo_referencia)
     )
     if rastreio_terceiro:
@@ -2336,6 +2410,9 @@ def importar_rastreios_admin():
 # ============================================================
 
 REGEX_CODIGO_CORREIOS = re.compile(r"^[A-Z]{2}[0-9]{9}[A-Z]{2}$")
+REGEX_PEDIDO_TOTAL = re.compile(r"^[A-Z0-9][A-Z0-9._/-]{2,79}$")
+MAX_CODIGOS_CORREIOS_CSV_BYTES = 10 * 1024 * 1024
+MAX_CODIGOS_CORREIOS_CSV_LINHAS = 25000
 
 
 def interpretar_codigos_correios(texto):
@@ -2356,6 +2433,78 @@ def interpretar_codigos_correios(texto):
     return pares, invalidas
 
 
+def _normalizar_cabecalho_csv(valor):
+    texto = unicodedata.normalize("NFKD", str(valor or ""))
+    texto = "".join(char for char in texto if not unicodedata.combining(char))
+    return re.sub(r"\s+", " ", texto).strip().lower()
+
+
+def interpretar_csv_total(bruto):
+    """Extrai Pedido -> Redespacho do relatorio Busca por lote da Total.
+
+    Vinculos ambiguos nao sao retornados para gravacao: o mesmo pedido com dois
+    codigos postais diferentes precisa ser revisado antes de atualizar o portal.
+    """
+    conteudo = None
+    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin1"):
+        try:
+            conteudo = bruto.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if conteudo is None:
+        raise ValueError("Nao foi possivel ler o arquivo CSV.")
+
+    try:
+        dialeto = csv.Sniffer().sniff(conteudo[:20000], delimiters=",;\t|")
+    except csv.Error:
+        dialeto = csv.excel
+
+    leitor = csv.DictReader(StringIO(conteudo), dialect=dialeto)
+    cabecalhos = leitor.fieldnames or []
+    por_nome = {_normalizar_cabecalho_csv(nome): nome for nome in cabecalhos}
+    coluna_pedido = por_nome.get("pedido")
+    coluna_redespacho = (
+        por_nome.get("redespacho")
+        or por_nome.get("numero redespacho")
+        or por_nome.get("codigo redespacho")
+    )
+    if not coluna_pedido or not coluna_redespacho:
+        raise ValueError("O CSV da Total precisa conter as colunas Pedido e Redespacho.")
+
+    codigos_por_pedido = OrderedDict()
+    invalidas = []
+    total_linhas = 0
+    for numero_linha, row in enumerate(leitor, start=2):
+        total_linhas += 1
+        if total_linhas > MAX_CODIGOS_CORREIOS_CSV_LINHAS:
+            raise ValueError(
+                f"O CSV excede o limite de {MAX_CODIGOS_CORREIOS_CSV_LINHAS} linhas."
+            )
+
+        pedido = str(row.get(coluna_pedido) or "").strip().upper()
+        correios = str(row.get(coluna_redespacho) or "").strip().upper()
+        if not pedido and not correios:
+            continue
+        if not REGEX_PEDIDO_TOTAL.match(pedido) or not REGEX_CODIGO_CORREIOS.match(correios):
+            invalidas.append(numero_linha)
+            continue
+        codigos_por_pedido.setdefault(pedido, set()).add(correios)
+
+    conflitos = {
+        pedido: sorted(codigos)
+        for pedido, codigos in codigos_por_pedido.items()
+        if len(codigos) > 1
+    }
+    pares = OrderedDict(
+        (pedido, next(iter(codigos)))
+        for pedido, codigos in codigos_por_pedido.items()
+        if len(codigos) == 1
+    )
+    return pares, invalidas, conflitos, total_linhas
+
+
 @app.route("/api/admin/codigos-correios", methods=["POST"])
 def gravar_codigos_correios_admin():
     if "usuario_id" not in session:
@@ -2364,11 +2513,33 @@ def gravar_codigos_correios_admin():
     if session.get("is_admin") != 1:
         return jsonify({"success": False, "message": "Acesso negado."}), 403
 
-    dados = request.get_json(silent=True) or {}
-    pares, invalidas = interpretar_codigos_correios(dados.get("texto"))
-    if not pares and not invalidas:
+    arquivo = request.files.get("arquivo")
+    importacao_csv = bool(arquivo and arquivo.filename)
+    conflitos = {}
+    total_linhas = 0
+    nome_arquivo = "colado na tela"
+    tipo_importacao = "codigos_correios"
+
+    if importacao_csv:
+        if os.path.splitext(arquivo.filename)[1].lower() != ".csv":
+            return jsonify({"success": False, "message": "Envie o relatorio da Total em CSV."}), 400
+        bruto = arquivo.read(MAX_CODIGOS_CORREIOS_CSV_BYTES + 1)
+        if len(bruto) > MAX_CODIGOS_CORREIOS_CSV_BYTES:
+            return jsonify({"success": False, "message": "O CSV excede o limite de 10 MB."}), 413
+        try:
+            pares, invalidas, conflitos, total_linhas = interpretar_csv_total(bruto)
+        except ValueError as exc:
+            return jsonify({"success": False, "message": str(exc)}), 400
+        nome_arquivo = os.path.basename(arquivo.filename).replace("\r", " ").replace("\n", " ")[:255]
+        tipo_importacao = "codigos_correios_total_csv"
+    else:
+        dados = request.get_json(silent=True) or {}
+        pares, invalidas = interpretar_codigos_correios(dados.get("texto"))
+        total_linhas = len(pares) + len(invalidas)
+
+    if not pares and not invalidas and not conflitos:
         return jsonify({"success": False, "message": "Cole ao menos uma linha: pedido e código dos Correios."}), 400
-    if len(pares) > 2000:
+    if not importacao_csv and len(pares) > 2000:
         return jsonify({"success": False, "message": "Envie no máximo 2000 linhas por vez."}), 400
 
     gravados = []
@@ -2394,11 +2565,11 @@ def gravar_codigos_correios_admin():
         """, (
             session["usuario_id"],
             session.get("usuario_nome"),
-            "codigos_correios",
-            "colado na tela",
+            tipo_importacao,
+            nome_arquivo,
             0,
             len(gravados),
-            len(nao_encontrados) + len(invalidas),
+            len(nao_encontrados) + len(invalidas) + len(conflitos),
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ))
         conn.commit()
@@ -2410,6 +2581,8 @@ def gravar_codigos_correios_admin():
         "gravados": gravados,
         "nao_encontrados": nao_encontrados,
         "linhas_invalidas": invalidas,
+        "conflitos": conflitos,
+        "total_linhas": total_linhas,
     })
 
 
@@ -3595,6 +3768,8 @@ def api_rastrear_simplecompany():
     if not resultado:
         return jsonify({"ok": False, "error": "Pedido não encontrado."}), 404
 
+    anexar_rastreio_terceiro(resultado)
+
     status_badge = str(resultado.get("statusBadge") or "").upper()
     status_key = resultado.get("_demo_status") or converter_status_publico(status_badge)
     return jsonify({
@@ -3605,6 +3780,7 @@ def api_rastrear_simplecompany():
         "status_label": resultado.get("statusBadge") or "-",
         "stages": montar_etapas_publicas(status_key, resultado),
         "history": montar_historico_publico(resultado),
+        "rastreioTerceiro": resultado.get("rastreioTerceiro"),
     })
 
 
