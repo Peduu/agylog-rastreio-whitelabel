@@ -79,8 +79,10 @@ Objetivo: cartão discreto, legível e consistente entre os clientes.
 - [x] Validar visual claro/escuro, celular, links e ausência de código
   (Claude, 28/09: 9 temas + Simple Company + 390 px; sem código o cartão some;
   copiar grava o código sem espaços; link abre nova aba com noopener).
-- [x] Cartão movido para logo abaixo do status, no padrão etiqueta + título dos
-  outros cartões; código agrupado (AD 943 406 192 BR) e botão de copiar;
-  lógica compartilhada em `static/correios_tracking.js` (CSP bloqueia script inline).
+- [x] Cartão movido para logo abaixo do status; logo dos Correios em cor única
+  (máscara) no lugar da etiqueta; código agrupado (AD 943 406 192 BR) com
+  "Copiar" no estilo do "Colar" e botão no estilo do "Rastrear encomenda" de
+  cada tema; lógica compartilhada em `static/correios_tracking.js` (CSP bloqueia
+  script inline). Aprovado pelo Pedro em 28/09 (rótulo em texto normal).
 - [ ] Publicar a alteração visual.
 Aceite: manter a integração automática e exibir o cartão apenas com código disponível.

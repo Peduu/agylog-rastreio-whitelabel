@@ -34,7 +34,7 @@
     <section id="resultArea" class="result hidden">
       <div class="result-head"><div><span class="eyebrow">PEDIDO</span><strong id="pedidoCode">-</strong></div><span id="statusPill" class="status-pill">-</span></div>
       <h2 id="statusTitle">Acompanhamento da entrega</h2><p id="statusMessage">-</p>
-      {% with card_id='correiosTracking', card_class='', head_class='', kicker_class='eyebrow', code_id='correiosCode', link_id='correiosLink' %}
+      {% with card_id='correiosTracking', card_class='', head_class='', value_class='', copy_class='', action_class='', code_id='correiosCode', link_id='correiosLink' %}
         {% include '_correios_tracking.html' %}
       {% endwith %}
       <div class="timeline-container">

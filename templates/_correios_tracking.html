@@ -1,23 +1,21 @@
 <section class="{{ card_class }} postal-card hidden" id="{{ card_id }}" aria-labelledby="{{ card_id }}Title">
   <div class="{{ head_class }} postal-head">
     <div>
-      <span class="{{ kicker_class }}">Correios</span>
+      <span class="postal-mark" role="img" aria-label="Correios"></span>
       <h3 id="{{ card_id }}Title">Acompanhe cada movimentação</h3>
     </div>
   </div>
   <div class="postal-body">
-    <span class="postal-logo"><img src="{{ url_for('static', filename='logos/correios.svg') }}" alt="Correios" width="96" height="20" /></span>
     <div class="postal-code-wrap">
       <span class="postal-code-label">Código de rastreio</span>
       <div class="postal-code-row">
-        <strong class="postal-code" id="{{ code_id }}" data-postal-code>—</strong>
-        <button type="button" class="postal-copy" data-postal-copy aria-label="Copiar código de rastreio" title="Copiar código">
-          <svg class="postal-icon-copy" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.2" /><path d="M5 15V6.2A2.2 2.2 0 0 1 7.2 4H15" /></svg>
-          <svg class="postal-icon-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+        <strong class="{{ value_class }} postal-code" id="{{ code_id }}" data-postal-code>—</strong>
+        <button type="button" class="{{ copy_class }} postal-copy" data-postal-copy aria-label="Copiar código de rastreio">
+          <span class="postal-copy-text">Copiar</span><span class="postal-copied-text">Copiado</span>
         </button>
       </div>
     </div>
-    <a class="postal-action" id="{{ link_id }}" data-postal-link target="_blank" rel="noopener noreferrer" aria-label="Rastrear nos Correios (abre o site dos Correios em nova aba)">
+    <a class="{{ action_class }} postal-action" id="{{ link_id }}" data-postal-link target="_blank" rel="noopener noreferrer" aria-label="Rastrear nos Correios (abre o site dos Correios em nova aba)">
       Rastrear nos Correios
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8" /></svg>
     </a>
