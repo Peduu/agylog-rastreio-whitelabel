@@ -49,6 +49,7 @@
   ip2w:{name:"IP2W",slug:"ip2w",headerBg:"#0d1b2a",headerText:"#ffffff",accent:"#3ECFC0",accentHover:"#2bb8a8",footerBg:"#0a1520",footerText:"#7be3d6",pillBg:"rgba(62,207,192,0.18)",pillColor:"#3ECFC0",logoSvg:"<img src='/static/logos/logo-ip2w.png?v=1' style='height:52px;width:auto;display:block;'>",partnerLine:"Entrega realizada por <strong>IP2W</strong>"},
   caoa:{name:"CAOA",slug:"caoa",headerBg:"#ffffff",headerText:"#100c5a",accent:"#5dba8d",accentHover:"#3da870",footerBg:"#f6f7fb",footerText:"#100c5a",pillBg:"rgba(93,186,141,0.15)",pillColor:"#3da870",logoSvg:"<img src='/static/logos/logo-caoa.png?v=1' style='height:44px;width:auto;display:block;'>",partnerLine:"Entrega realizada por <strong>CAOA</strong>"},
   ccxp:{name:"CCXP 26",slug:"ccxp",headerBg:"#000000",headerText:"#ffffff",accent:"#E33781",accentHover:"#C42D6E",footerBg:"#000000",footerText:"rgba(255,255,255,0.68)",pillBg:"rgba(227,55,129,0.16)",pillColor:"#E33781",logoSvg:`<img src="${CCXP_LOGO_DATA_URI}" alt="CCXP 26" style="height:64px;width:auto;display:block;mix-blend-mode:screen;">`,partnerLine:"Entrega realizada por <strong>AGYLOG</strong> na CCXP 26"},
+  paranabanco:{name:"Paraná Banco",slug:"paranabanco",headerBg:"#ffffff",headerText:"#0B1B3F",accent:"#3366FF",accentHover:"#2952CC",footerBg:"#f5f7ff",footerText:"#0B1B3F",pillBg:"rgba(51,102,255,0.12)",pillColor:"#2952CC",logoSvg:"<img src='/static/logos/logo-paranabanco.svg?v=1' alt='Paraná Banco' style='height:30px;width:auto;display:block;'>",partnerLine:"Entrega realizada por <strong>AGYLOG</strong> em parceria com Paraná Banco"},
   };
 
   function detectClient() {
@@ -480,6 +481,58 @@ const _pageThemes = {
           [data-client=caoa] .timeline-track{background:rgba(93,186,141,0.25)!important;}
           [data-client=caoa] .timeline-track-fill{background:#5dba8d!important;}
   `,
+  paranabanco: `
+          [data-client=paranabanco] .rastrear-btn{box-shadow:0 4px 22px rgba(51,102,255,.35)!important;}
+          [data-client=paranabanco] .rastrear-btn:hover{box-shadow:0 6px 28px rgba(51,102,255,.5)!important;}
+          /* paranabanco-theme-v1 */
+          /* paranabanco-result-white-v1 */
+          [data-client=paranabanco] .info-card,[data-client=paranabanco] .status-visual-card,[data-client=paranabanco] .timeline-container,[data-client=paranabanco] .history-card,[data-client=paranabanco] .third-party-card{background:#f5f7ff!important;border:1px solid rgba(11,27,63,0.10)!important;box-shadow:0 2px 16px rgba(11,27,63,0.07)!important;color:#0d0d1a!important;}
+          [data-client=paranabanco] .status-visual-media{background:#eef2ff!important;}
+          [data-client=paranabanco] .info-card *,[data-client=paranabanco] .status-visual-card *,[data-client=paranabanco] .timeline-container *,[data-client=paranabanco] .history-card *{color:#0d0d1a!important;}
+          [data-client=paranabanco] .status-title,[data-client=paranabanco] .status-name{color:#2952CC!important;}
+          [data-client=paranabanco] .info-label,[data-client=paranabanco] .card-label,[data-client=paranabanco] .section-label{color:rgba(11,27,63,0.50)!important;}
+          [data-client=paranabanco] .status-tag,[data-client=paranabanco] .tag-item{background:rgba(51,102,255,0.12)!important;color:#2952CC!important;border:1px solid rgba(51,102,255,0.30)!important;}
+          [data-client=paranabanco] .timeline-node{background:#e2e4ec!important;border-color:rgba(11,27,63,0.15)!important;}
+          [data-client=paranabanco] .timeline-label,[data-client=paranabanco] .timeline-desc{color:#3a3a5c!important;}
+          [data-client=paranabanco] .progress-line{background:rgba(11,27,63,0.12)!important;}
+          [data-client=paranabanco] .history-dot{background:#3366FF!important;}
+          [data-client=paranabanco] .history-date,[data-client=paranabanco] .history-time{color:rgba(11,27,63,0.45)!important;}
+          [data-client=paranabanco] .bg-glow{display:none!important;}
+          /* paranabanco-divider-v1 */
+          [data-client=paranabanco] .dest-header-inner::before,[data-client=paranabanco] .client-header-inner::before{content:''!important;display:block!important;width:1px!important;height:36px!important;background:rgba(0,0,0,0.70)!important;align-self:center!important;flex-shrink:0!important;border-radius:1px!important;}
+          /* paranabanco-white-bg-v1 */
+          body[data-client=paranabanco],[data-client=paranabanco] body,[data-client=paranabanco]{background:#ffffff!important;color:#0d0d1a!important;}
+          [data-client=paranabanco] .bg-glow,[data-client=paranabanco] .glow-1,[data-client=paranabanco] .glow-2,[data-client=paranabanco] .glow-3{display:none!important;}
+          [data-client=paranabanco] main,[data-client=paranabanco] .tracking-main,[data-client=paranabanco] .page-wrap,[data-client=paranabanco] .content-wrap{background:#ffffff!important;}
+          [data-client=paranabanco] .tracking-card,[data-client=paranabanco] .search-card{background:#f5f7ff!important;border:1px solid rgba(11,27,63,0.10)!important;box-shadow:0 4px 24px rgba(11,27,63,0.08)!important;}
+          [data-client=paranabanco] .tracking-title,[data-client=paranabanco] h1,[data-client=paranabanco] h2,[data-client=paranabanco] h3{color:#0B1B3F!important;}
+          [data-client=paranabanco] p,[data-client=paranabanco] span,[data-client=paranabanco] label,[data-client=paranabanco] .subtitle{color:#3a3a5c!important;}
+          [data-client=paranabanco] input[type=text],[data-client=paranabanco] input[type=search]{background:#ffffff!important;border:1.5px solid rgba(11,27,63,0.18)!important;color:#0d0d1a!important;}
+          [data-client=paranabanco] input::placeholder{color:rgba(11,27,63,0.40)!important;}
+          [data-client=paranabanco] .site-footer{background:#f5f7ff!important;border-top:1px solid rgba(11,27,63,0.10)!important;color:#0B1B3F!important;}
+          [data-client=paranabanco] .site-footer *{color:#0B1B3F!important;}
+          [data-client=paranabanco] .colar-btn,[data-client=paranabanco] .paste-btn{color:#3366FF!important;}
+          /* paranabanco-agyblack-v1 */
+          [data-client=paranabanco] .dest-header-inner::after,[data-client=paranabanco] .client-header-inner::after{background-image:url('/static/logos/logo-agylog-modern.svg?v=20260911')!important;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;opacity:1!important;}
+          [data-client=paranabanco]{--accent:#3366FF;--accent-hover:#2952CC;}
+          [data-client=paranabanco] .tracking-header{background:#ffffff!important;border-bottom:1px solid rgba(11,27,63,0.10)!important;box-shadow:0 2px 12px rgba(11,27,63,0.08)!important;}
+          [data-client=paranabanco] .tracking-header *{color:#0B1B3F!important;}
+          [data-client=paranabanco] .client-name{color:#0B1B3F!important;}
+          [data-client=paranabanco] .tracking-footer{background:#f5f7ff!important;color:#0B1B3F!important;border-top:1px solid rgba(11,27,63,0.10)!important;}
+          [data-client=paranabanco] .tracking-footer *{color:#0B1B3F!important;}
+          [data-client=paranabanco] .partner-line{color:#0B1B3F!important;}
+          [data-client=paranabanco] .status-pill{background:rgba(51,102,255,0.15)!important;color:#2952CC!important;border-color:rgba(51,102,255,0.35)!important;}
+          [data-client=paranabanco] .btn-primary,.tracking-btn-primary{background:#3366FF!important;color:#fff!important;border-color:#3366FF!important;}
+          [data-client=paranabanco] .btn-primary:hover{background:#2952CC!important;}
+          [data-client=paranabanco] .timeline-node-check{color:#ffffff!important;background:#3366FF!important;box-shadow:0 0 8px rgba(51,102,255,0.5)!important;}
+          [data-client=paranabanco] .timeline-stage.done .timeline-node-check,[data-client=paranabanco] .timeline-stage.active .timeline-node-check,[data-client=paranabanco] .timeline-stage.final .timeline-node-check{background:#3366FF!important;color:#fff!important;}
+          [data-client=paranabanco] .timeline-stage.done .timeline-node-check,[data-client=paranabanco] .timeline-stage.final .timeline-node-check{box-shadow:0 0 12px rgba(51,102,255,0.55)!important;}
+          [data-client=paranabanco] .timeline-stage.active .timeline-node-check{box-shadow:0 0 16px rgba(51,102,255,0.6)!important;}
+          [data-client=paranabanco] .timeline-track{background:rgba(51,102,255,0.25)!important;}
+          [data-client=paranabanco] .timeline-track-fill{background:#3366FF!important;}
+          [data-client=paranabanco] .dest-header-inner::after,[data-client=paranabanco] .client-header-inner::after{content:''!important;display:block!important;order:3!important;width:156px!important;height:52px!important;flex:0 0 156px!important;border-radius:0!important;background:url('/static/logos/logo-agylog-modern.svg?v=20260911') center center / contain no-repeat!important;box-shadow:none!important;opacity:1!important;}
+          @media (max-width:640px){[data-client=paranabanco] .client-logo-wrap img{height:26px!important;width:auto!important;max-width:168px!important;}[data-client=paranabanco] .dest-header-inner::after,[data-client=paranabanco] .client-header-inner::after{width:118px!important;height:40px!important;flex:0 0 118px!important;}[data-client=paranabanco] .client-header-tagline{display:none!important;}}@media (max-width:359px){[data-client=paranabanco] .client-logo-wrap img{height:21px!important;max-width:136px!important;}[data-client=paranabanco] .dest-header-inner::after,[data-client=paranabanco] .client-header-inner::after{width:96px!important;height:34px!important;flex:0 0 96px!important;}}
+  `,
   };
 
     _ts.textContent = _pageThemes[slug] || '';
@@ -540,8 +593,8 @@ const _pageThemes = {
 
   // Clientes com cenas SVG animadas (static/scenes/<cliente>.js, gerado por tools/scenes/build.py).
   // Suba VERSAO_CENAS sempre que regenerar as cenas (invalida o cache do navegador).
-  const CLIENTES_COM_CENAS = ['panini', 'brb', 'inter', 'brbdux', 'tricard', 'pinbank', 'ip2w', 'caoa', 'ccxp'];
-  const VERSAO_CENAS = '20260924f';
+  const CLIENTES_COM_CENAS = ['panini', 'brb', 'inter', 'brbdux', 'tricard', 'pinbank', 'ip2w', 'caoa', 'ccxp', 'paranabanco'];
+  const VERSAO_CENAS = '20261001a';
 
   let pollTimer = null;
   let _ultimoDado = null;

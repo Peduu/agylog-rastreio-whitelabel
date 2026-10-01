@@ -59,6 +59,11 @@ KITS = {
                  body="#17171d", cab="#101015", stripe="#E33781", plate="#000000", plateStroke="#E33781",
                  vetor="ccxp", ar=700 / 155, prop="spot", glow="#E33781", sky="outline", door="#E33781",
                  neon=True, wall="#0b0b10", wallOp=".95", wallStroke="#E33781"),
+    # Parana Banco: claro como o site deles (branco + azul #3366FF); logo oficial em vetor (importar_svg.py)
+    "paranabanco": dict(name="Paraná Banco", pfx="pr", dark=False, panel="#eef2ff", ink="#0B1B3F", accent="#3366FF", onAccent="#FFFFFF",
+                        body="#FFFFFF", bodyStroke="#c9d3ee", cab="#132CB0", wall="#FFFFFF", wallOp=".92", wallStroke="#c9d3ee",
+                        stripe="#3366FF", plate="#FFFFFF", plateStroke="#d5dcf0", vetor="paranabanco",
+                        prop="cards", glow="#3366FF", sky="fill", door="#3366FF"),
 }
 
 for _k in KITS.values():                       # com logo em vetor, a proporcao vem do proprio vetor

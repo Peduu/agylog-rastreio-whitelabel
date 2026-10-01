@@ -89,6 +89,7 @@ CLIENTES = {
     "pinbank": ("static/logos/logo-pinbank-real.png", [(245, 166, 35), (0, 255, 255)]),
     "ip2w": ("static/logos/logo-ip2w.png", [(252, 252, 252), (62, 207, 192)]),
     "ccxp": ("static/logos/logo-ccxp.png", [(252, 252, 252), (227, 55, 129)]),
+    "paranabanco": ("static/logos/logo-paranabanco.svg", None),   # SVG oficial do site: importado exato (importar_svg.py), sem potrace
 }
 
 if __name__ == "__main__":
@@ -100,7 +101,11 @@ if __name__ == "__main__":
         dados = ns.get("LOGOS", {})
     for nome in (sys.argv[1:] or CLIENTES):
         arq, paleta, *resto = CLIENTES[nome]
-        w, h, caminhos = vetorizar(os.path.join(RAIZ, arq), paleta, resto[0] if resto else None)
+        if arq.endswith(".svg"):
+            import importar_svg
+            w, h, caminhos = importar_svg.importar(os.path.join(RAIZ, arq))
+        else:
+            w, h, caminhos = vetorizar(os.path.join(RAIZ, arq), paleta, resto[0] if resto else None)
         dados[nome] = dict(w=w, h=h, paths=caminhos)
         print(nome, w, h, [len(d) for _, d in caminhos], "bytes de caminho")
     with open(alvo, "w", encoding="utf-8", newline="\n") as f:
