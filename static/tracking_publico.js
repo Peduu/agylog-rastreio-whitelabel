@@ -482,6 +482,7 @@ const _pageThemes = {
           [data-client=caoa] .timeline-track-fill{background:#5dba8d!important;}
   `,
   paranabanco: `
+          [data-client=paranabanco] *{font-weight:700!important;}
           [data-client=paranabanco] .rastrear-btn{box-shadow:0 4px 22px rgba(51,102,255,.35)!important;}
           [data-client=paranabanco] .rastrear-btn:hover{box-shadow:0 6px 28px rgba(51,102,255,.5)!important;}
           /* paranabanco-theme-v1 */
