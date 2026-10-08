@@ -1176,6 +1176,7 @@ const _pageThemes = {
     renderVisual(data.status, ccxpTreatment);
     renderTimeline(data.stages || [], data.status, ccxpTreatment);
     renderHistory(data.history || [], ccxpTreatment);
+    if (window.AgyLocalizacao) window.AgyLocalizacao.render(data, detectClient());   // cartao "Onde esta seu pedido"
   }
 
   function showResult(code, data) {
@@ -1254,6 +1255,7 @@ const _pageThemes = {
     journeyMessage.textContent = 'Consulte o código do pedido para visualizar a etapa atual da entrega.';
     statusVisualMedia.innerHTML = '';
     statusVisualMedia.dataset.scene = '';
+    if (window.AgyLocalizacao) window.AgyLocalizacao.limpar();
     visualTags.innerHTML = '';
     timeline.innerHTML = '';
     historyList.innerHTML = '';

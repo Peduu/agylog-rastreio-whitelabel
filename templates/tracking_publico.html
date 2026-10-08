@@ -12,6 +12,7 @@
   <title>Rastreio · AGYLOG</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='tracking_publico.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='correios_tracking.css') }}?v=20260928" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='localizacao.css') }}?v=20261008a" />
 </head>
 <body>
   <div class="bg-glow glow-1"></div>
@@ -99,6 +100,19 @@
           </div>
         </div>
 
+        <div class="timeline-container localizacao-card" id="localizacaoCard" hidden>
+          <div class="timeline-head">
+            <div>
+              <span class="timeline-kicker">Localização</span>
+              <h3>Onde está seu pedido</h3>
+            </div>
+          </div>
+          <p class="loc-frase" id="locFrase"></p>
+          <div class="loc-cena" id="locCena"></div>
+          <div class="loc-trilho" id="locTrilho"></div>
+          <p class="loc-nota" id="locNota">Posição pela última leitura numa unidade AGYLOG.</p>
+        </div>
+
         {% with card_id='thirdPartyCard', card_class='history-card', head_class='timeline-head', value_class='info-value', copy_class='paste-btn', action_class='rastrear-btn', code_id='thirdPartyCode', link_id='thirdPartyLink' %}
           {% include '_correios_tracking.html' %}
         {% endwith %}
@@ -139,6 +153,7 @@
 
   <script src="assets/lottie-player.js"></script>
   <script src="{{ url_for('static', filename='correios_tracking.js') }}?v=20260928"></script>
-  <script src="{{ url_for('static', filename='tracking_publico.js') }}?v=paranabanco-20261001b"></script>
+  <script src="{{ url_for('static', filename='localizacao.js') }}?v=20261008a"></script>
+  <script src="{{ url_for('static', filename='tracking_publico.js') }}?v=localizacao-20261008a"></script>
 </body>
 </html>

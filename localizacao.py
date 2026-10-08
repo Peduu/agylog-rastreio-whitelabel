@@ -168,9 +168,9 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
         com_ibge = [p for p in paradas if p["ibge"]]
         for i, p in enumerate(com_ibge):
             papel = "atual" if p is atual else ("origem" if i == 0 else "passagem")
-            pontos.append({"papel": papel, "lat": p["ibge"]["lat"], "lon": p["ibge"]["lon"]})
+            pontos.append({"papel": papel, "uf": p["uf"], "lat": p["ibge"]["lat"], "lon": p["ibge"]["lon"]})
         if destino_ok:
-            pontos.append({"papel": "destino", "lat": atual["ibge"]["lat"], "lon": atual["ibge"]["lon"]})
+            pontos.append({"papel": "destino", "uf": atual["uf"], "lat": atual["ibge"]["lat"], "lon": atual["ibge"]["lon"]})
             if status_key == "entregue":
                 pontos = [p for p in pontos if p["papel"] != "atual"]   # entregue: a bandeira xadrez substitui o pin
     return {"frase": frase, "cena": cena, "trilho": trilho, "pontos": pontos, "atualizado": agora}

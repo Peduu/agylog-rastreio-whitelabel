@@ -88,6 +88,7 @@ class MontarTests(unittest.TestCase):
         self.assertEqual(loc["cena"], {"slot1": True, "slot2": "galpao", "slot3": "apagado", "caminhao": "slot2"})
         self.assertEqual(loc["trilho"][1], {"slot": 2, "titulo": "Curitiba/PR", "sub": "agora · 07/10 14:20"})
         self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "atual"])
+        self.assertEqual([p["uf"] for p in loc["pontos"]], ["SP", "PR"])
         self.assertEqual(loc["atualizado"], "07/10 14:20")
 
     def test_cidade_repetida_em_seguida_vira_uma_parada(self):
