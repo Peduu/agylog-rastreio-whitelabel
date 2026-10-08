@@ -28,3 +28,15 @@ No Simple Company, informe **Demonstração AGY** como nome do destinatário.
 A validação dos nomes dos pedidos reais permanece ativa.
 
 Não use esses códigos em envios reais. As datas fictícias são relativas ao dia da consulta.
+
+## Códigos ROTA1 a ROTA9 (cartão "Onde está seu pedido", 08/10/2026)
+
+Mesmos status dos AGY1 a AGY9, **com** o cartão de localização (frase com a bandeira do estado,
+cena de rota, mapinha com pin e bandeira quadriculada no endereço, trilho de cidades). Rota fictícia:
+São Paulo/SP → Curitiba/PR → Londrina/PR. Funcionam em todos os temas: `/tracking/paranabanco/ROTA3`,
+`/tracking/brb/ROTA5` etc.
+
+Por enquanto o cartão aparece **só** nesses códigos; pedidos reais e AGY1 a AGY10 seguem sem ele.
+Para liberar para todos os pedidos reais: `PUBLIC_TRACKING_LOCALIZACAO=todos` no `/etc/rastreamento.env`
+e reiniciar o serviço (não precisa de deploy). Spec e plano: `SPEC-localizacao-rastreio-2026-10-08.md`
+e `PLANO-localizacao-rastreio-2026-10-08.md` (pasta `instruções API` do Pedro).
