@@ -2489,3 +2489,5 @@ body[data-client="caoa"] .client-header-inner::after {
   box-shadow: none !important;
   opacity: 1 !important;
 }
+
+.status-visual-media svg.agy-scene { width: 100%; height: 100%; display: block; }
