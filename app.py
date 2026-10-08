@@ -3606,7 +3606,7 @@ def api_rastrear_publico():
     if demo is not None:
         return jsonify(demo)
 
-    resultado = _resultado_demo_agy(codigo)
+    resultado = _resultado_demo_agy(codigo) or _resultado_demo_rota(codigo)
     if resultado is None:
         resultado = buscar_rastreio_publico(codigo, cliente)
 
@@ -3721,7 +3721,7 @@ def api_rastrear_publico():
                 "stages": etapas_ccxp,
                 "history": historico_ccxp,
                 "rastreioTerceiro": resultado.get("rastreioTerceiro"),
-                "localizacao": montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], "atencao", cliente),
+                "localizacao": _localizacao_resposta(resultado, "atencao", cliente),
             }
             if tem_reenvio:
                 resposta_ccxp["kind"] = "reenvio"
@@ -3741,7 +3741,7 @@ def api_rastrear_publico():
         "stages": etapas_publicas,
         "history": montar_historico_publico(resultado),
         "rastreioTerceiro": resultado.get("rastreioTerceiro"),
-        "localizacao": montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente),
+        "localizacao": _localizacao_resposta(resultado, status_key, cliente),
     })
 
 
@@ -4019,6 +4019,28 @@ DEMO_AGY = {
     "AGY9": ("entregue", "ENTREGUE", "Pedido entregue ao destinatário."),
     "AGY10": ("atencao", "REENTREGAR", "Tratamento de pendência: REENTREGAR. Nova tentativa programada."),
 }
+
+
+# Cartao "Onde esta seu pedido": por enquanto SO nos codigos de demonstracao ROTA1..ROTA9 (pedido do Pedro, 08/10/2026).
+# Para liberar para todos os pedidos reais: PUBLIC_TRACKING_LOCALIZACAO=todos no /etc/rastreamento.env (sem novo deploy).
+LOCALIZACAO_PUBLICA = os.getenv("PUBLIC_TRACKING_LOCALIZACAO", "demo").strip().lower()
+DEMO_ROTA = {f"ROTA{n}": f"AGY{n}" for n in range(1, 10)}   # mesmos status dos AGY1..AGY9, com o cartao de localizacao
+
+
+def _resultado_demo_rota(codigo):
+    base = DEMO_ROTA.get(codigo)
+    if base is None:
+        return None
+    resultado = _resultado_demo_agy(base)
+    resultado["codigoCliente"] = f"DEMONSTRAÇÃO AGY · {codigo}"
+    resultado["_demo_localizacao"] = True
+    return resultado
+
+
+def _localizacao_resposta(resultado, status_key, cliente):
+    if LOCALIZACAO_PUBLICA != "todos" and not resultado.get("_demo_localizacao"):
+        return None
+    return montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente)
 
 
 def _resultado_demo_agy(codigo):
