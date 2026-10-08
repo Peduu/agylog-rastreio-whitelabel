@@ -13,6 +13,7 @@ import threading
 import time
 import unicodedata
 from depara_ocorrencias import DE_PARA_OCORRENCIAS, DE_PARA_INSUCESSO
+from localizacao import montar_localizacao_publica, ocorrencias_com_local
 from datetime import datetime, timedelta
 from collections import OrderedDict
 from io import StringIO
@@ -289,7 +290,9 @@ def _consultar_tms_api(payload, tipo_consulta, codigo, cnpj_cliente, headers):
             "statusBadge": status_badge,
             "codigoCliente": codigo_cliente or codigo,
             "dataPostagem": formatar_data_exibicao(data_postagem),
-            "ocorrencias": ocorrencias_mapeadas
+            "ocorrencias": ocorrencias_mapeadas,
+            # Cidade/UF/unidade de cada leitura (sem latitude/longitude): base do cartao "Onde esta seu pedido".
+            "ocorrenciasLocal": ocorrencias_com_local(resultados_ordenados),
         }
 
         _log_tms_debug(
@@ -3718,6 +3721,7 @@ def api_rastrear_publico():
                 "stages": etapas_ccxp,
                 "history": historico_ccxp,
                 "rastreioTerceiro": resultado.get("rastreioTerceiro"),
+                "localizacao": montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], "atencao", cliente),
             }
             if tem_reenvio:
                 resposta_ccxp["kind"] = "reenvio"
@@ -3736,7 +3740,8 @@ def api_rastrear_publico():
         "status_label": resultado.get("statusBadge") or "-",
         "stages": etapas_publicas,
         "history": montar_historico_publico(resultado),
-        "rastreioTerceiro": resultado.get("rastreioTerceiro")
+        "rastreioTerceiro": resultado.get("rastreioTerceiro"),
+        "localizacao": montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente),
     })
 
 
@@ -4036,8 +4041,17 @@ def _resultado_demo_agy(codigo):
     for indice, chave in enumerate(percurso):
         momento = agora - timedelta(days=len(percurso) - indice - 1)
         datas[chave] = {"date": momento.strftime("%d/%m/%Y"), "time": momento.strftime("%H:%M")}
+    # Rota ficticia coerente com o status para o cartao "Onde esta seu pedido".
+    rota_demo = [("SAO", "SAO PAULO", "SP"), ("CWB", "CURITIBA", "PR"), ("LDB", "LONDRINA", "PR")]
+    n_paradas = {"aguardando_postagem": 0, "preparacao_transporte": 1, "transferencia_franquia": 2}.get(status_key, 3)
+    ocorrencias_local = [
+        {"data": (agora - timedelta(days=n_paradas - i, hours=3)).strftime("%Y-%m-%d %H:%M:%S"),
+         "unidade": unidade, "cidade": cidade, "uf": uf}
+        for i, (unidade, cidade, uf) in enumerate(rota_demo[:n_paradas])
+    ]
     return {
         "_demo_status": status_key,
+        "ocorrenciasLocal": ocorrencias_local,
         "codigoCliente": f"DEMONSTRAÇÃO AGY · {codigo}",
         "statusBadge": badge,
         "ultimoStatus": descricao,
