@@ -1,0 +1,147 @@
+name: Sonda TMS localizacao (uso unico, so leitura)
+
+# Uso unico (Pedro autorizou em 08/10/2026): descobrir quais campos de cidade/unidade a API de
+# ocorrencias do TMS devolve. NAO grava nada (banco aberto em modo leitura), nao reinicia nada.
+# O repositorio e PUBLICO: o log nao mostra codigo, CNPJ, nome nem cidade; so nomes de campos,
+# codigos de ocorrencia, UF/siglas de unidade e o PADRAO de troca da cidade (A,A,B...).
+# Apagar este arquivo depois de usar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Digite SONDAR (so leitura; nao grava nada)"
+        required: true
+        type: string
+
+concurrency:
+  group: sonda-tms-localizacao
+  cancel-in-progress: false
+
+jobs:
+  sonda:
+    name: Sonda so leitura
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Confirmar
+        run: |
+          if [ "${{ inputs.confirm }}" != "SONDAR" ]; then
+            echo "Digite SONDAR para rodar a sonda."
+            exit 1
+          fi
+
+      - name: Sondar campos de localizacao do TMS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+            /home/rastreamento/venv/bin/python - <<'PY'
+            import collections
+            import json
+            import re
+            import sqlite3
+            from datetime import datetime
+            from pathlib import Path
+
+            import requests
+
+            env = {}
+            for linha in Path("/etc/rastreamento.env").read_text(encoding="utf-8").splitlines():
+                if "=" in linha and not linha.lstrip().startswith("#"):
+                    k, v = linha.split("=", 1)
+                    env[k.strip()] = v.strip().strip('"').strip("'")
+            token = env.get("TMS_API_TOKEN", "")
+            url = env.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
+            if not token:
+                raise SystemExit("TMS_API_TOKEN ausente")
+
+            db = sqlite3.connect("file:/home/rastreamento/database.db?mode=ro", uri=True)
+            linhas = db.execute("""
+                SELECT r.codigo, r.cnpj_cliente, COUNT(o.id) AS n, MAX(r.id) AS rid
+                FROM rastreios r JOIN rastreios_ocorrencias o ON o.codigo = r.codigo
+                WHERE r.cnpj_cliente IS NOT NULL AND TRIM(r.cnpj_cliente) <> ''
+                  AND r.id > (SELECT MAX(id) - 30000 FROM rastreios)
+                GROUP BY r.codigo, r.cnpj_cliente
+                HAVING n >= 4
+                ORDER BY rid DESC
+                LIMIT 600
+            """).fetchall()
+            por_cnpj = collections.Counter()
+            amostra = []
+            for codigo, cnpj, n, _ in linhas:
+                if por_cnpj[cnpj] >= 2:
+                    continue
+                por_cnpj[cnpj] += 1
+                amostra.append((codigo, cnpj))
+                if len(amostra) >= 8:
+                    break
+            print(f"amostras: {len(amostra)} (de {len(por_cnpj)} clientes diferentes)")
+
+            H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"}
+
+            def consulta(codigo, cnpj):
+                for chave in ("listaNotasFiscais", "listaPedidos"):
+                    try:
+                        r = requests.post(url, json={"cnpjEmbarcador": cnpj, chave: [codigo]}, headers=H, timeout=20)
+                        d = r.json()
+                    except Exception as exc:
+                        print("  erro de consulta:", type(exc).__name__)
+                        continue
+                    lista = None if d.get("flagErro") else d.get("listaResultados")
+                    if isinstance(lista, dict):
+                        lista = [lista]
+                    if lista:
+                        return d, lista, chave
+                return None, None, None
+
+            def quando(item):
+                t = str(item.get("dtOcorrencia") or "").strip()
+                for f in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+                    try:
+                        return datetime.strptime(t[:26], f)
+                    except ValueError:
+                        pass
+                return datetime.min
+
+            def achatar(item, pre=""):
+                out = {}
+                for k, v in item.items():
+                    if isinstance(v, dict):
+                        out.update(achatar(v, f"{pre}{k}."))
+                    else:
+                        out[f"{pre}{k}"] = v
+                return out
+
+            LOCAL = re.compile(r"cidade|uf|unidade|sigla|filial|origem|destin|cep|lat|lon|ender|bairro|regiao|base|local|praca|municip", re.I)
+            OPERACIONAL = re.compile(r"(^|\.)(uf|.*uf)$|sigla", re.I)   # UF e sigla de unidade: dado operacional, pode aparecer
+            topo = set()
+            presenca = collections.Counter()
+            formatos_dt = collections.Counter()
+            for i, (codigo, cnpj) in enumerate(amostra, 1):
+                d, lista, chave = consulta(codigo, cnpj)
+                if not lista:
+                    print(f"#{i}: sem resultado")
+                    continue
+                topo |= set(d)
+                itens = sorted((achatar(x) for x in lista), key=quando)
+                for it in itens:
+                    presenca.update(it.keys())
+                    formatos_dt[re.sub(r"\d", "9", str(it.get("dtOcorrencia") or ""))] += 1
+                info = {"via": chave, "n": len(itens), "codigos": [str(it.get("codigoOcorrencia", "")) for it in itens]}
+                for k in sorted({k for it in itens for k in it if LOCAL.search(k)}):
+                    vals = [str(it.get(k) if it.get(k) is not None else "").strip() for it in itens]
+                    if OPERACIONAL.search(k):
+                        info[k] = vals
+                    else:
+                        idx = {}
+                        info[k] = "".join(chr(65 + idx.setdefault(v, len(idx))) if v else "-" for v in vals)
+                print(f"#{i}:", json.dumps(info, ensure_ascii=False))
+            print("chaves de topo da resposta:", sorted(topo))
+            print("chaves por ocorrencia (em quantas ocorrencias aparecem):", json.dumps(dict(presenca), ensure_ascii=False))
+            print("formato de dtOcorrencia:", dict(formatos_dt.most_common(3)))
+            PY
