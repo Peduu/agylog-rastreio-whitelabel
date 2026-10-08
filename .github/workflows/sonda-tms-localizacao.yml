@@ -3,7 +3,8 @@ name: Sonda TMS localizacao (uso unico, so leitura)
 # Uso unico (Pedro autorizou em 08/10/2026): descobrir quais campos de cidade/unidade a API de
 # ocorrencias do TMS devolve. NAO grava nada (banco aberto em modo leitura), nao reinicia nada.
 # O repositorio e PUBLICO: o log nao mostra codigo, CNPJ, nome nem cidade; so nomes de campos,
-# codigos de ocorrencia, UF/siglas de unidade e o PADRAO de troca da cidade (A,A,B...).
+# codigos de ocorrencia, UF/unidade operacional e o PADRAO de troca da cidade (A,A,B...).
+# 2a rodada: so pedidos que passaram por transferencia entre unidades (ocorrencia 17).
 # Apagar este arquivo depois de usar.
 
 on:
@@ -65,7 +66,8 @@ jobs:
                 SELECT r.codigo, r.cnpj_cliente, COUNT(o.id) AS n, MAX(r.id) AS rid
                 FROM rastreios r JOIN rastreios_ocorrencias o ON o.codigo = r.codigo
                 WHERE r.cnpj_cliente IS NOT NULL AND TRIM(r.cnpj_cliente) <> ''
-                  AND r.id > (SELECT MAX(id) - 30000 FROM rastreios)
+                  AND r.id > (SELECT MAX(id) - 60000 FROM rastreios)
+                  AND EXISTS (SELECT 1 FROM rastreios_ocorrencias t WHERE t.codigo = r.codigo AND t.codigo_ocorrencia = '17')
                 GROUP BY r.codigo, r.cnpj_cliente
                 HAVING n >= 4
                 ORDER BY rid DESC
@@ -118,7 +120,7 @@ jobs:
                 return out
 
             LOCAL = re.compile(r"cidade|uf|unidade|sigla|filial|origem|destin|cep|lat|lon|ender|bairro|regiao|base|local|praca|municip", re.I)
-            OPERACIONAL = re.compile(r"(^|\.)(uf|.*uf)$|sigla", re.I)   # UF e sigla de unidade: dado operacional, pode aparecer
+            OPERACIONAL = re.compile(r"(^|\.)(uf|.*uf)$|sigla|unidade", re.I)   # UF e unidade: dado operacional, pode aparecer
             topo = set()
             presenca = collections.Counter()
             formatos_dt = collections.Counter()
