@@ -20,8 +20,8 @@ Uso após publicação: `/tracking/caoa/AGY1`, `/tracking/ccxp/AGY1`, etc.
 O mesmo código funciona no tema escolhido. Os antigos CAOA1 a CAOA4 permanecem
 exclusivos do CAOA.
 
-No CCXP, AGY6, AGY7 e AGY8 exibem **Aguardando tratativa para reenvio**;
-AGY10 exibe **Tratado**, com a etapa Reenvio. Não há textos de devolução no CCXP.
+No CCXP, AGY6, AGY7 e AGY8 exibem **Insucesso na entrega**;
+AGY10 exibe **Tratativa concluída**, com a etapa Reenvio. Não há textos de devolução no CCXP.
 Nos demais temas AGY10 usa a apresentação existente de atenção/reentrega.
 
 No Simple Company, informe **Demonstração AGY** como nome do destinatário.

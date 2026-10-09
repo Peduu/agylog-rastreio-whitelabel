@@ -498,15 +498,6 @@ input {
   display: block;
 }
 
-.status-visual-media lottie-player,
-.status-visual-media .lottie-media {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 250px;
-  display: block;
-  flex: 1;
-}
-
 .status-visual-media .delivered-media {
   object-fit: cover;
   background: #f0f2f5;

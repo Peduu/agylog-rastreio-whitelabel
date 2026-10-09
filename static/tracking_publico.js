@@ -661,7 +661,7 @@ const _pageThemes = {
     aguardando_postagem: {
       title: 'Aguardando postagem',
       body: 'O pedido foi recebido e aguarda a confirmação da postagem para entrar na operação.',
-      media: '/static/assets/waiting.json',
+      media: '/static/assets/box.png',
     },
     preparacao_transporte: {
       title: 'Em preparação para transporte',
@@ -957,7 +957,7 @@ const _pageThemes = {
 
   function renderVisual(status, ccxpTreatment) {
     const visual = ccxpTreatment
-      ? { ...ccxpTreatment, media: '/static/assets/waiting.json' }
+      ? { ...ccxpTreatment }
       : STATUS_VISUAL[status] || STATUS_VISUAL.em_rota_entrega;
 
     currentStageTitle.textContent = visual.title;
@@ -979,8 +979,6 @@ const _pageThemes = {
     statusVisualMedia.dataset.scene = '';
 
     if (visual.media) {
-      const isLottie = visual.media.endsWith('.json');
-
       if (!visual.delivered) {
         if (visual.breaking) {
           statusVisualMedia.innerHTML = `
@@ -1029,12 +1027,7 @@ const _pageThemes = {
           `;
           return;
         }
-        if (isLottie) {
-          // so quando a cena SVG nao carregou: o player de Lottie saiu da pagina (dava 404), fica a imagem estatica
-          statusVisualMedia.innerHTML = `<img src="/static/assets/box.png" alt="${escapeHtml(visual.title)}" />`;
-        } else {
-          statusVisualMedia.innerHTML = `<img src="${escapeHtml(visual.media)}" alt="${escapeHtml(visual.title)}" />`;
-        }
+        statusVisualMedia.innerHTML = `<img src="${escapeHtml(visual.media)}" alt="${escapeHtml(visual.title)}" />`;
         return;
       }
 

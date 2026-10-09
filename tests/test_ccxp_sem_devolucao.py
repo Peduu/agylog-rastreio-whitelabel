@@ -66,6 +66,20 @@ class CcxpSemDevolucaoTest(unittest.TestCase):
                 d = self._consultar(badge, ultimo)
                 self.assertIn(d["status"], ("ccxp_aguardando_tratativa", "ccxp_tratado"))
 
+    def test_textos_do_ccxp_sao_os_combinados(self):
+        # Regra do Pedro: insucesso = "Insucesso na entrega"; tratado = "Tratativa concluida"; nunca remetente.
+        for badge, ultimo in ENTRADAS[:7]:
+            with self.subTest(badge=badge):
+                d = self._consultar(badge, ultimo)
+                bruto = _sem_acento(json.dumps(d, ensure_ascii=False))
+                self.assertNotIn("remetente", bruto)
+                self.assertNotIn("aguardando tratativa para reenvio", bruto)
+                self.assertNotIn("credencial", bruto)
+                esperado = "Tratativa concluída" if d["status"] == "ccxp_tratado" else "Insucesso na entrega"
+                self.assertEqual(d["status_label"], esperado)
+                self.assertEqual(d["history"][0]["title"], esperado)
+        self.assertEqual(self._consultar("REENTREGAR", "Tratamento de pendência: REENTREGAR")["status_label"], "Tratativa concluída")
+
     def test_outros_clientes_continuam_com_devolucao(self):
         d = self._consultar("DEVOLVIDO", "", cliente="panini")
         self.assertEqual(d["status"], "devolvido")
