@@ -7,12 +7,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-  <meta http-equiv="X-Frame-Options" content="DENY" />
   <meta name="referrer" content="no-referrer" />
   <title>Rastreio · AGYLOG</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='tracking_publico.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='tracking_publico.css') }}?v=20261009a" />
   <link rel="stylesheet" href="{{ url_for('static', filename='correios_tracking.css') }}?v=20260928" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='localizacao.css') }}?v=20261009a" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='localizacao.css') }}?v=20261009c" />
 </head>
 <body>
   <div class="bg-glow glow-1"></div>
@@ -21,11 +20,7 @@
 
   <header class="dest-header">
     <div class="dest-header-inner">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2.3" aria-hidden="true">
-        <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"></path>
-        <circle cx="12" cy="10" r="3"></circle>
-      </svg>
-      <span class="dest-logo-text">Rastreio <span>AGYLOG</span></span>
+      <img src="/static/logos/logo-agy-new.svg?v=20261009" alt="AGYLOG" style="height:34px;width:auto;display:block;" />
     </div>
   </header>
 
@@ -93,7 +88,6 @@
             <h2 id="currentStageTitle">Acompanhamento da entrega</h2>
             <p id="journeyMessage">Consulte o pedido para visualizar a etapa atual da entrega.</p>
 
-            <div class="visual-tags" id="visualTags"></div>
             <div class="visual-meta">
               <span id="lastUpdateLabel"></span>
             </div>
@@ -151,9 +145,8 @@
     <p>&copy; 2026 <strong>AGYLOG</strong> · Todos os direitos reservados</p>
   </footer>
 
-  <script src="assets/lottie-player.js"></script>
   <script src="{{ url_for('static', filename='correios_tracking.js') }}?v=20260928"></script>
-  <script src="{{ url_for('static', filename='localizacao.js') }}?v=20261009b"></script>
-  <script src="{{ url_for('static', filename='tracking_publico.js') }}?v=localizacao-20261008a"></script>
+  <script src="{{ url_for('static', filename='localizacao.js') }}?v=20261009c"></script>
+  <script src="{{ url_for('static', filename='tracking_publico.js') }}?v=20261009a"></script>
 </body>
 </html>

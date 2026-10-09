@@ -75,44 +75,5 @@ class CenasSvgTest(unittest.TestCase):
         self.assertEqual(set(re.findall(r"'([a-z0-9]+)'", lista)), set(scenes.KITS))
 
 
-def carregar_rota(cliente):
-    txt = ler("static", "scenes", f"{cliente}-rota.js")
-    ini = txt.index("= {") + 2
-    return json.loads(txt[ini:txt.rindex("};") + 1])
-
-
-class RotaPecasTest(unittest.TestCase):
-    """Pecas da cena de rota do cartao "Onde esta seu pedido" (o navegador monta nas 3 posicoes)."""
-    PECAS = {"css", "defs", "ceu", "estrada", "galpao", "galpao_apagado", "casa", "caminhao", "caminhao_rodando", "cor"}
-
-    def test_arquivos_em_dia_com_o_gerador(self):
-        for c in scenes.KITS:
-            self.assertEqual(carregar_rota(c), scenes.rota_pecas(c), f"{c}-rota.js desatualizado: rode python tools/scenes/build.py")
-
-    def test_pecas_sem_texto_com_logo_e_bandeira_de_chegada(self):
-        for c in scenes.KITS:
-            r = carregar_rota(c)
-            self.assertEqual(set(r), self.PECAS, c)
-            svg = "".join(v for v in r.values() if isinstance(v, str))
-            self.assertNotIn("<text", svg, c)
-            self.assertTrue("<use" in r["galpao"] or "<image" in r["galpao"], f"{c}: galpao sem logo")
-            self.assertTrue("<use" in r["caminhao"] or "<image" in r["caminhao"], f"{c}: caminhao sem logo")
-            self.assertIn('data-bandeira="chegada"', r["casa"], c)
-            self.assertEqual(set(r["cor"]), {"acento", "tinta", "painel", "escuro"}, c)
-
-    def test_prefixo_proprio_por_cliente(self):
-        for c in scenes.KITS:
-            pfx = scenes.KITS[c]["pfx"] + "rt_"
-            svg = "".join(v for v in carregar_rota(c).values() if isinstance(v, str))
-            for ident in re.findall(r'(?:id|class)="([^"]+)"', svg):
-                for nome in ident.split():
-                    self.assertTrue(nome.startswith(pfx), f"{c}: {nome} sem o prefixo {pfx}")
-
-    def test_manifesto_inclui_as_rotas(self):
-        man = ler("deploy", "deploy-manifest.tsv")
-        for c in scenes.KITS:
-            self.assertIn(f"static/scenes/{c}-rota.js\t", man, c)
-
-
 if __name__ == "__main__":
     unittest.main()

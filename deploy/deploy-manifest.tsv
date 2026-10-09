@@ -69,16 +69,7 @@ static/scenes/pinbank.js	/home/rastreamento/static/scenes/pinbank.js
 static/scenes/ip2w.js	/home/rastreamento/static/scenes/ip2w.js
 static/scenes/ccxp.js	/home/rastreamento/static/scenes/ccxp.js
 static/scenes/paranabanco.js	/home/rastreamento/static/scenes/paranabanco.js
-static/scenes/panini-rota.js	/home/rastreamento/static/scenes/panini-rota.js
-static/scenes/brb-rota.js	/home/rastreamento/static/scenes/brb-rota.js
-static/scenes/inter-rota.js	/home/rastreamento/static/scenes/inter-rota.js
-static/scenes/brbdux-rota.js	/home/rastreamento/static/scenes/brbdux-rota.js
-static/scenes/tricard-rota.js	/home/rastreamento/static/scenes/tricard-rota.js
-static/scenes/pinbank-rota.js	/home/rastreamento/static/scenes/pinbank-rota.js
-static/scenes/ip2w-rota.js	/home/rastreamento/static/scenes/ip2w-rota.js
-static/scenes/caoa-rota.js	/home/rastreamento/static/scenes/caoa-rota.js
-static/scenes/ccxp-rota.js	/home/rastreamento/static/scenes/ccxp-rota.js
-static/scenes/paranabanco-rota.js	/home/rastreamento/static/scenes/paranabanco-rota.js
+static/scenes/agy.js	/home/rastreamento/static/scenes/agy.js
 static/logos/logo-panini-cena.png	/home/rastreamento/static/logos/logo-panini-cena.png
 static/logos/logo-panini-cena-s.png	/home/rastreamento/static/logos/logo-panini-cena-s.png
 templates/_correios_tracking.html	/home/rastreamento/templates/_correios_tracking.html

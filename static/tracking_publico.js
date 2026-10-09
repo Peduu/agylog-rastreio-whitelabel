@@ -50,26 +50,35 @@
   caoa:{name:"CAOA",slug:"caoa",headerBg:"#ffffff",headerText:"#100c5a",accent:"#5dba8d",accentHover:"#3da870",footerBg:"#f6f7fb",footerText:"#100c5a",pillBg:"rgba(93,186,141,0.15)",pillColor:"#3da870",logoSvg:"<img src='/static/logos/logo-caoa.png?v=1' style='height:44px;width:auto;display:block;'>",partnerLine:"Entrega realizada por <strong>CAOA</strong>"},
   ccxp:{name:"CCXP 26",slug:"ccxp",headerBg:"#000000",headerText:"#ffffff",accent:"#E33781",accentHover:"#C42D6E",footerBg:"#000000",footerText:"rgba(255,255,255,0.68)",pillBg:"rgba(227,55,129,0.16)",pillColor:"#E33781",logoSvg:`<img src="${CCXP_LOGO_DATA_URI}" alt="CCXP 26" style="height:64px;width:auto;display:block;mix-blend-mode:screen;">`,partnerLine:"Entrega realizada por <strong>AGYLOG</strong> na CCXP 26"},
   paranabanco:{name:"Paraná Banco",slug:"paranabanco",headerBg:"#ffffff",headerText:"#0B1B3F",accent:"#3366FF",accentHover:"#2952CC",footerBg:"#f5f7ff",footerText:"#0B1B3F",pillBg:"rgba(51,102,255,0.12)",pillColor:"#2952CC",logoSvg:"<img src='/static/logos/logo-paranabanco.svg?v=1' alt='Paraná Banco' style='height:30px;width:auto;display:block;'>",partnerLine:"Entrega realizada por <strong>AGYLOG</strong> em parceria com Paraná Banco"},
+  // Pagina padrao (/tracking/<codigo>, sem cliente), 09/10/2026: o mesmo acabamento dos clientes, so com a marca AGYLOG.
+  // Nao e slug de URL: /tracking/agy/... nao existe (ver TEMA_PADRAO).
+  agy:{name:"AGYLOG",slug:"agy",headerBg:"#05153a",headerText:"#ffffff",accent:"#3B82F6",accentHover:"#2563EB",footerBg:"#030c22",footerText:"#a8c4f5",pillBg:"rgba(59,130,246,0.15)",pillColor:"#9cc2ff",logoSvg:"<img src='/static/logos/logo-agy-new.svg?v=20261009' alt='AGYLOG' style='height:40px;width:auto;display:block;'>",partnerLine:"Entrega realizada por <strong>AGYLOG</strong>"},
   };
+  const TEMA_PADRAO = 'agy';
 
   function detectClient() {
     // 1) Query param: /tracking/CODE?cliente=panini
     const qp = new URLSearchParams(window.location.search).get('cliente');
-    if (qp && CLIENT_THEMES[qp.toLowerCase()]) return qp.toLowerCase();
+    if (qp && qp.toLowerCase() !== TEMA_PADRAO && CLIENT_THEMES[qp.toLowerCase()]) return qp.toLowerCase();
     // 2) Path slug: /tracking/panini or /tracking/panini/CODE
     const parts = window.location.pathname.split('/').filter(Boolean);
     if (parts.length >= 2 && parts[0] === 'tracking') {
       const slug = parts[1].toLowerCase();
-      if (CLIENT_THEMES[slug]) return slug;
+      if (slug !== TEMA_PADRAO && CLIENT_THEMES[slug]) return slug;
     }
     return null;
+  }
+
+  // Tema visual da pagina: o do cliente ou, sem cliente, o tema padrao AGYLOG.
+  function temaDaPagina() {
+    return detectClient() || TEMA_PADRAO;
   }
 
   function getTrackingCodeFromURL() {
     const parts = window.location.pathname.split('/').filter(Boolean);
     if (parts.length >= 2 && parts[0] === 'tracking') {
       const slug = parts[1].toLowerCase();
-      if (CLIENT_THEMES[slug]) {
+      if (slug !== TEMA_PADRAO && CLIENT_THEMES[slug]) {
         return parts.length >= 3 ? parts[2].toUpperCase() : '';
       }
       return parts[1].toUpperCase();
@@ -534,6 +543,43 @@ const _pageThemes = {
           [data-client=paranabanco] .dest-header-inner::after,[data-client=paranabanco] .client-header-inner::after{content:''!important;display:block!important;order:3!important;width:156px!important;height:52px!important;flex:0 0 156px!important;border-radius:0!important;background:url('/static/logos/logo-agylog-modern.svg?v=20260911') center center / contain no-repeat!important;box-shadow:none!important;opacity:1!important;}
           @media (max-width:640px){[data-client=paranabanco] .client-logo-wrap img{height:26px!important;width:auto!important;max-width:168px!important;}[data-client=paranabanco] .dest-header-inner::after,[data-client=paranabanco] .client-header-inner::after{width:118px!important;height:40px!important;flex:0 0 118px!important;}[data-client=paranabanco] .client-header-tagline{display:none!important;}}@media (max-width:359px){[data-client=paranabanco] .client-logo-wrap img{height:21px!important;max-width:136px!important;}[data-client=paranabanco] .dest-header-inner::after,[data-client=paranabanco] .client-header-inner::after{width:96px!important;height:34px!important;flex:0 0 96px!important;}}
   `,
+  // Pagina padrao AGYLOG (09/10/2026): mesma estrutura do BRB (escuro, negrito, etapas em linha), cores da marca AGY.
+  agy: `
+          [data-client=agy] *{font-weight:700!important;}
+          body[data-client=agy]{background:linear-gradient(145deg,#06132e,#020916)!important;}
+          [data-client=agy] .page-wrap,[data-client=agy] .app-root{background:linear-gradient(145deg,#06132e,#020916)!important;}
+          [data-client=agy] .bg-glow{background:radial-gradient(circle,rgba(2,75,180,.28) 0%,transparent 70%)!important;filter:none!important;}
+          [data-client=agy] h1,[data-client=agy] h2,[data-client=agy] .hero-title,[data-client=agy] .page-title,[data-client=agy] .dest-header-main h1{background:linear-gradient(90deg,#6ea8ff,#cfe0ff)!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important;background-clip:text!important;}
+          [data-client=agy] p,[data-client=agy] .subtitle,[data-client=agy] .page-subtitle,[data-client=agy] .journey-message,[data-client=agy] .section-title{color:rgba(190,212,255,.6)!important;}
+          [data-client=agy] .timeline-stage h4,[data-client=agy] .timeline-stage time,[data-client=agy] .timeline-stage p{color:rgba(190,212,255,.78)!important;}
+          [data-client=agy] .card,[data-client=agy] .result-card,[data-client=agy] .search-card,[data-client=agy] .history-card,[data-client=agy] .timeline-container,[data-client=agy] .status-visual-card,[data-client=agy] .tracking-card{background:rgba(59,130,246,.05)!important;border-color:rgba(59,130,246,.14)!important;}
+          [data-client=agy] input,[data-client=agy] .search-input{border-color:rgba(59,130,246,.28)!important;background:rgba(3,12,32,.85)!important;color:#fff!important;}
+          [data-client=agy] input:focus,[data-client=agy] .search-input:focus{border-color:rgba(59,130,246,.6)!important;box-shadow:0 0 0 3px rgba(59,130,246,.14)!important;}
+          [data-client=agy] .rastrear-btn{box-shadow:0 4px 22px rgba(59,130,246,.35)!important;}
+          [data-client=agy] .rastrear-btn:hover{box-shadow:0 6px 28px rgba(59,130,246,.5)!important;}
+          [data-client=agy] .nova-busca-btn,[data-client=agy] .demo-btn{border-color:rgba(59,130,246,.3)!important;color:rgba(190,212,255,.8)!important;}
+          [data-client=agy] .nova-busca-btn:hover,[data-client=agy] .demo-btn:hover{border-color:rgba(59,130,246,.6)!important;color:#cfe0ff!important;background:rgba(59,130,246,.1)!important;}
+          [data-client=agy] .progress-line-fill{background:linear-gradient(90deg,#0a2a66 0%,#3B82F6 72%,#9cc2ff 100%)!important;}
+          [data-client=agy] .timeline-stage.active .timeline-node{border-color:rgba(59,130,246,.6)!important;box-shadow:0 0 24px rgba(59,130,246,.3)!important;}
+          [data-client=agy] .timeline-stage.done .timeline-node{border-color:rgba(59,130,246,.5)!important;background:rgba(59,130,246,.15)!important;}
+          [data-client=agy] .timeline-node-check{background:#1a56db!important;color:#fff!important;}
+          [data-client=agy] .timeline-stage.attention .timeline-node{border-color:rgba(255,180,0,.7)!important;box-shadow:0 0 20px rgba(255,180,0,.3)!important;}
+          [data-client=agy] .timeline-stage.final .timeline-node{border-color:rgba(59,130,246,.9)!important;box-shadow:0 0 32px rgba(59,130,246,.45)!important;}
+          [data-client=agy] .status-visual-scene,[data-client=agy] .status-visual-copy{background:linear-gradient(145deg,#06132e,#020916)!important;}
+          [data-client=agy] .history-list{border-color:rgba(59,130,246,.1)!important;}
+          [data-client=agy] .history-item{border-color:rgba(59,130,246,.08)!important;}
+          [data-client=agy] .history-dot,[data-client=agy] .history-item.success .history-dot{background:#3B82F6!important;box-shadow:0 0 8px rgba(59,130,246,.5)!important;}
+          [data-client=agy] .history-item.warning .history-dot{background:#f59e0b!important;}
+          [data-client=agy] .history-item.danger .history-dot{background:#ef4444!important;}
+          [data-client=agy] .history-body strong{color:rgba(190,212,255,.92)!important;}
+          [data-client=agy] .history-body p{color:rgba(190,212,255,.6)!important;}
+          [data-client=agy] .status-pill,[data-client=agy] .brand-pill{background:rgba(59,130,246,.15)!important;border-color:rgba(59,130,246,.4)!important;color:#9cc2ff!important;}
+          /* o logo principal ja e o AGY: sem o divisor e sem o segundo logo AGY dos clientes */
+          [data-client=agy] .client-header-inner::before,[data-client=agy] .client-header-inner::after,[data-client=agy] .dest-header-inner::before,[data-client=agy] .dest-header-inner::after{display:none!important;content:none!important;}
+          [data-client=agy] .client-logo-wrap img{height:40px!important;width:auto!important;max-width:200px!important;display:block!important;}
+          @media (max-width:640px){[data-client=agy] .client-logo-wrap img{height:28px!important;max-width:120px!important;}[data-client=agy] .client-header-tagline{font-size:14px!important;white-space:nowrap!important;}}
+          @media (max-width:359px){[data-client=agy] .client-header-tagline{display:none!important;}}
+  `,
   };
 
     _ts.textContent = _pageThemes[slug] || '';
@@ -584,7 +630,6 @@ const _pageThemes = {
   const currentStageTitle = document.getElementById('currentStageTitle');
   const journeyMessage = document.getElementById('journeyMessage');
   const statusVisualMedia = document.getElementById('statusVisualMedia');
-  const visualTags = document.getElementById('visualTags');
   const timeline = document.getElementById('timeline');
   const historyList = document.getElementById('historyList');
   const progressFill = document.getElementById('progressFill');
@@ -594,8 +639,8 @@ const _pageThemes = {
 
   // Clientes com cenas SVG animadas (static/scenes/<cliente>.js, gerado por tools/scenes/build.py).
   // Suba VERSAO_CENAS sempre que regenerar as cenas (invalida o cache do navegador).
-  const CLIENTES_COM_CENAS = ['panini', 'brb', 'inter', 'brbdux', 'tricard', 'pinbank', 'ip2w', 'caoa', 'ccxp', 'paranabanco'];
-  const VERSAO_CENAS = '20261001a';
+  const CLIENTES_COM_CENAS = ['panini', 'brb', 'inter', 'brbdux', 'tricard', 'pinbank', 'ip2w', 'caoa', 'ccxp', 'paranabanco', 'agy'];
+  const VERSAO_CENAS = '20261009a';
 
   let pollTimer = null;
   let _ultimoDado = null;
@@ -616,58 +661,49 @@ const _pageThemes = {
     aguardando_postagem: {
       title: 'Aguardando postagem',
       body: 'O pedido foi recebido e aguarda a confirmação da postagem para entrar na operação.',
-      tags: ['Aguardando coleta', 'Pedido confirmado', 'Atualização em breve'],
       media: '/static/assets/waiting.json',
     },
     preparacao_transporte: {
       title: 'Em preparação para transporte',
       body: 'Seu pedido está sendo separado, organizado e preparado para seguir viagem.',
-      tags: ['Separação em andamento', 'Conferência ativa', 'Preparando expedição'],
       media: '/static/assets/conveyor.gif',
     },
     transferencia_franquia: {
       title: 'Transferência para franquia distribuidora',
       body: 'A encomenda está em deslocamento entre unidades para chegar ao ponto final de distribuição.',
-      tags: ['Transferência ativa', 'Movimento entre unidades', 'Rota confirmada'],
       media: '/static/assets/codex-in-transit.gif',
     },
     chegada_franquia: {
       title: 'Chegada na franquia',
       body: 'O pedido já chegou na unidade responsável pela distribuição final.',
-      tags: ['Chegada confirmada', 'Triagem local', 'Última etapa se aproximando'],
       media: '/static/assets/conveyor.gif',
     },
     em_rota_entrega: {
       title: 'Em rota de entrega',
       body: 'Agora sim: o pedido está em rota para o destinatário final.',
-      tags: ['Última milha', 'Motorista em rota', 'Entrega em andamento'],
       media: '/static/assets/codex-in-transit.gif',
     },
     atencao: {
       title: 'Entrega malsucedida',
       body: 'Não foi possível concluir a entrega. Uma nova tentativa será realizada em breve. Após 3 tentativas sem sucesso, o objeto retornará à base.',
-      tags: ['Nova tentativa agendada', 'Destinatário ausente', 'Até 3 tentativas'],
       media: '/static/assets/codex-in-transit.gif',
       breaking: true,
     },
     devolucao: {
       title: 'Em processo de devolução',
       body: 'Foram realizadas 3 tentativas de entrega sem sucesso. O pedido está em processo de devolução ao remetente.',
-      tags: ['Devolução em andamento', '3 tentativas realizadas'],
       media: '/static/assets/codex-in-transit.gif',
       returning: true,
     },
     devolvido: {
         title: 'Devolvido ao remetente',
         body: 'O objeto foi devolvido ao remetente após 3 tentativas de entrega sem sucesso.',
-        tags: ['Devolução concluída', 'Retornado ao remetente'],
         media: '/static/assets/box.png',
         returned: true,
     },
     entregue: {
       title: 'Pedido entregue',
       body: 'A entrega foi finalizada com sucesso e o pedido já chegou ao destinatário.',
-      tags: ['Recebido', 'Entrega concluída', 'Status final confirmado'],
       media: '/static/assets/check.gif',
       delivered: true,
     },
@@ -755,7 +791,6 @@ const _pageThemes = {
           title: 'Tratativa concluída',
           body: 'Nova tentativa de entrega já agendada.',
           timelineDesc: 'Nova tentativa de entrega já agendada.',
-          tags: [],
           kind: 'reenvio',
           when: latestWhen,
         }
@@ -764,7 +799,6 @@ const _pageThemes = {
           title: 'Insucesso na entrega',
           body: 'Uma nova tentativa de entrega será realizada em breve.',
           timelineDesc: 'Nova tentativa de entrega em breve.',
-          tags: [],
           when: latestWhen,
         };
   }
@@ -930,13 +964,10 @@ const _pageThemes = {
 
     currentStageTitle.textContent = visual.title;
     journeyMessage.textContent = visual.body;
-    visualTags.innerHTML = visual.tags
-      .map((tag) => `<span class="visual-tag">${escapeHtml(tag)}</span>`)
-      .join('');
 
     if (ccxpTreatment) { renderCcXpReenvioAnimation(statusVisualMedia); return; }
 
-    const _cliente = detectClient();
+    const _cliente = temaDaPagina();
     if (CLIENTES_COM_CENAS.includes(_cliente) && !window.AgyScenes && !window.AgyScenesFalhou) return;
     const _cena = window.AgyScenes && window.AgyScenes[_cliente] && window.AgyScenes[_cliente][status];
     if (_cena) {
@@ -1001,7 +1032,8 @@ const _pageThemes = {
           return;
         }
         if (isLottie) {
-          statusVisualMedia.innerHTML = `<lottie-player src="${escapeHtml(visual.media)}" background="transparent" speed="1" loop autoplay style="width:100%;height:100%;min-height:250px"></lottie-player>`;
+          // so quando a cena SVG nao carregou: o player de Lottie saiu da pagina (dava 404), fica a imagem estatica
+          statusVisualMedia.innerHTML = `<img src="/static/assets/box.png" alt="${escapeHtml(visual.title)}" />`;
         } else {
           statusVisualMedia.innerHTML = `<img src="${escapeHtml(visual.media)}" alt="${escapeHtml(visual.title)}" />`;
         }
@@ -1176,7 +1208,7 @@ const _pageThemes = {
     renderVisual(data.status, ccxpTreatment);
     renderTimeline(data.stages || [], data.status, ccxpTreatment);
     renderHistory(data.history || [], ccxpTreatment);
-    if (window.AgyLocalizacao) window.AgyLocalizacao.render(data, detectClient());   // cartao "Onde esta seu pedido"
+    if (window.AgyLocalizacao) window.AgyLocalizacao.render(data, temaDaPagina());   // cartao "Onde esta seu pedido"
   }
 
   function showResult(code, data) {
@@ -1256,7 +1288,6 @@ const _pageThemes = {
     statusVisualMedia.innerHTML = '';
     statusVisualMedia.dataset.scene = '';
     if (window.AgyLocalizacao) window.AgyLocalizacao.limpar();
-    visualTags.innerHTML = '';
     timeline.innerHTML = '';
     historyList.innerHTML = '';
     progressFill.style.transform = 'scaleX(0)';
@@ -1334,16 +1365,18 @@ const _pageThemes = {
   novaBuscaBtn.addEventListener('click', resetResult);
 
   // ── Apply client theme on load ────────────────────────────────────────
+  // Sem cliente a pagina usa o tema padrao AGYLOG (mesmo acabamento e cenas dos clientes), mas a URL continua /tracking/CODE.
   const _clientSlug = detectClient();
+  const _tema = temaDaPagina();
+  applyClientTheme(_tema);
+  if (CLIENTES_COM_CENAS.includes(_tema)) {
+    const _sc = document.createElement('script');
+    _sc.src = `/static/scenes/${_tema}.js?v=${VERSAO_CENAS}`;
+    _sc.onload = () => { if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
+    _sc.onerror = () => { window.AgyScenesFalhou = true; if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
+    document.head.appendChild(_sc);
+  }
   if (_clientSlug) {
-    applyClientTheme(_clientSlug);
-    if (CLIENTES_COM_CENAS.includes(_clientSlug)) {
-      const _sc = document.createElement('script');
-      _sc.src = `/static/scenes/${_clientSlug}.js?v=${VERSAO_CENAS}`;
-      _sc.onload = () => { if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
-      _sc.onerror = () => { window.AgyScenesFalhou = true; if (_ultimoDado) applyStatusVisuals(_ultimoDado); };
-      document.head.appendChild(_sc);
-    }
     // Pre-fill code from URL: /tracking/SLUG/CODE
     const _urlCode = getTrackingCodeFromURL();
     if (_urlCode && codigoInput && !codigoInput.value) {
@@ -1390,112 +1423,3 @@ const _pageThemes = {
   style.textContent = css;
 })();
 /* CODEX BRBDUX NO BLUE RESULT END */
-
-/* CODEX MAIN SIMPLE TIMELINE START */
-(function () {
-  var css = `
-    /* Aplica somente no tema principal, sem data-client */
-    body:not([data-client]) .progress-line,
-    body:not([data-client]) .progress-line-fill {
-      display: none !important;
-    }
-
-    body:not([data-client]) #timeline {
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 10px !important;
-      grid-template-columns: none !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-stage {
-      display: grid !important;
-      grid-template-columns: 32px 1fr auto !important;
-      grid-template-areas:
-        "node title time"
-        "node desc desc" !important;
-      align-items: center !important;
-      gap: 4px 12px !important;
-      padding: 12px 14px !important;
-      border-radius: 14px !important;
-      background: rgba(255,255,255,0.045) !important;
-      border: 1px solid rgba(255,255,255,0.10) !important;
-      text-align: left !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-node {
-      grid-area: node !important;
-      width: 28px !important;
-      height: 28px !important;
-      min-width: 28px !important;
-      border-radius: 999px !important;
-      box-shadow: none !important;
-      filter: none !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-stage h4 {
-      grid-area: title !important;
-      margin: 0 !important;
-      font-size: 14px !important;
-      line-height: 1.25 !important;
-      font-weight: 700 !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-stage time {
-      grid-area: time !important;
-      margin: 0 !important;
-      font-size: 11px !important;
-      opacity: 0.58 !important;
-      white-space: nowrap !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-stage p {
-      grid-area: desc !important;
-      margin: 0 !important;
-      font-size: 12px !important;
-      line-height: 1.35 !important;
-      opacity: 0.62 !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-node-pending .pending-ring {
-      display: none !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-node-check {
-      font-size: 13px !important;
-      box-shadow: none !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-node-emoji {
-      font-size: 15px !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-stage.active {
-      border-color: rgba(255,255,255,0.22) !important;
-      background: rgba(255,255,255,0.07) !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-stage.done {
-      opacity: 0.88 !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-stage.attention {
-      border-color: rgba(239,68,68,0.35) !important;
-      background: rgba(239,68,68,0.07) !important;
-    }
-
-    body:not([data-client]) #timeline .timeline-stage.final {
-      border-color: rgba(34,197,94,0.35) !important;
-      background: rgba(34,197,94,0.07) !important;
-    }
-  `;
-
-  var style = document.getElementById('codex-main-simple-timeline');
-  if (!style) {
-    style = document.createElement('style');
-    style.id = 'codex-main-simple-timeline';
-    document.head.appendChild(style);
-  }
-
-  style.textContent = css;
-})();
-/* CODEX MAIN SIMPLE TIMELINE END */

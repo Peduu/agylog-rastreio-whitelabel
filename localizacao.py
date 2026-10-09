@@ -6,7 +6,7 @@ Regras que nao podem regredir:
   sem casamento, a cidade aparece no texto mas nao vira ponto no mapa;
 - CCXP: nada de devolucao nem remetente;
 - texto SIMPLES (Pedro, 09/10/2026): uma linha com a rota e seta ("Sao Paulo/SP -> Curitiba/PR"), sem frase longa;
-  detalhes (datas, destino) ficam no trilho embaixo da cena.
+  detalhes (datas, destino) ficam no trilho embaixo do mapa.
 """
 import json
 import os
@@ -115,7 +115,7 @@ def _cidade(parada, atual=False):
 
 
 def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
-    """None ou {linha, transito, cena, trilho, pontos, atualizado}.
+    """None ou {linha, transito, trilho, pontos, atualizado}.
 
     linha = cidades da rota para mostrar com seta entre elas (origem -> onde esta); transito = True quando o pedido
     saiu e ainda nao chegou em outra unidade (o front mostra "-> em transito" depois da cidade).
@@ -136,27 +136,22 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
     transito = False
 
     if status_key in PROBLEMA and (ccxp or status_key != "atencao"):
-        cena = {"slot1": not um, "slot2": "galpao", "slot3": None, "caminhao": "slot2"}
         trilho = ([] if um else [t_origem]) + [_item(2, A, f"agora · {agora}")]
     elif status_key == "preparacao_transporte":
-        cena = {"slot1": False, "slot2": "galpao", "slot3": "apagado", "caminhao": "slot2"}
         trilho = [_item(2, A, f'desde {_curta(atual["primeira"])}'), _item(3, "Destino", "a definir")]
     elif status_key == "transferencia_franquia" and um:
         transito = True
-        cena = {"slot1": True, "slot2": "apagado", "slot3": None, "caminhao": "estrada12"}
         trilho = [t_origem, _item(2, "Unidade de entrega", "a definir")]
     elif status_key == "transferencia_franquia":
-        cena = {"slot1": True, "slot2": "galpao", "slot3": "apagado", "caminhao": "slot2"}
         trilho = [t_origem, _item(2, A, f"agora · {agora}"), _item(3, "Unidade de entrega", "a definir")]
     else:
         textos = {
-            "chegada_franquia": ("slot2", f'chegou · {_curta(atual["primeira"])}', "próxima etapa"),
-            "em_rota_entrega": ("estrada23", "unidade de entrega", f"em rota · {agora}"),
-            "atencao": ("estrada23", "unidade de entrega", f"tentativa · {agora}"),
-            "entregue": ("slot3", "unidade de entrega", f"entregue · {agora}"),
+            "chegada_franquia": (f'chegou · {_curta(atual["primeira"])}', "próxima etapa"),
+            "em_rota_entrega": ("unidade de entrega", f"em rota · {agora}"),
+            "atencao": ("unidade de entrega", f"tentativa · {agora}"),
+            "entregue": ("unidade de entrega", f"entregue · {agora}"),
         }
-        caminhao, sub2, sub3 = textos[status_key]
-        cena = {"slot1": not um, "slot2": "galpao", "slot3": "casa", "caminhao": caminhao}
+        sub2, sub3 = textos[status_key]
         trilho = ([] if um else [t_origem]) + [_item(2, A, sub2), _item(3, "Seu endereço", sub3, "chegada")]
 
     pontos = []
@@ -164,9 +159,10 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
         com_ibge = [p for p in paradas if p["ibge"]]
         for i, p in enumerate(com_ibge):
             papel = "atual" if p is atual else ("origem" if i == 0 else "passagem")
-            pontos.append({"papel": papel, "uf": p["uf"], "lat": p["ibge"]["lat"], "lon": p["ibge"]["lon"]})
+            pontos.append({"papel": papel, "nome": p["nome"], "uf": p["uf"], "lat": p["ibge"]["lat"], "lon": p["ibge"]["lon"]})
         if destino_ok:
-            pontos.append({"papel": "destino", "uf": atual["uf"], "lat": atual["ibge"]["lat"], "lon": atual["ibge"]["lon"]})
+            pontos.append({"papel": "destino", "nome": atual["nome"], "uf": atual["uf"],
+                           "lat": atual["ibge"]["lat"], "lon": atual["ibge"]["lon"]})
             if status_key == "entregue":
                 pontos = [p for p in pontos if p["papel"] != "atual"]   # entregue: a bandeira xadrez substitui o pin
-    return {"linha": linha, "transito": transito, "cena": cena, "trilho": trilho, "pontos": pontos, "atualizado": agora}
+    return {"linha": linha, "transito": transito, "trilho": trilho, "pontos": pontos, "atualizado": agora}

@@ -90,6 +90,7 @@ CLIENTES = {
     "ip2w": ("static/logos/logo-ip2w.png", [(252, 252, 252), (62, 207, 192)]),
     "ccxp": ("static/logos/logo-ccxp.png", [(252, 252, 252), (227, 55, 129)]),
     "paranabanco": ("static/logos/logo-paranabanco.svg", None),   # SVG oficial do site: importado exato (importar_svg.py), sem potrace
+    "agy": ("static/logos/logo-agy-new.svg", None),                # pagina padrao (sem cliente): o mesmo logo AGY do cabecalho
 }
 
 if __name__ == "__main__":

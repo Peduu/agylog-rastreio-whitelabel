@@ -64,6 +64,11 @@ KITS = {
                         body="#FFFFFF", bodyStroke="#c9d3ee", cab="#132CB0", wall="#FFFFFF", wallOp=".92", wallStroke="#c9d3ee",
                         stripe="#3366FF", plate="#FFFFFF", plateStroke="#d5dcf0", vetor="paranabanco",
                         prop="cards", glow="#3366FF", sky="fill", door="#3366FF"),
+    # Pagina padrao (/tracking/<codigo>, sem cliente), 09/10/2026: so a marca AGYLOG, azul-marinho com o azul do logo
+    "agy": dict(name="AGYLOG", pfx="ag", dark=True, panel="#0b111d", ink="#CFE0FF", accent="#3B82F6", onAccent="#FFFFFF",
+                body="#0f1f3d", bodyStroke="#2f6fd6", cab="#071430", stripe="#3B82F6", plate="#0b1a33", plateStroke="#3B82F6",
+                wall="#0f1f3d", wallOp=".96", wallStroke="#2f6fd6", vetor="agy",
+                prop=None, glow="#3B82F6", sky="fill", door="#3B82F6", signFill="#2563eb"),
 }
 
 for _k in KITS.values():                       # com logo em vetor, a proporcao vem do proprio vetor
@@ -955,55 +960,3 @@ def scenes_for(client):
             p = prefixo(client, sid)
             out[sid] = fn(dict(kit, lgid=p + "lg"), p)
     return out
-
-
-# ---- Cena de rota do cartao "Onde esta seu pedido" (spec/plano de 08/10/2026) -------------------------------------------
-# O navegador (static/localizacao.js) monta estas pecas num SVG 800x250 (viewBox 0 40 800 250) nas posicoes x 145/420/692:
-# origem (galpao), unidade atual (galpao) e destino (casa, ou galpao apagado quando ainda nao se sabe). Todas centradas em x=0.
-ROTA_CSS = """
-.__P__dash{stroke-dasharray:12 12;animation:__P__anda 1.2s linear infinite}
-@keyframes __P__anda{to{stroke-dashoffset:-24}}
-@media (prefers-reduced-motion:reduce){.__P__dash,.__P__tw,.__P__spin{animation:none!important}}
-"""
-
-
-def bandeira_chegada(k, x, y):
-    """Bandeira quadriculada de corrida fincada no chao (x,y = pe do mastro): marca o ultimo estagio, o endereco de entrega."""
-    cel, cols, lins = 5, 4, 3
-    quadros = "".join(
-        f'<rect x="{c * cel}" y="{l * cel}" width="{cel}" height="{cel}" fill="{"#17171c" if (c + l) % 2 == 0 else "#ffffff"}"/>'
-        for l in range(lins) for c in range(cols))
-    return (f'<g data-bandeira="chegada" transform="translate({x},{y})">'
-            f'<rect x="-1.2" y="-66" width="2.4" height="66" rx="1.2" fill="{k["ink"]}" fill-opacity=".55"/>'
-            f'<circle cx="0" cy="-67" r="2.4" fill="{k["accent"]}"/>'
-            f'<g transform="translate(1.2,-64) skewY(-8)">{quadros}'
-            f'<rect width="{cols * cel}" height="{lins * cel}" fill="none" stroke="{k["ink"]}" stroke-opacity=".35" stroke-width=".8"/></g></g>')
-
-
-def rota_pecas(client):
-    kit = KITS[client]
-    p = f'{kit["pfx"]}rt_'
-    k = dict(kit, lgid=p + "lg")
-    esc = .74
-    larg = 192 * esc
-    sky = skyline(k, p, scroll=False)
-    ceu = (f'<rect x="0" y="0" width="800" height="290" fill="url(#{p}glow)"/>'
-           f'<g>{sky}</g><g transform="translate(400,0)">{sky}</g>')
-    estrada = (f'<rect x="0" y="{GROUND}" width="800" height="{ROAD_BOTTOM - GROUND}" fill="{k["ink"]}" fill-opacity=".10"/>'
-               f'<line x1="0" x2="800" y1="{GROUND}" y2="{GROUND}" stroke="{k["ink"]}" stroke-opacity=".28" stroke-width="1.5"/>'
-               f'<line x1="0" x2="800" y1="{VEH_Y + 8}" y2="{VEH_Y + 8}" stroke="{k["ink"]}" stroke-opacity=".22" stroke-width="2" stroke-dasharray="18 16"/>')
-    pecas = {
-        "ceu": ceu,
-        "estrada": estrada,
-        "galpao": warehouse(k, p, -75, GROUND, w=150),
-        "galpao_apagado": warehouse(k, p, -75, GROUND, w=150, op=.26, logo=False),
-        "casa": house(k, p, -52, GROUND, w=104) + bandeira_chegada(k, 66, GROUND),
-        "caminhao": truck(k, p, -larg / 2, VEH_Y, scale=esc, wheels=False),
-        "caminhao_rodando": truck(k, p, -larg / 2, VEH_Y, scale=esc, wheels=True),
-    }
-    tudo = "".join(pecas.values())
-    pecas["css"] = _css_for(CSS, tudo, p) + "".join(l for l in ROTA_CSS.replace("__P__", p).strip().splitlines())
-    pecas["defs"] = (f'<radialGradient id="{p}glow" cx="50%" cy="60%" r="60%"><stop offset="0" stop-color="{k["glow"]}" stop-opacity=".14"/>'
-                     f'<stop offset="1" stop-color="{k["glow"]}" stop-opacity="0"/></radialGradient>{simbolo_logo(k)}')
-    pecas["cor"] = {"acento": k["accent"], "tinta": k["ink"], "painel": k["panel"], "escuro": bool(k["dark"])}
-    return pecas

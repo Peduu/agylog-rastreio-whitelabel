@@ -770,24 +770,6 @@ input {
   line-height: 1.72;
 }
 
-.visual-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.visual-tag {
-  display: inline-flex;
-  align-items: flex-start;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  color: var(--text);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
 .visual-meta {
   color: var(--subtle);
   font-size: 0.8rem;
@@ -2491,3 +2473,9 @@ body[data-client="caoa"] .client-header-inner::after {
 }
 
 .status-visual-media svg.agy-scene { width: 100%; height: 100%; display: block; }
+
+/* 09/10/2026: no celular o cabecalho dos clientes (logo do cliente + logo AGY) nao comporta a frase "Rastreamento de encomenda";
+   ela saia cortada. A pagina padrao AGYLOG tem um logo so e mantem a frase (tema agy em tracking_publico.js). */
+@media (max-width: 640px) {
+  [data-client]:not([data-client=agy]) .client-header-tagline { display: none !important; }
+}
