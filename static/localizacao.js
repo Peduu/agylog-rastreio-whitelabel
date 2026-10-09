@@ -8,11 +8,11 @@
 (function () {
   'use strict';
 
-  const VERSAO = '20261008a';                    // suba quando regenerar pecas ou dados geograficos (cache do navegador)
+  const VERSAO = '20261009a';                    // suba quando regenerar pecas ou dados geograficos (cache do navegador)
   const SLOT_X = { 1: 145, 2: 420, 3: 692 };
   const CAMINHAO_X = { estrada12: 282, slot2: 420, estrada23: 566, slot3: 600 };
   const ESTRADA_Y = 264;
-  const MAPA = { x: 606, y: 52, w: 176, h: 84 };
+  const MAPA = { x: 520, y: 8, w: 268, h: 128 };   // canto do ceu; acima dos telhados (y 142)
   const RAD = Math.PI / 180;
   const cache = { rotas: {}, indice: null, ufs: {} };
   let ultimaChave = '';
@@ -280,7 +280,7 @@
       ? `<div class="loc-mapa"><svg xmlns="http://www.w3.org/2000/svg" viewBox="${x - 1} ${y - 1} ${w + 2} ${h + 2}" role="img"`
         + ` aria-label="Mapa da região do pedido" class="loc-mapa-svg">${mapa}</svg></div>`
       : '';
-    palco.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 40 800 250" role="img" aria-label="Trajeto do pedido"`
+    palco.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 290" role="img" aria-label="Trajeto do pedido"`
       + ` class="loc-svg"><style>${p.css}</style><defs>${p.defs}</defs>${cenaSvg(p, pfx, loc.cena)}</svg>${mapaSvg}`;
   }
 

@@ -10,8 +10,8 @@
 }
 .localizacao-card .loc-cena { border-radius: 16px; overflow: hidden; position: relative; }
 .localizacao-card .loc-svg { display: block; width: 100%; height: auto; }
-/* mapinha no canto do ceu da cena: x 606, y 52, 176x84 dentro do viewBox 0 40 800 250 */
-.localizacao-card .loc-mapa { position: absolute; left: 75.625%; top: 4.4%; width: 22.25%; }
+/* mapinha no canto do ceu da cena: x 520, y 8, 268x128 dentro do viewBox 0 0 800 290 (svg do mapa com 1 de folga) */
+.localizacao-card .loc-mapa { position: absolute; left: 64.875%; top: 2.414%; width: 33.75%; }
 .localizacao-card .loc-mapa-svg { display: block; width: 100%; height: auto; }
 .localizacao-card .loc-trilho { position: relative; height: 46px; margin-top: 10px; }
 .localizacao-card .loc-ponto {

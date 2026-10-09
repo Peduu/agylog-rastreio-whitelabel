@@ -987,7 +987,7 @@ def rota_pecas(client):
     esc = .74
     larg = 192 * esc
     sky = skyline(k, p, scroll=False)
-    ceu = (f'<rect x="0" y="40" width="800" height="250" fill="url(#{p}glow)"/>'
+    ceu = (f'<rect x="0" y="0" width="800" height="290" fill="url(#{p}glow)"/>'
            f'<g>{sky}</g><g transform="translate(400,0)">{sky}</g>')
     estrada = (f'<rect x="0" y="{GROUND}" width="800" height="{ROAD_BOTTOM - GROUND}" fill="{k["ink"]}" fill-opacity=".10"/>'
                f'<line x1="0" x2="800" y1="{GROUND}" y2="{GROUND}" stroke="{k["ink"]}" stroke-opacity=".28" stroke-width="1.5"/>'
