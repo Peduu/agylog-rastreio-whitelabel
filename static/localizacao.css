@@ -3,8 +3,10 @@
 .localizacao-card[hidden],
 .localizacao-card .loc-cena[hidden] { display: none !important; }
 .localizacao-card .loc-frase { margin: 2px 0 14px; font-size: 17px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-.localizacao-card .loc-cidade { white-space: nowrap; opacity: .7; }
-.localizacao-card .loc-atual { opacity: 1; font-size: 19px; }
+.localizacao-card .loc-cidade { white-space: nowrap; }
+.localizacao-card .loc-cidade .loc-nome { opacity: .7; }
+.localizacao-card .loc-atual { font-size: 19px; }
+.localizacao-card .loc-atual .loc-nome { opacity: 1; }
 .localizacao-card .loc-transito { opacity: .7; font-style: italic; }
 .localizacao-card .loc-seta { width: 22px; height: 11px; flex: 0 0 auto; opacity: .75; }
 .localizacao-card .loc-flag {

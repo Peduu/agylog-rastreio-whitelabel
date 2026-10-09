@@ -219,7 +219,7 @@
     const partes = (loc.linha || []).map((c) => {
       const el = document.createElement(c.atual ? 'b' : 'span');
       el.className = c.atual ? 'loc-cidade loc-atual' : 'loc-cidade';
-      if (c.atual && /^[A-Z]{2}$/.test(c.uf || '')) {
+      if (/^[A-Z]{2}$/.test(c.uf || '')) {                       // bandeira da UF em todas as cidades da linha (09/10)
         const img = document.createElement('img');
         img.className = 'loc-flag';
         img.src = `/static/flags/uf/${c.uf}.png?v=${VERSAO}`;
@@ -229,7 +229,10 @@
         img.height = 15;
         el.appendChild(img);
       }
-      el.appendChild(document.createTextNode(String(c.t || '')));
+      const nome = document.createElement('span');
+      nome.className = 'loc-nome';
+      nome.textContent = String(c.t || '');
+      el.appendChild(nome);
       return el;
     });
     if (loc.transito) {
