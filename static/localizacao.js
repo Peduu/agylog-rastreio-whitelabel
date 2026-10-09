@@ -115,6 +115,8 @@
 
   async function mapinha(pfx, cor, pontos) {
     const comPin = pontos.filter((p) => p.papel !== 'destino');
+    const ultimo = pontos.find((p) => p.papel === 'destino');
+    if (ultimo && !pontos.some((p) => p.papel === 'atual')) comPin.push(ultimo);   // entregue: a linha vai ate a bandeira
     if (!pontos.length) return '';
     const { proj, caixa } = enquadrar(pontos);
     let ufs;
@@ -201,26 +203,44 @@
     return svg;
   }
 
-  function preencherFrase(destino, frase) {
+  function seta() {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 12');
+    svg.setAttribute('class', 'loc-seta');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = '<path d="M1 6h19M15 1.5 20.5 6 15 10.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+    return svg;
+  }
+
+  // Linha simples da rota (Pedro, 09/10): "Sao Paulo/SP -> [bandeira] Curitiba/PR"; a cidade onde o pedido esta em
+  // destaque e com a bandeira da UF; "em transito" depois da seta quando ainda nao chegou em outra unidade.
+  function preencherLinha(destino, loc) {
     destino.textContent = '';
-    (frase || []).forEach((s) => {
-      if (!s.b) {
-        destino.appendChild(document.createTextNode(String(s.t || '')));
-        return;
-      }
-      const b = document.createElement('b');
-      if (s.uf && /^[A-Z]{2}$/.test(s.uf)) {
+    const partes = (loc.linha || []).map((c) => {
+      const el = document.createElement(c.atual ? 'b' : 'span');
+      el.className = c.atual ? 'loc-cidade loc-atual' : 'loc-cidade';
+      if (c.atual && /^[A-Z]{2}$/.test(c.uf || '')) {
         const img = document.createElement('img');
         img.className = 'loc-flag';
-        img.src = `/static/flags/uf/${s.uf}.png?v=${VERSAO}`;
+        img.src = `/static/flags/uf/${c.uf}.png?v=${VERSAO}`;
         img.alt = '';
         img.setAttribute('aria-hidden', 'true');
         img.width = 21;
         img.height = 15;
-        b.appendChild(img);
+        el.appendChild(img);
       }
-      b.appendChild(document.createTextNode(String(s.t || '')));
-      destino.appendChild(b);
+      el.appendChild(document.createTextNode(String(c.t || '')));
+      return el;
+    });
+    if (loc.transito) {
+      const t = document.createElement('span');
+      t.className = 'loc-transito';
+      t.textContent = 'em trânsito';
+      partes.push(t);
+    }
+    partes.forEach((el, i) => {
+      if (i > 0) destino.appendChild(seta());
+      destino.appendChild(el);
     });
   }
 
@@ -256,7 +276,7 @@
     if (chave === ultimaChave && !card.hidden) return;        // atualizacao automatica sem mudanca: nao reinicia a animacao
     ultimaChave = chave;
     const minha = ++geracao;
-    preencherFrase(document.getElementById('locFrase'), loc.frase);
+    preencherLinha(document.getElementById('locFrase'), loc);
     preencherTrilho(document.getElementById('locTrilho'), loc.trilho);
     const nota = document.getElementById('locNota');
     if (nota) nota.textContent = loc.atualizado ? `Posição pela última leitura numa unidade AGYLOG (${loc.atualizado}).` : 'Posição pela última leitura numa unidade AGYLOG.';

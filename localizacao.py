@@ -4,7 +4,9 @@ Regras que nao podem regredir:
 - so cidade/UF da unidade; NUNCA latitude/longitude do TMS (na entrega podem revelar o endereco do destinatario);
 - a coordenada desenhada e a da sede do municipio no IBGE, casada SO por nome normalizado + UF (nunca por aproximacao):
   sem casamento, a cidade aparece no texto mas nao vira ponto no mapa;
-- CCXP: nada de devolucao nem remetente; em status de problema so "Esta em X".
+- CCXP: nada de devolucao nem remetente;
+- texto SIMPLES (Pedro, 09/10/2026): uma linha com a rota e seta ("Sao Paulo/SP -> Curitiba/PR"), sem frase longa;
+  detalhes (datas, destino) ficam no trilho embaixo da cena.
 """
 import json
 import os
@@ -100,13 +102,6 @@ def _paradas(ocorrencias):
     return paradas
 
 
-def _seg(t, cidade_atual=None):
-    """Pedaco da frase; a cidade vai em negrito e, se for onde o pedido esta, leva a bandeira da UF."""
-    if cidade_atual is None:
-        return {"t": t}
-    return {"t": t, "b": True, "uf": cidade_atual} if cidade_atual else {"t": t, "b": True}
-
-
 def _item(slot, titulo, sub, icone=None):
     item = {"slot": slot, "titulo": titulo, "sub": sub}
     if icone:
@@ -114,8 +109,17 @@ def _item(slot, titulo, sub, icone=None):
     return item
 
 
+def _cidade(parada, atual=False):
+    """Cidade da linha da rota; a ATUAL vai em destaque e leva a bandeira da UF."""
+    return {"t": parada["nome"], "uf": parada["uf"], "atual": atual}
+
+
 def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
-    """None ou {frase, cena, trilho, pontos, atualizado} (formato descrito no plano de 08/10/2026)."""
+    """None ou {linha, transito, cena, trilho, pontos, atualizado}.
+
+    linha = cidades da rota para mostrar com seta entre elas (origem -> onde esta); transito = True quando o pedido
+    saiu e ainda nao chegou em outra unidade (o front mostra "-> em transito" depois da cidade).
+    """
     if status_key not in STATUS_COM_LOCAL:
         return None
     paradas = _paradas(ocorrencias or [])
@@ -128,38 +132,30 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
     agora = _curta(atual["ultima"])
     t_origem = _item(1, origem["nome"], f'saiu · {_curta(origem["ultima"])}')
     destino_ok = status_key in DESTINO_CONHECIDO and not (ccxp and status_key in PROBLEMA)
+    linha = ([] if um else [_cidade(origem)]) + [_cidade(atual, True)]
+    transito = False
 
     if status_key in PROBLEMA and (ccxp or status_key != "atencao"):
-        if ccxp:
-            frase = [_seg("Está em "), _seg(A, atual["uf"])]
-        elif status_key == "devolucao":
-            frase = [_seg("Em devolução · está em "), _seg(A, atual["uf"])]
-        else:
-            frase = [_seg("Devolvido · "), _seg(A, atual["uf"])]
         cena = {"slot1": not um, "slot2": "galpao", "slot3": None, "caminhao": "slot2"}
         trilho = ([] if um else [t_origem]) + [_item(2, A, f"agora · {agora}")]
     elif status_key == "preparacao_transporte":
-        frase = [_seg("Em preparação em "), _seg(A, atual["uf"])]
         cena = {"slot1": False, "slot2": "galpao", "slot3": "apagado", "caminhao": "slot2"}
         trilho = [_item(2, A, f'desde {_curta(atual["primeira"])}'), _item(3, "Destino", "a definir")]
     elif status_key == "transferencia_franquia" and um:
-        frase = [_seg("Saiu de "), _seg(A, atual["uf"]), _seg(" · a caminho da unidade de entrega")]
+        transito = True
         cena = {"slot1": True, "slot2": "apagado", "slot3": None, "caminhao": "estrada12"}
         trilho = [t_origem, _item(2, "Unidade de entrega", "a definir")]
     elif status_key == "transferencia_franquia":
-        frase = [_seg("Saiu de "), _seg(origem["nome"], ""), _seg(" · está em "), _seg(A, atual["uf"]),
-                 _seg(" · a caminho da unidade de entrega")]
         cena = {"slot1": True, "slot2": "galpao", "slot3": "apagado", "caminhao": "slot2"}
         trilho = [t_origem, _item(2, A, f"agora · {agora}"), _item(3, "Unidade de entrega", "a definir")]
     else:
         textos = {
-            "chegada_franquia": ("Chegou na unidade de ", "slot2", f'chegou · {_curta(atual["primeira"])}', "próxima etapa"),
-            "em_rota_entrega": ("Saiu para entrega em ", "estrada23", "unidade de entrega", f"em rota · {agora}"),
-            "atencao": ("Tentativa de entrega em ", "estrada23", "unidade de entrega", f"tentativa · {agora}"),
-            "entregue": ("Entregue em ", "slot3", "unidade de entrega", f"entregue · {agora}"),
+            "chegada_franquia": ("slot2", f'chegou · {_curta(atual["primeira"])}', "próxima etapa"),
+            "em_rota_entrega": ("estrada23", "unidade de entrega", f"em rota · {agora}"),
+            "atencao": ("estrada23", "unidade de entrega", f"tentativa · {agora}"),
+            "entregue": ("slot3", "unidade de entrega", f"entregue · {agora}"),
         }
-        antes, caminhao, sub2, sub3 = textos[status_key]
-        frase = [_seg(antes), _seg(A, atual["uf"])]
+        caminhao, sub2, sub3 = textos[status_key]
         cena = {"slot1": not um, "slot2": "galpao", "slot3": "casa", "caminhao": caminhao}
         trilho = ([] if um else [t_origem]) + [_item(2, A, sub2), _item(3, "Seu endereço", sub3, "chegada")]
 
@@ -173,4 +169,4 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
             pontos.append({"papel": "destino", "uf": atual["uf"], "lat": atual["ibge"]["lat"], "lon": atual["ibge"]["lon"]})
             if status_key == "entregue":
                 pontos = [p for p in pontos if p["papel"] != "atual"]   # entregue: a bandeira xadrez substitui o pin
-    return {"frase": frase, "cena": cena, "trilho": trilho, "pontos": pontos, "atualizado": agora}
+    return {"linha": linha, "transito": transito, "cena": cena, "trilho": trilho, "pontos": pontos, "atualizado": agora}

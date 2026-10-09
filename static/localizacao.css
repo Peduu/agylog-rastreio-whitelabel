@@ -2,8 +2,11 @@
    (timeline-container/timeline-head/timeline-kicker), entao herda o tema de cada cliente; aqui so o que e dele. */
 .localizacao-card[hidden],
 .localizacao-card .loc-cena[hidden] { display: none !important; }
-.localizacao-card .loc-frase { margin: 2px 0 14px; font-size: 15px; line-height: 1.5; }
-.localizacao-card .loc-frase b { white-space: nowrap; }
+.localizacao-card .loc-frase { margin: 2px 0 14px; font-size: 17px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.localizacao-card .loc-cidade { white-space: nowrap; opacity: .7; }
+.localizacao-card .loc-atual { opacity: 1; font-size: 19px; }
+.localizacao-card .loc-transito { opacity: .7; font-style: italic; }
+.localizacao-card .loc-seta { width: 22px; height: 11px; flex: 0 0 auto; opacity: .75; }
 .localizacao-card .loc-flag {
   width: 21px; height: 15px; object-fit: cover; border-radius: 2px; vertical-align: -2px; margin-right: 6px;
   box-shadow: 0 0 0 1px rgba(128, 128, 128, .38);
@@ -24,8 +27,8 @@
 .localizacao-card .loc-nota { margin: 8px 0 0; font-size: 11px; opacity: .55; text-align: center; }
 
 @media (max-width: 560px) {
-  .localizacao-card .loc-frase { font-size: 14px; }
-  .localizacao-card .loc-frase b { white-space: normal; }
+  .localizacao-card .loc-frase { font-size: 15px; gap: 2px 8px; }
+  .localizacao-card .loc-atual { font-size: 16px; }
   /* celular: o mapinha desce para baixo da cena, legivel */
   .localizacao-card .loc-mapa { position: static; width: auto; max-width: 300px; margin: 2px auto 12px; padding: 0 12px; }
   /* celular: trilho em 3 colunas iguais, alinhadas com as posicoes da cena */

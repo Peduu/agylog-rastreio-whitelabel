@@ -7,7 +7,8 @@ from test_demo_caoa import portal
 
 
 def texto(loc):
-    return "".join(s["t"] for s in loc["frase"])
+    partes = [c["t"] for c in loc["linha"]] + (["em trânsito"] if loc["transito"] else [])
+    return " → ".join(partes)
 
 
 class LocalizacaoApiTest(unittest.TestCase):
@@ -25,13 +26,13 @@ class LocalizacaoApiTest(unittest.TestCase):
     def test_demonstracao_por_status(self):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):
             self.assertIsNone(self.consulta("ROTA1", "paranabanco")["localizacao"])
-            self.assertEqual(texto(self.consulta("ROTA2", "paranabanco")["localizacao"]), "Em preparação em São Paulo/SP")
+            self.assertEqual(texto(self.consulta("ROTA2", "paranabanco")["localizacao"]), "São Paulo/SP")
             loc = self.consulta("ROTA3", "paranabanco")["localizacao"]
-            self.assertEqual(texto(loc), "Saiu de São Paulo/SP · está em Curitiba/PR · a caminho da unidade de entrega")
+            self.assertEqual(texto(loc), "São Paulo/SP → Curitiba/PR")
             self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "atual"])
-            self.assertEqual(texto(self.consulta("ROTA4", "brb")["localizacao"]), "Chegou na unidade de Londrina/PR")
-            self.assertEqual(texto(self.consulta("ROTA5", "brb")["localizacao"]), "Saiu para entrega em Londrina/PR")
-            self.assertEqual(texto(self.consulta("ROTA9", "caoa")["localizacao"]), "Entregue em Londrina/PR")
+            self.assertEqual(texto(self.consulta("ROTA4", "brb")["localizacao"]), "São Paulo/SP → Londrina/PR")
+            self.assertEqual(texto(self.consulta("ROTA5", "brb")["localizacao"]), "São Paulo/SP → Londrina/PR")
+            self.assertEqual(texto(self.consulta("ROTA9", "caoa")["localizacao"]), "São Paulo/SP → Londrina/PR")
 
     def test_por_enquanto_so_nos_codigos_rota(self):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):
@@ -46,7 +47,7 @@ class LocalizacaoApiTest(unittest.TestCase):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):
             for codigo in ("ROTA6", "ROTA7", "ROTA8"):
                 d = self.consulta(codigo, "ccxp")
-                self.assertEqual(texto(d["localizacao"]), "Está em Londrina/PR", codigo)
+                self.assertEqual(texto(d["localizacao"]), "São Paulo/SP → Londrina/PR", codigo)
                 bruto = json.dumps(d, ensure_ascii=False).lower()
                 self.assertNotIn("devol", bruto)
                 self.assertNotIn("remetente", bruto)
@@ -70,7 +71,7 @@ class LocalizacaoApiTest(unittest.TestCase):
             self.assertIsNone(self.consulta("PEDIDOREAL1", "paranabanco")["localizacao"])   # por enquanto so nos ROTA
             with patch.object(portal, "LOCALIZACAO_PUBLICA", "todos"):
                 d = self.consulta("PEDIDOREAL1", "paranabanco")
-        self.assertEqual(texto(d["localizacao"]), "Saiu de São Paulo/SP · está em Curitiba/PR · a caminho da unidade de entrega")
+        self.assertEqual(texto(d["localizacao"]), "São Paulo/SP → Curitiba/PR")
         bruto = json.dumps(d)
         for proibido in ("23.987654", "46.123456", "25.111111", "49.999999", "latitude", "longitude"):
             self.assertNotIn(proibido, bruto)

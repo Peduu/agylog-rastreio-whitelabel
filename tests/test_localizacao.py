@@ -1,4 +1,4 @@
-"""localizacao.py: localizacao publica do pedido a partir das ocorrencias do TMS (spec 08/10/2026)."""
+"""localizacao.py: localizacao publica do pedido a partir das ocorrencias do TMS (spec 08/10/2026, texto simples 09/10)."""
 import json
 import os
 import sys
@@ -24,11 +24,13 @@ def rota(*paradas):
 
 
 def texto(loc):
-    return "".join(s["t"] for s in loc["frase"])
+    """A linha como o cliente le: cidades com seta entre elas."""
+    partes = [c["t"] for c in loc["linha"]] + (["em trânsito"] if loc["transito"] else [])
+    return " → ".join(partes)
 
 
 def bandeira(loc):
-    return [s.get("uf") for s in loc["frase"] if s.get("uf")]
+    return [c["uf"] for c in loc["linha"] if c["atual"]]
 
 
 class NormalizacaoTests(unittest.TestCase):
@@ -68,7 +70,7 @@ class MontarTests(unittest.TestCase):
 
     def test_preparacao(self):
         loc = L.montar_localizacao_publica(rota(SAO), "preparacao_transporte")
-        self.assertEqual(texto(loc), "Em preparação em São Paulo/SP")
+        self.assertEqual(texto(loc), "São Paulo/SP")
         self.assertEqual(bandeira(loc), ["SP"])
         self.assertEqual(loc["cena"], {"slot1": False, "slot2": "galpao", "slot3": "apagado", "caminhao": "slot2"})
         self.assertEqual([(t["slot"], t["titulo"]) for t in loc["trilho"]], [(2, "São Paulo/SP"), (3, "Destino")])
@@ -76,14 +78,14 @@ class MontarTests(unittest.TestCase):
 
     def test_transferencia_saindo_da_origem(self):
         loc = L.montar_localizacao_publica(rota(SAO), "transferencia_franquia")
-        self.assertEqual(texto(loc), "Saiu de São Paulo/SP · a caminho da unidade de entrega")
+        self.assertEqual(texto(loc), "São Paulo/SP → em trânsito")
         self.assertEqual(loc["cena"], {"slot1": True, "slot2": "apagado", "slot3": None, "caminhao": "estrada12"})
         self.assertEqual(loc["trilho"][0], {"slot": 1, "titulo": "São Paulo/SP", "sub": "saiu · 06/10 14:20"})
         self.assertEqual(loc["trilho"][1]["titulo"], "Unidade de entrega")
 
     def test_transferencia_em_outra_unidade(self):
         loc = L.montar_localizacao_publica(rota(SAO, CWB), "transferencia_franquia")
-        self.assertEqual(texto(loc), "Saiu de São Paulo/SP · está em Curitiba/PR · a caminho da unidade de entrega")
+        self.assertEqual(texto(loc), "São Paulo/SP → Curitiba/PR")
         self.assertEqual(bandeira(loc), ["PR"])                       # bandeira so do estado onde o pedido ESTA
         self.assertEqual(loc["cena"], {"slot1": True, "slot2": "galpao", "slot3": "apagado", "caminhao": "slot2"})
         self.assertEqual(loc["trilho"][1], {"slot": 2, "titulo": "Curitiba/PR", "sub": "agora · 07/10 14:20"})
@@ -97,50 +99,50 @@ class MontarTests(unittest.TestCase):
 
     def test_passagem_aparece_no_mapinha(self):
         loc = L.montar_localizacao_publica(rota(SAO, CWB, LDB), "transferencia_franquia")
-        self.assertEqual(texto(loc), "Saiu de São Paulo/SP · está em Londrina/PR · a caminho da unidade de entrega")
+        self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
         self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "passagem", "atual"])
 
     def test_chegada(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "chegada_franquia")
-        self.assertEqual(texto(loc), "Chegou na unidade de Londrina/PR")
+        self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
         self.assertEqual(loc["cena"], {"slot1": True, "slot2": "galpao", "slot3": "casa", "caminhao": "slot2"})
         self.assertEqual(loc["trilho"][2], {"slot": 3, "titulo": "Seu endereço", "sub": "próxima etapa", "icone": "chegada"})
         self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "atual", "destino"])
 
     def test_em_rota(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "em_rota_entrega")
-        self.assertEqual(texto(loc), "Saiu para entrega em Londrina/PR")
+        self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
         self.assertEqual(loc["cena"]["caminhao"], "estrada23")
         self.assertEqual(loc["trilho"][2]["sub"], "em rota · 07/10 14:20")
 
     def test_tentativa(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "atencao")
-        self.assertEqual(texto(loc), "Tentativa de entrega em Londrina/PR")
+        self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
         self.assertEqual(loc["trilho"][2]["sub"], "tentativa · 07/10 14:20")
 
     def test_entregue_bandeira_xadrez_no_lugar_do_pin(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "entregue")
-        self.assertEqual(texto(loc), "Entregue em Londrina/PR")
+        self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
         self.assertEqual(loc["cena"]["caminhao"], "slot3")
         self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "destino"])
 
     def test_entrega_na_mesma_cidade(self):
         loc = L.montar_localizacao_publica(rota(SAO), "em_rota_entrega")
-        self.assertEqual(texto(loc), "Saiu para entrega em São Paulo/SP")
+        self.assertEqual(texto(loc), "São Paulo/SP")
         self.assertFalse(loc["cena"]["slot1"])
         self.assertEqual([t["slot"] for t in loc["trilho"]], [2, 3])
 
     def test_devolucao(self):
         loc = L.montar_localizacao_publica(rota(SAO, CWB), "devolucao")
-        self.assertEqual(texto(loc), "Em devolução · está em Curitiba/PR")
+        self.assertEqual(texto(loc), "São Paulo/SP → Curitiba/PR")
         self.assertIsNone(loc["cena"]["slot3"])
         self.assertNotIn("destino", [p["papel"] for p in loc["pontos"]])
-        self.assertEqual(texto(L.montar_localizacao_publica(rota(SAO, CWB), "devolvido")), "Devolvido · Curitiba/PR")
+        self.assertEqual(texto(L.montar_localizacao_publica(rota(SAO, CWB), "devolvido")), "São Paulo/SP → Curitiba/PR")
 
     def test_ccxp_nunca_devolucao_nem_remetente(self):
         for st in ("atencao", "devolucao", "devolvido"):
             loc = L.montar_localizacao_publica(rota(SAO, CWB), st, "ccxp")
-            self.assertEqual(texto(loc), "Está em Curitiba/PR", st)
+            self.assertEqual(texto(loc), "São Paulo/SP → Curitiba/PR", st)
             bruto = json.dumps(loc, ensure_ascii=False).lower()
             self.assertNotIn("devol", bruto)
             self.assertNotIn("remetente", bruto)
@@ -157,7 +159,7 @@ class MontarTests(unittest.TestCase):
 
     def test_cidade_sem_ibge_entra_no_texto_mas_nao_no_mapa(self):
         loc = L.montar_localizacao_publica(rota(SAO, ("CIDADE QUE NAO EXISTE", "PR")), "transferencia_franquia")
-        self.assertEqual(texto(loc), "Saiu de São Paulo/SP · está em Cidade Que Nao Existe/PR · a caminho da unidade de entrega")
+        self.assertEqual(texto(loc), "São Paulo/SP → Cidade Que Nao Existe/PR")
         self.assertEqual(loc["pontos"], [])                           # sem a cidade atual no IBGE nao ha mapinha
 
 
