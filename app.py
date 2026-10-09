@@ -3647,20 +3647,21 @@ def api_rastrear_publico():
 
         if eh_insucesso:
             status_ccxp = "ccxp_tratado" if tem_reenvio else "ccxp_aguardando_tratativa"
+            # Textos do CCXP (regra do Pedro): insucesso = "Insucesso na entrega"; tratado = "Tratativa concluida".
             titulo_ccxp = (
-                "Tratado"
+                "Tratativa concluída"
                 if tem_reenvio
-                else "Aguardando tratativa para reenvio"
+                else "Insucesso na entrega"
             )
             descricao_ccxp = (
-                "Credencial terá uma nova tentativa."
+                "Nova tentativa de entrega já agendada."
                 if tem_reenvio
-                else ""
+                else "Uma nova tentativa de entrega será realizada em breve."
             )
             descricao_timeline_ccxp = (
-                "Credencial terá uma nova tentativa."
+                "Nova tentativa de entrega já agendada."
                 if tem_reenvio
-                else "Aguardando tratativa para reenvio."
+                else "Nova tentativa de entrega em breve."
             )
             motivo_ccxp = ""
             if "cep incorreto" in texto_normalizado:

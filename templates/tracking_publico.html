@@ -64,7 +64,7 @@
         <div class="info-card">
           <div class="info-card-left info-card-grid">
             <div class="info-item">
-              <span class="info-label">HAWB</span>
+              <span class="info-label">Código</span>
               <span class="info-value" id="resultCode">-</span>
             </div>
             <div class="info-item">
@@ -84,7 +84,6 @@
         <div class="status-visual-card">
           <div class="status-visual-media" id="statusVisualMedia"></div>
           <div class="status-visual-copy">
-            <span class="visual-kicker">Status do pedido</span>
             <h2 id="currentStageTitle">Acompanhamento da entrega</h2>
             <p id="journeyMessage">Consulte o pedido para visualizar a etapa atual da entrega.</p>
 
@@ -97,14 +96,13 @@
         <div class="timeline-container localizacao-card" id="localizacaoCard" hidden>
           <div class="timeline-head">
             <div>
-              <span class="timeline-kicker">Localização</span>
               <h3>Onde está seu pedido</h3>
             </div>
           </div>
           <p class="loc-frase" id="locFrase"></p>
           <div class="loc-cena" id="locCena"></div>
           <div class="loc-trilho" id="locTrilho"></div>
-          <p class="loc-nota" id="locNota">Posição pela última leitura numa unidade AGYLOG.</p>
+          <p class="loc-nota" id="locNota">Última leitura numa unidade AGYLOG.</p>
         </div>
 
         {% with card_id='thirdPartyCard', card_class='history-card', head_class='timeline-head', value_class='info-value', copy_class='paste-btn', action_class='rastrear-btn', code_id='thirdPartyCode', link_id='thirdPartyLink' %}
@@ -114,7 +112,6 @@
         <div class="timeline-container">
           <div class="timeline-head">
             <div>
-              <span class="timeline-kicker">Linha de status</span>
               <h3>Etapas da entrega</h3>
             </div>
           </div>
@@ -129,8 +126,7 @@
         <div class="history-card">
           <div class="timeline-head">
             <div>
-              <span class="timeline-kicker">Histórico</span>
-              <h3>Atualizações recentes</h3>
+              <h3>Última ocorrência</h3>
             </div>
           </div>
           <div class="history-list" id="historyList"></div>

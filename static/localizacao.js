@@ -129,17 +129,29 @@
 
   // Rotulos das cidades (origem e onde esta / entrega): so posicao aqui; o NOME entra depois por textContent.
   function posicoesDosRotulos(marcas, quadro) {
-    const rotulos = marcas.map(({ x, y, nome, folga }) => {
-      const direita = x < quadro.w * 0.72;
-      return { x: direita ? x + folga : x - folga, y: y + 5, ancora: direita ? 'start' : 'end', nome };
+    const largura = (nome) => String(nome || '').replace(/\/[A-Z]{2}$/, '').length * 9 + 4;   // ~15px negrito
+    const caixa = (r) => {
+      const w = largura(r.nome);
+      const x0 = r.ancora === 'start' ? r.x : r.x - w;
+      return [x0, r.y - 14, x0 + w, r.y + 4];
+    };
+    const batem = (a, b) => {
+      const [a0, a1, a2, a3] = caixa(a);
+      const [b0, b1, b2, b3] = caixa(b);
+      return a0 < b2 && b0 < a2 && a1 < b3 && b1 < a3;
+    };
+    const lado = (m, direita, dy) => ({
+      x: direita ? m.x + m.folga : m.x - m.folga, y: m.y + 5 + (dy || 0), ancora: direita ? 'start' : 'end', nome: m.nome,
     });
-    if (rotulos.length === 2) {                                   // cidades proximas: um rotulo para cada lado
-      const [a, b] = rotulos;
-      if (Math.abs(a.y - b.y) < 22 && Math.abs(a.x - b.x) < 170 && a.ancora === b.ancora) {
-        const ma = marcas[0];
-        a.ancora = a.ancora === 'start' ? 'end' : 'start';
-        a.x = a.ancora === 'start' ? ma.x + ma.folga : ma.x - ma.folga;
-      }
+    const rotulos = marcas.map((m) => lado(m, m.x + m.folga + largura(m.nome) < quadro.w - 6));
+    if (rotulos.length === 2 && batem(rotulos[0], rotulos[1])) {  // cidades proximas: o rotulo da origem procura outro lugar
+      const m = marcas[0];
+      const tentativas = [lado(m, rotulos[0].ancora !== 'start'), lado(m, true, 22), lado(m, false, 22), lado(m, true, -22)];
+      const dentro = (r) => {
+        const [x0, y0, x1, y1] = caixa(r);
+        return x0 >= 4 && x1 <= quadro.w - 4 && y0 >= 4 && y1 <= quadro.h - 4;
+      };
+      rotulos[0] = tentativas.find((t) => dentro(t) && !batem(t, rotulos[1])) || tentativas[1];
     }
     return rotulos;
   }
@@ -328,7 +340,7 @@
     preencherLinha(document.getElementById('locFrase'), loc);
     preencherTrilho(document.getElementById('locTrilho'), loc.trilho);
     const nota = document.getElementById('locNota');
-    if (nota) nota.textContent = loc.atualizado ? `Posição pela última leitura numa unidade AGYLOG (${loc.atualizado}).` : 'Posição pela última leitura numa unidade AGYLOG.';
+    if (nota) nota.textContent = loc.atualizado ? `Última leitura numa unidade AGYLOG: ${loc.atualizado}.` : 'Última leitura numa unidade AGYLOG.';
     card.hidden = false;
     await desenharMapa(document.getElementById('locCena'), cliente, loc, minha);
   }

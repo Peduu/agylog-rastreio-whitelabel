@@ -330,7 +330,7 @@ const _pageThemes = {
   [data-client=ccxp] footer,[data-client=ccxp] .site-footer{background:#000 !important;border-top:1px solid rgba(227,55,129,.30) !important;color:rgba(255,255,255,.68) !important;box-shadow:0 -18px 52px rgba(0,0,0,.72) !important;}
   [data-client=ccxp] .footer-partner,[data-client=ccxp] .client-footer-copy{color:rgba(255,255,255,.62) !important;}
   [data-client=ccxp] .footer-partner strong,[data-client=ccxp] .client-partner-line strong{color:#fff !important;}
-  @media (max-width:640px){[data-client=ccxp] header,[data-client=ccxp] .dest-header{height:88px !important;min-height:88px !important;}[data-client=ccxp] .dest-header-inner,[data-client=ccxp] .client-header-inner{gap:14px !important;padding-left:16px !important;padding-right:16px !important;width:100% !important;box-sizing:border-box !important;}[data-client=ccxp] .client-logo-wrap,[data-client=ccxp] .dest-header .client-logo-wrap{width:152px !important;height:48px !important;flex:0 0 152px !important;}[data-client=ccxp] .client-logo-wrap img{height:44px !important;}[data-client=ccxp] .client-header-tagline{font-size:11px !important;line-height:1.15 !important;max-width:132px !important;}[data-client=ccxp] .dest-header-inner::after,[data-client=ccxp] .client-header-inner::after{display:none !important;}}
+  @media (max-width:640px){[data-client=ccxp] header,[data-client=ccxp] .dest-header{height:88px !important;min-height:88px !important;}[data-client=ccxp] .dest-header-inner,[data-client=ccxp] .client-header-inner{gap:14px !important;padding-left:16px !important;padding-right:16px !important;width:100% !important;box-sizing:border-box !important;}[data-client=ccxp] .client-logo-wrap,[data-client=ccxp] .dest-header .client-logo-wrap{width:152px !important;height:48px !important;flex:0 0 152px !important;}[data-client=ccxp] .client-logo-wrap img{height:36px !important;max-width:100% !important;}[data-client=ccxp] .client-header-tagline{font-size:11px !important;line-height:1.15 !important;max-width:132px !important;}[data-client=ccxp] .dest-header-inner::after,[data-client=ccxp] .client-header-inner::after{display:none !important;}}
 `,
     tricard: `
   [data-client=tricard] *{font-weight:700 !important;}
@@ -790,7 +790,6 @@ const _pageThemes = {
           label: 'Tratativa concluída',
           title: 'Tratativa concluída',
           body: 'Nova tentativa de entrega já agendada.',
-          timelineDesc: 'Nova tentativa de entrega já agendada.',
           kind: 'reenvio',
           when: latestWhen,
         }
@@ -798,7 +797,6 @@ const _pageThemes = {
           label: 'Insucesso na entrega',
           title: 'Insucesso na entrega',
           body: 'Uma nova tentativa de entrega será realizada em breve.',
-          timelineDesc: 'Nova tentativa de entrega em breve.',
           when: latestWhen,
         };
   }
@@ -1093,7 +1091,6 @@ const _pageThemes = {
     stages.push({
       key: 'ccxp_tratativa',
       title: 'Reenvio',
-      desc: ccxpTreatment?.timelineDesc || 'Aguardando tratativa para reenvio.',
       date: treatmentWhen.date,
       time: treatmentWhen.time,
       icon: '✓',
@@ -1169,7 +1166,6 @@ const _pageThemes = {
         <div class="timeline-node">${nodeContent}</div>
         <h4>${escapeHtml(stage.title)}</h4>
         <time>${escapeHtml(timeText || '-')}</time>
-        <p>${escapeHtml(stage.desc)}</p>
       </article>
     `;
   }).join('');
@@ -1204,7 +1200,7 @@ const _pageThemes = {
       : `status-pill ${STATUS_THEME[data.status] || ''}`.trim();
     statusText.textContent = ccxpTreatment?.label || data.status_label || '-';
     const lastUpdate = resolveLastUpdate(data, ccxpTreatment);
-    lastUpdateLabel.textContent = lastUpdate ? "Última atualização: " + lastUpdate : "";
+    lastUpdateLabel.textContent = lastUpdate ? "Atualizado em " + lastUpdate : "";
     renderVisual(data.status, ccxpTreatment);
     renderTimeline(data.stages || [], data.status, ccxpTreatment);
     renderHistory(data.history || [], ccxpTreatment);
