@@ -93,24 +93,42 @@
 
   const n = (v) => (Math.round(v * 10) / 10).toFixed(1);
 
-  function pin(x, y, cor, fundo) {
-    return `<g data-marcador="pin" data-x="${n(x)}" data-y="${n(y)}" transform="translate(${n(x)},${n(y)})">`
-      + `<ellipse cx="0" cy="0.6" rx="3.4" ry="1.3" fill="#000" fill-opacity=".25"/>`
-      + `<path d="M0,0 C-1.4,-3.6 -6.2,-7.6 -6.2,-12.2 A6.2,6.2 0 1 1 6.2,-12.2 C6.2,-7.6 1.4,-3.6 0,0 Z" fill="${cor}" stroke="${fundo}" stroke-width="1.3"/>`
-      + `<circle cx="0" cy="-12.2" r="2.4" fill="${fundo}"/></g>`;
+  // Animacao do mapinha (Pedro, 09/10: "estava suave"): a rota se desenha, o pin cai na cidade com um quique e fica
+  // balancando de leve, a bandeira quadriculada tremula. Ciclo de 5 s como as cenas; sem piscar.
+  function cssMapinha(pfx) {
+    const p = `${pfx}mm`;
+    return `<style>`
+      + `.${p}rota{stroke-dasharray:100;animation:${p}desenha 5s ease-in-out infinite}`
+      + `@keyframes ${p}desenha{0%{stroke-dashoffset:100;opacity:1}28%{stroke-dashoffset:0}90%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}`
+      + `.${p}cai{animation:${p}cai 5s ease-in-out infinite}`
+      + `@keyframes ${p}cai{0%,22%{transform:translateY(-16px);opacity:0}30%{transform:translateY(0);opacity:1}34%{transform:translateY(-4px)}`
+      + `38%{transform:translateY(0)}52%{transform:translateY(-2px)}66%{transform:translateY(0)}80%{transform:translateY(-2px)}94%,100%{transform:translateY(0);opacity:1}}`
+      + `.${p}sombra{transform-box:fill-box;transform-origin:center;animation:${p}sombra 5s ease-in-out infinite}`
+      + `@keyframes ${p}sombra{0%,22%{opacity:0;transform:scale(.4)}30%,100%{opacity:1;transform:scale(1)}}`
+      + `.${p}onda{transform-box:fill-box;transform-origin:0 50%;animation:${p}onda 1.4s ease-in-out infinite}`
+      + `@keyframes ${p}onda{0%,100%{transform:skewY(-10deg)}50%{transform:skewY(-3deg) scaleX(.92)}}`
+      + `@media (prefers-reduced-motion:reduce){.${p}rota,.${p}cai,.${p}sombra,.${p}onda{animation:none!important}}`
+      + `</style>`;
   }
 
-  function bandeiraXadrez(x, y, tinta) {
+  function pin(x, y, cor, fundo, pfx) {
+    return `<g data-marcador="pin" data-x="${n(x)}" data-y="${n(y)}" transform="translate(${n(x)},${n(y)})">`
+      + `<ellipse class="${pfx}mmsombra" cx="0" cy="0.6" rx="3.4" ry="1.3" fill="#000" fill-opacity=".25"/>`
+      + `<g class="${pfx}mmcai"><path d="M0,0 C-1.4,-3.6 -6.2,-7.6 -6.2,-12.2 A6.2,6.2 0 1 1 6.2,-12.2 C6.2,-7.6 1.4,-3.6 0,0 Z" fill="${cor}" stroke="${fundo}" stroke-width="1.3"/>`
+      + `<circle cx="0" cy="-12.2" r="2.4" fill="${fundo}"/></g></g>`;
+  }
+
+  function bandeiraXadrez(x, y, tinta, pfx) {
     let quadros = '';
     for (let l = 0; l < 2; l += 1) {
       for (let c = 0; c < 3; c += 1) {
         quadros += `<rect x="${c * 3.4}" y="${l * 3.4}" width="3.4" height="3.4" fill="${(c + l) % 2 ? '#ffffff' : '#17171c'}"/>`;
       }
     }
-    return `<g data-marcador="chegada" data-x="${n(x)}" data-y="${n(y)}" transform="translate(${n(x)},${n(y)})">`
+    return `<g data-marcador="chegada" data-x="${n(x)}" data-y="${n(y)}" transform="translate(${n(x)},${n(y)})"><g class="${pfx}mmcai">`
       + `<rect x="-0.7" y="-17" width="1.4" height="17" rx=".7" fill="${tinta}" fill-opacity=".8"/>`
-      + `<g transform="translate(0.7,-16.6) skewY(-8)">${quadros}`
-      + `<rect width="10.2" height="6.8" fill="none" stroke="${tinta}" stroke-opacity=".45" stroke-width=".6"/></g></g>`;
+      + `<g transform="translate(0.7,-16.6)"><g class="${pfx}mmonda">${quadros}`
+      + `<rect width="10.2" height="6.8" fill="none" stroke="${tinta}" stroke-opacity=".45" stroke-width=".6"/></g></g></g></g>`;
   }
 
   async function mapinha(pfx, cor, pontos) {
@@ -135,7 +153,7 @@
     });
     const xy = comPin.map((p) => proj(p.lon, p.lat));
     const linha = xy.length > 1
-      ? `<path d="M${xy.map((q) => q.map(n).join(',')).join('L')}" fill="none" stroke="${cor.acento}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`
+      ? `<path class="${pfx}mmrota" pathLength="100" d="M${xy.map((q) => q.map(n).join(',')).join('L')}" fill="none" stroke="${cor.acento}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`
       : '';
     let marcas = '';
     comPin.forEach((p, i) => {
@@ -149,14 +167,14 @@
     if (destino) {
       const [x, y] = proj(destino.lon, destino.lat);
       const mesmoLugar = pinAtual && pinAtual.lat === destino.lat && pinAtual.lon === destino.lon;
-      marcas += bandeiraXadrez(x + (mesmoLugar ? 6.5 : 0), y, cor.tinta);   // mesma cidade: a bandeira fica ao lado da ponta do pin
+      marcas += bandeiraXadrez(x + (mesmoLugar ? 6.5 : 0), y, cor.tinta, pfx);   // mesma cidade: a bandeira fica ao lado da ponta do pin
     }
     if (pinAtual) {
       const [x, y] = proj(pinAtual.lon, pinAtual.lat);
-      marcas += pin(x, y, cor.acento, cor.painel);
+      marcas += pin(x, y, cor.acento, cor.painel, pfx);
     }
     const { x, y, w, h } = MAPA;
-    return `<g data-mapinha="1"><clipPath id="${pfx}mm"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/></clipPath>`
+    return `<g data-mapinha="1">${cssMapinha(pfx)}<clipPath id="${pfx}mm"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/></clipPath>`
       + `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${cor.painel}" fill-opacity=".94" stroke="${cor.tinta}" stroke-opacity=".16"/>`
       + `<g clip-path="url(#${pfx}mm)">${estados}${linha}${marcas}</g>`
       + `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="none" stroke="${cor.tinta}" stroke-opacity=".16"/></g>`;
