@@ -4064,11 +4064,12 @@ def _resultado_demo_agy(codigo):
     for indice, chave in enumerate(percurso):
         momento = agora - timedelta(days=len(percurso) - indice - 1)
         datas[chave] = {"date": momento.strftime("%d/%m/%Y"), "time": momento.strftime("%H:%M")}
-    # Rota ficticia coerente com o status para o cartao "Onde esta seu pedido".
+    # Rota ficticia coerente com o status para o cartao "Onde esta seu pedido". A ultima leitura e a mesma hora do status
+    # atual (o cartao, as etapas e o historico mostram a mesma data); as paradas anteriores ficam um dia antes cada.
     rota_demo = [("SAO", "SAO PAULO", "SP"), ("CWB", "CURITIBA", "PR"), ("LDB", "LONDRINA", "PR")]
     n_paradas = {"aguardando_postagem": 0, "preparacao_transporte": 1, "transferencia_franquia": 2}.get(status_key, 3)
     ocorrencias_local = [
-        {"data": (agora - timedelta(days=n_paradas - i, hours=3)).strftime("%Y-%m-%d %H:%M:%S"),
+        {"data": (agora - timedelta(days=n_paradas - 1 - i)).strftime("%Y-%m-%d %H:%M:%S"),
          "unidade": unidade, "cidade": cidade, "uf": uf}
         for i, (unidade, cidade, uf) in enumerate(rota_demo[:n_paradas])
     ]
