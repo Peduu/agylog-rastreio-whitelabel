@@ -1,0 +1,100 @@
+# USO UNICO (so leitura): Sonda 4 da vistoria (pedidos que a pagina nao acha ao vivo).
+# Dados de pedidos vem do segredo temporario SONDA_AMOSTRA4 (o repositorio e publico; o log mostra so totais, formatos e hashes,
+# nunca pedido, CEP, nome ou CNPJ). Nao grava nada. Apagar este arquivo e o segredo SONDA_AMOSTRA4 depois do uso.
+name: "Uso unico - Sonda 4 da vistoria (pedidos que a pagina nao acha ao vivo)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AMOSTRA: ${{ secrets.SONDA_AMOSTRA4 }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: AMOSTRA
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            AMOSTRA="$AMOSTRA" python3 - <<'PY'
+            import base64, gzip, json, os, re, sqlite3, urllib.request
+            from collections import Counter, defaultdict
+            from datetime import datetime
+            from pathlib import Path
+
+            PORTAL = os.environ.get("SONDA_PORTAL", "/home/rastreamento/database.db")
+            ENV = os.environ.get("SONDA_ENV", "/etc/rastreamento.env")
+
+
+            def dig(v):
+                return re.sub(r"\D", "", str(v or ""))
+
+
+            env = {}
+            for linha in open(ENV, encoding="utf-8", errors="replace"):
+                linha = linha.strip()
+                if linha and not linha.startswith("#") and "=" in linha:
+                    k, v = linha.split("=", 1)
+                    env[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
+            TOKEN = env.get("TMS_API_TOKEN", "")
+            URL = env.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
+            amostra = [l.split(";") for l in gzip.decompress(base64.b64decode(os.environ["AMOSTRA"])).decode().splitlines() if l.strip()]
+            print("token:", bool(TOKEN), "| amostra:", len(amostra))
+
+
+            def achou(cnpj, chave, codigo):
+                if not cnpj or not codigo:
+                    return "sem dado"
+                body = json.dumps({"cnpjEmbarcador": cnpj, chave: [codigo]}).encode()
+                req = urllib.request.Request(URL, data=body, headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json",
+                                                                      "Accept": "application/json"})
+                try:
+                    with urllib.request.urlopen(req, timeout=40) as resp:
+                        d = json.loads(resp.read().decode("utf-8"))
+                except Exception as e:
+                    return "erro " + type(e).__name__
+                res = d.get("listaResultados")
+                return "ACHOU" if (not d.get("flagErro") and isinstance(res, list) and res) else "nao"
+
+
+            p = sqlite3.connect(Path(PORTAL).resolve().as_uri() + "?mode=ro", uri=True)
+            p.row_factory = sqlite3.Row
+            r = defaultdict(Counter)
+            agora = datetime.now()
+            for ped, cc, cf, nota, g in amostra:
+                row = p.execute("SELECT * FROM rastreios WHERE codigo = ?", (ped.upper(),)).fetchone()
+                if not row:
+                    r[g]["fora do rastreios"] += 1
+                    continue
+                rc = dig(row["cnpj_cliente"])
+                r[g]["cnpj rastreios " + ("= cliente" if rc == cc else "= filial" if rc == cf else "outro")] += 1
+                r[g]["nota no rastreios " + ("= relatorio" if str(row["nota_fiscal"] or "").strip() == nota else ("vazia" if not row["nota_fiscal"] else "outra"))] += 1
+                ua = str(row["ultima_atualizacao_api"] or "")
+                try:
+                    dias = (agora - datetime.strptime(ua[:19], "%Y-%m-%d %H:%M:%S")).days
+                    r[g]["ultima atualizacao do coletor ha " + ("<1 dia" if dias < 1 else "1-7 dias" if dias <= 7 else ">7 dias")] += 1
+                except ValueError:
+                    r[g]["ultima atualizacao do coletor: " + ("vazia" if not ua else "formato " + re.sub(r"\d", "9", ua[:19]))] += 1
+                oc = p.execute("SELECT codigo_ocorrencia, dt_ocorrencia FROM rastreios_ocorrencias WHERE codigo = ?", (ped.upper(),)).fetchall()
+                r[g]["historico gravado " + ("sim" if oc else "nao") + (" com ocorrencia 1" if any(str(o[0]) == "1" for o in oc) else "")] += 1
+                r[g]["q1 NOTA[pedido] cnpj rastreios: " + achou(row["cnpj_cliente"], "listaNotasFiscais", ped.upper())] += 1
+                r[g]["q2 PEDIDO[pedido] cnpj rastreios: " + achou(row["cnpj_cliente"], "listaPedidos", ped.upper())] += 1
+                r[g]["q3 NOTA[nota do rastreios] cnpj rastreios: " + achou(row["cnpj_cliente"], "listaNotasFiscais", str(row["nota_fiscal"] or "").strip())] += 1
+                r[g]["q4 PEDIDO[pedido] cnpj cliente: " + achou(cc, "listaPedidos", ped.upper())] += 1
+                r[g]["q5 NOTA[nota relatorio] cnpj cliente: " + achou(cc, "listaNotasFiscais", nota)] += 1
+                r[g]["q6 PEDIDO[pedido] cnpj filial: " + achou(cf, "listaPedidos", ped.upper())] += 1
+                r[g]["q7 NOTA[nota relatorio] cnpj filial: " + achou(cf, "listaNotasFiscais", nota)] += 1
+            for g in sorted(r):
+                print(g)
+                for k, n in sorted(r[g].items()):
+                    print("   ", k, n)
+            p.close()
+            PY
