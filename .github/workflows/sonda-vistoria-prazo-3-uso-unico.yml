@@ -1,0 +1,196 @@
+# USO UNICO (so leitura): Sonda 3 da vistoria do prazo.
+# Dados de pedidos vem do segredo temporario SONDA_AMOSTRA3 (o repositorio e publico; o log mostra so totais, formatos e hashes,
+# nunca pedido, CEP, nome ou CNPJ). Nao grava nada. Apagar este arquivo e o segredo SONDA_AMOSTRA3 depois do uso.
+name: "Uso unico - Sonda 3 da vistoria do prazo"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AMOSTRA: ${{ secrets.SONDA_AMOSTRA3 }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: AMOSTRA
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            AMOSTRA="$AMOSTRA" python3 - <<'PY'
+            import base64, gzip, hashlib, json, os, re, sqlite3, sys, urllib.request
+            from collections import Counter, defaultdict
+            from concurrent.futures import ThreadPoolExecutor
+            from datetime import datetime
+            from pathlib import Path
+
+            MOD = os.environ.get("SONDA_MODELOS", "/home/subir_arquivos/envios_modelos.db")
+            PORTAL = os.environ.get("SONDA_PORTAL", "/home/rastreamento/database.db")
+            ENV = os.environ.get("SONDA_ENV", "/etc/rastreamento.env")
+            APP_DIR = os.environ.get("SONDA_APP", "/home/rastreamento")
+            sys.path.insert(0, APP_DIR)
+            from depara_ocorrencias import DE_PARA_OCORRENCIAS  # so dados (dict), sem efeito colateral
+
+
+            def forma(v):
+                return (type(v).__name__ + ":" + re.sub(r"[0-9]", "9", re.sub(r"[^\W\d_]", "A", str(v))))[:28]
+
+
+            def so_digitos(v):
+                return re.sub(r"\D", "", str(v or ""))
+
+
+            def cep8(v):
+                if isinstance(v, float):
+                    v = int(v) if v.is_integer() else ""
+                d = so_digitos(re.sub(r"\.0+$", "", str(v or "").strip()))
+                if len(d) == 7:
+                    d = "0" + d
+                return d if len(d) == 8 else ""
+
+
+            def quando(v):
+                t = str(v or "").strip().replace("T", " ")
+                for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
+                    try:
+                        return datetime.strptime(t[:19] if "%S" in fmt else t[:16] if "%M" in fmt else t[:10], fmt)
+                    except ValueError:
+                        pass
+                return None
+
+
+            def status_publico(badge):
+                s = (badge or "").strip().upper()
+                if s == "ENTREGUE":
+                    return "entregue"
+                if s == "EM ROTA":
+                    return "em_rota_entrega"
+                if s in ["RECEBIDO", "LIBERADO PARA ENTREGA", "PROCESSADO", "RECEBIDO PARCIAL", "TRANSFERÊNCIA ENTREGA RECEBIDA"]:
+                    return "chegada_franquia"
+                if s in ["EM TRANSFERÊNCIA", "PENDENTE", "EM TRANSFERÊNCIA ENTREGA", "REDESPACHADO", "AGENDADO"]:
+                    return "transferencia_franquia"
+                if s in ["REAGENDADO", "REENTREGAR", "CUSTODIA", "CANCELADA", "CANCELADO", "SINISTRO", "INCINERADO"]:
+                    return "atencao"
+                if s == "DEVOLVIDO":
+                    return "devolvido"
+                if s in ["EM DEVOLUÇÃO", "DEVOLUÇÃO EM ROTA", "DEVOLUÇÃO COM PENDÊNCIA"]:
+                    return "devolucao"
+                return "preparacao_transporte"
+
+
+            env = {}
+            for linha in open(ENV, encoding="utf-8", errors="replace"):
+                linha = linha.strip()
+                if linha and not linha.startswith("#") and "=" in linha:
+                    k, v = linha.split("=", 1)
+                    env[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
+            TOKEN = env.get("TMS_API_TOKEN", "")
+            URL = env.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
+            amostra = [l.split(";") for l in gzip.decompress(base64.b64decode(os.environ["AMOSTRA"])).decode().splitlines() if l.strip()]
+            print("token:", bool(TOKEN), "| amostra:", len(amostra))
+
+            print("\n=== 1. CEP: rastreios.cep e base de enderecos x CEP do TMS ===")
+            p = sqlite3.connect(Path(PORTAL).resolve().as_uri() + "?mode=ro", uri=True)
+            total = p.execute("SELECT COUNT(*), SUM(CASE WHEN TRIM(IFNULL(cep,'')) <> '' THEN 1 ELSE 0 END) FROM rastreios").fetchone()
+            ult = p.execute("SELECT COUNT(*), SUM(CASE WHEN TRIM(IFNULL(cep,'')) <> '' THEN 1 ELSE 0 END) FROM "
+                            "(SELECT cep FROM rastreios ORDER BY id DESC LIMIT 30000)").fetchone()
+            print("rastreios.cep preenchido: total", total, "| ultimas 30 mil linhas", ult)
+            print("formatos de rastreios.cep (ultimas 30 mil):", Counter(forma(r[0]) for r in p.execute(
+                "SELECT cep FROM rastreios WHERE TRIM(IFNULL(cep,'')) <> '' ORDER BY id DESC LIMIT 30000")).most_common(5))
+            m = sqlite3.connect(Path(MOD).resolve().as_uri() + "?mode=ro", uri=True)
+            cep_res = defaultdict(Counter)
+            linha_r = {}
+            for ped, cc, cf, tipo, pa, cad, cep, g in amostra:
+                r = p.execute("SELECT cnpj_cliente, cep, status_badge FROM rastreios WHERE codigo = ? ORDER BY id DESC LIMIT 1", (ped.upper(),)).fetchone()
+                linha_r[ped] = r
+                if not r:
+                    cep_res[g]["fora do rastreios"] += 1
+                else:
+                    rc = cep8(r[1])
+                    cep_res[g]["rastreios.cep " + ("vazio" if not rc else ("= TMS" if rc == cep8(cep) else "DIFERENTE"))] += 1
+                    cep_res[g]["cnpj do rastreios " + ("= cliente" if so_digitos(r[0]) == cc else ("= filial" if so_digitos(r[0]) == cf else "outro"))] += 1
+                b = m.execute("SELECT destinatario_cep FROM registros_modelo WHERE nroPedido = ? OR idSolicitacaoInterno = ? "
+                              "ORDER BY datetime(criado_em) DESC LIMIT 1", (ped, ped)).fetchone()
+                cep_res[g]["base " + ("sem" if not b else ("= TMS" if cep8(b[0]) == cep8(cep) else "DIFERENTE"))] += 1
+            for g in sorted(cep_res):
+                print(" ", g, dict(cep_res[g]))
+            m.close()
+
+            print("\n=== 2. API do TMS do jeito da pagina (NOTA, depois PEDIDO; ocorrencias por data) ===")
+
+
+            def consulta(cnpj, chave, codigo):
+                body = json.dumps({"cnpjEmbarcador": cnpj, chave: [codigo]}).encode()
+                req = urllib.request.Request(URL, data=body, headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json",
+                                                                      "Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=40) as resp:
+                    d = json.loads(resp.read().decode("utf-8"))
+                if d.get("flagErro"):
+                    return None
+                res = d.get("listaResultados")
+                return res if isinstance(res, list) and res else None
+
+
+            def um_pedido(a):
+                ped, cc, cf, tipo, pa, cad, cep, g = a
+                r = linha_r.get(ped)
+                if not r or not str(r[0] or "").strip():
+                    return a, "sem cnpj no rastreios", None
+                try:
+                    res = consulta(r[0], "listaNotasFiscais", ped.upper())
+                    via = "NOTA"
+                    if not res:
+                        res = consulta(r[0], "listaPedidos", ped.upper())
+                        via = "PEDIDO"
+                except Exception as e:
+                    return a, "erro " + type(e).__name__, None
+                if not res:
+                    return a, "TMS nao achou", None
+                return a, via, sorted(res, key=lambda o: quando(o.get("dtOcorrencia")) or datetime.min)
+
+
+            with ThreadPoolExecutor(4) as ex:
+                respostas = list(ex.map(um_pedido, amostra))
+
+            res_g = defaultdict(Counter)
+            servicos = Counter()
+            status_x = Counter()
+            for (ped, cc, cf, tipo, pa, cad, cep, g), via, oc in respostas:
+                res_g[g]["via " + via] += 1
+                if not oc:
+                    continue
+                uns = [quando(o.get("dtOcorrencia")) for o in oc if str(o.get("codigoOcorrencia", "")).strip() == "1"]
+                uns = [u for u in uns if u]
+                if not uns:
+                    res_g[g]["sem ocorrencia 1"] += 1
+                else:
+                    res_g[g]["ocorr.1 x" + str(min(len(uns), 3))] += 1
+                    res_g[g]["1a ocorr.1 " + ("= cadastro" if uns[0].date().isoformat() == cad else "DIFERENTE")] += 1
+                    if len(uns) > 1:
+                        res_g[g]["ultima ocorr.1 " + ("= cadastro" if uns[-1].date().isoformat() == cad else "DIFERENTE")] += 1
+                res_g[g]["notas distintas " + str(min(len({str(o.get('idNotaFiscal')) for o in oc}), 3))] += 1
+                res_g[g]["pedidos distintos " + str(min(len({str(o.get('nroPedido')).strip().upper() for o in oc}), 3))] += 1
+                sv = "|".join(sorted({str(o.get("servico")) for o in oc}))
+                servicos[(tipo, sv)] += 1
+                c = {so_digitos(o.get("cnpj")) for o in oc}
+                rem = {so_digitos(o.get("cnpjRemetente")) for o in oc}
+                res_g[g]["api cnpj " + ("= cliente" if c == {cc} else ("= filial" if c == {cf} else "outro"))] += 1
+                res_g[g]["api cnpjRemetente " + ("= filial" if rem == {cf} else ("= cliente" if rem == {cc} else ("vazio" if rem <= {""} else "outro")))] += 1
+                ultimo = str(oc[-1].get("codigoOcorrencia", "")).strip()
+                badge = (DE_PARA_OCORRENCIAS.get(ultimo) or {}).get("statusBadge", "")
+                if not badge and re.fullmatch(r"4\s*-\s*(\d+)", ultimo):
+                    badge = "DEVOLVIDO"
+                status_x[status_publico(badge or "Atualizado via API")] += 1
+            for g in sorted(res_g):
+                print(" ", g, dict(sorted(res_g[g].items())))
+            print("tipo do relatorio x servico na API:", sorted(servicos.items()))
+            print("status publico da amostra:", dict(status_x))
+            p.close()
+            PY
