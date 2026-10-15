@@ -85,6 +85,22 @@ class FuncoesTest(unittest.TestCase):
         self.assertEqual(P.somar_dias(date(2026, 9, 24), 8, uteis=True), date(2026, 10, 6))   # pedido 632: igual ao TMS
         self.assertEqual(P.somar_dias(date(2026, 10, 8), 8, uteis=True), date(2026, 10, 21))  # pula o 12/10
 
+    def test_regra_do_tms_conferida_no_relatorio(self):
+        # cadastro no sabado conta da segunda (19/09, 26/09, 03/10 e 10/10 de 2026 bateram 100% com o TMS)
+        def prazo(cad, dias=8):
+            return P.somar_dias(P.base_da_contagem(cad), dias, uteis=True)
+        self.assertEqual(prazo(date(2026, 9, 19)), date(2026, 10, 1))
+        self.assertEqual(prazo(date(2026, 10, 3)), date(2026, 10, 16))
+        self.assertEqual(prazo(date(2026, 10, 10)), date(2026, 10, 22))    # base = segunda 12/10 (feriado), conta de 13/10
+        self.assertEqual(prazo(date(2026, 9, 24)), date(2026, 10, 6))     # dia util: do proprio dia (pedido 632)
+        c = sqlite3.connect(":memory:")
+        P.criar_tabelas(c)
+        P.substituir_faixas(c, [("70000000", "73699999", 8, ""), ("04000000", "04999999", 8, ""), ("01000000", "01999999", 8, "")])
+        self.assertIsNone(P.dias_para_cep(c, "70040000"))                 # DF: TMS sem prazo real
+        self.assertIsNone(P.dias_para_cep(c, "04538000"))                 # SP 04xxx: TMS mistura ultima milha
+        self.assertEqual(P.dias_para_cep(c, "01310100"), 8)
+        self.assertEqual(P.dias_para_cep(c, "72900000"), 8)               # entorno (GO) continua
+
     def test_somar_dias(self):
         sexta = date(2026, 10, 16)
         self.assertEqual(P.somar_dias(sexta, 3), date(2026, 10, 19))

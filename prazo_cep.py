@@ -21,6 +21,13 @@ from datetime import datetime, timedelta, timezone
 BRASILIA = timezone(timedelta(hours=-3))
 A_CAMINHO = {"preparacao_transporte", "transferencia_franquia", "chegada_franquia", "em_rota_entrega"}
 TABELAS_MODELOS = ("registros_modelo", "registros_modelo_legado")
+# Conferido com o relatorio de entregas do TMS (21.071 pedidos, 15/10/2026): nestes CEPs o "Prazo Atual" do TMS nao segue a
+# tabela de abrangencia (DF: o TMS grava prazo = dia do cadastro; SP 04xxx: metade usa o prazo de ultima milha). Sem prazo
+# aqui para nunca mostrar data diferente da do TMS.
+SEM_PRAZO_CONFIAVEL = (
+    ("70000000", "72799999"), ("73000000", "73699999"),   # Distrito Federal
+    ("04000000", "04999999"),                             # Sao Paulo, zona sul (04xxx)
+)
 _CACHE_CEP = {}            # codigo -> (cep, instante); o mesmo pedido e consultado de 30 em 30 s pela pagina aberta
 _CACHE_SEGUNDOS = 600
 
@@ -114,7 +121,7 @@ def dias_para_cep(conn, cep):
     """Dias para o CEP ou None. Em cada servico vale a faixa mais estreita que contem o CEP; o prazo so existe se TODOS
     os servicos da tabela cobrem o CEP e dao o MESMO prazo (o servico do pedido nao e conhecido: nada de chute)."""
     cep = normalizar_cep(cep)
-    if not cep:
+    if not cep or any(a <= cep <= b for a, b in SEM_PRAZO_CONFIAVEL):
         return None
     servicos = {r[0] for r in conn.execute("SELECT DISTINCT servico FROM prazos_cep").fetchall()}
     por_servico = {}
@@ -148,6 +155,13 @@ def feriados_nacionais(ano):
     """Feriados nacionais (lei): 1/1, Sexta-feira Santa, 21/4, 1/5, 7/9, 12/10, 2/11, 15/11, 20/11, 25/12."""
     fixos = [(1, 1), (4, 21), (5, 1), (9, 7), (10, 12), (11, 2), (11, 15), (11, 20), (12, 25)]
     return {datetime(ano, m, d).date() for m, d in fixos} | {_pascoa(ano) - timedelta(days=2)}
+
+
+def base_da_contagem(cadastro):
+    """Como o TMS: cadastro no sabado ou domingo conta a partir da segunda-feira (mesmo se a segunda for feriado)."""
+    if cadastro and cadastro.weekday() >= 5:
+        return cadastro + timedelta(days=7 - cadastro.weekday())
+    return cadastro
 
 
 def somar_dias(base, dias, uteis=False):
@@ -225,7 +239,8 @@ def calcular(conn, caminho_modelos, codigos, ocorrencias):
     base = data_cadastro_tms(ocorrencias)
     detalhe = {"cep": cep, "dias": dias, "cadastro": base, "contagem": cfg["contagem"], "ligado": cfg["ligado"], "prazo": None}
     if cep and dias is not None and base:
-        detalhe["prazo"] = somar_dias(base, dias, cfg["contagem"] == "uteis")
+        uteis = cfg["contagem"] == "uteis"
+        detalhe["prazo"] = somar_dias(base_da_contagem(base) if uteis else base, dias, uteis)
     return detalhe
 
 
