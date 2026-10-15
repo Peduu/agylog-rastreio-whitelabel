@@ -121,7 +121,8 @@ class MontarTests(unittest.TestCase):
     def test_tentativa(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "atencao")
         self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
-        self.assertEqual(loc["trilho"][2]["sub"], "tentativa · 07/10 14:20")
+        self.assertEqual(loc["trilho"], [{"slot": 1, "titulo": "São Paulo/SP", "sub": "saiu · 06/10 14:20"},
+                                         {"slot": 2, "titulo": "Londrina/PR", "sub": "agora · 07/10 14:20"}])   # neutro: cancelado tambem vira atencao
 
     def test_previsao_de_entrega_no_lugar_do_a_definir(self):
         p = previsao(3)
@@ -137,7 +138,7 @@ class MontarTests(unittest.TestCase):
         self.assertEqual(L.montar_localizacao_publica(rota(SAO), "transferencia_franquia", previsao=previsao(-1))["trilho"][1]["sub"], "")
         self.assertEqual(L.montar_localizacao_publica(rota(SAO), "transferencia_franquia", previsao="-")["trilho"][1]["sub"], "")
         self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "entregue", previsao=p)["trilho"][2]["sub"], "entregue · 07/10 14:20")
-        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "atencao", previsao=p)["trilho"][2]["sub"], "tentativa · 07/10 14:20")
+        self.assertEqual(len(L.montar_localizacao_publica(rota(SAO, LDB), "atencao", previsao=p)["trilho"]), 2)
 
     def test_previsao_valida(self):
         hoje = datetime(2026, 10, 15).date()

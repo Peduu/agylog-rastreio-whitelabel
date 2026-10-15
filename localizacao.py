@@ -12,7 +12,9 @@ import json
 import os
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+BRASILIA = timezone(timedelta(hours=-3))   # a previsao vale ate o fim do dia no horario de Brasilia (o servidor pode estar em UTC)
 
 CAMINHO_MUNICIPIOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "municipios.json")
 APELIDOS = {}   # (UF, nome normalizado como o TMS escreve) -> nome normalizado do IBGE; so grafias confirmadas
@@ -92,7 +94,7 @@ def previsao_valida(previsao, hoje=None):
         d = datetime.strptime(str(previsao or "").strip()[:10], "%d/%m/%Y").date()
     except ValueError:
         return None
-    return d if d >= (hoje or datetime.now().date()) else None
+    return d if d >= (hoje or datetime.now(BRASILIA).date()) else None
 
 
 def _paradas(ocorrencias):
@@ -129,13 +131,14 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente="", previsao="")
 
     linha = cidades da rota para mostrar com seta entre elas (origem -> onde esta); transito = True quando o pedido
     saiu e ainda nao chegou em outra unidade (o front mostra "-> em transito" depois da cidade).
+    Os textos sao neutros para todos os clientes (nada de devolucao/remetente), entao o CCXP nao precisa de caso a parte;
+    `cliente` fica na assinatura so por compatibilidade.
     """
     if status_key not in STATUS_COM_LOCAL:
         return None
     paradas = _paradas(ocorrencias or [])
     if not paradas:
         return None
-    ccxp = str(cliente or "").strip().lower() == "ccxp"
     origem, atual = paradas[0], paradas[-1]
     um = len(paradas) == 1
     A = atual["nome"]
@@ -147,7 +150,7 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente="", previsao="")
     # Coluna do destino: "Seu endereco" com a previsao de entrega; a bandeira quadriculada so quando ENTREGUE (Pedro, 15/10)
     endereco = _item(3, "Seu endereço", f'previsão · {prev.strftime("%d/%m")}' if prev else "")
 
-    if status_key in PROBLEMA and (ccxp or status_key != "atencao"):
+    if status_key in PROBLEMA:
         trilho = ([] if um else [t_origem]) + [_item(2, A, f"agora · {agora}")]
     elif status_key == "preparacao_transporte":
         trilho = [_item(2, A, f'desde {_curta(atual["primeira"])}'), endereco]
@@ -160,8 +163,6 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente="", previsao="")
         sub2 = {"chegada_franquia": f'chegou · {_curta(atual["primeira"])}'}.get(status_key, "unidade de entrega")
         if status_key == "entregue":
             fim = _item(3, "Seu endereço", f"entregue · {agora}", "chegada")
-        elif status_key == "atencao":
-            fim = _item(3, "Seu endereço", f"tentativa · {agora}")
         elif prev:
             fim = endereco
         else:

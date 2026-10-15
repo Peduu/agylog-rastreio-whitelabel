@@ -31,12 +31,11 @@ Não use esses códigos em envios reais. As datas fictícias são relativas ao d
 
 ## Códigos ROTA1 a ROTA9 (cartão "Onde está seu pedido", 08/10/2026)
 
-Mesmos status dos AGY1 a AGY9, **com** o cartão de localização (frase com a bandeira do estado,
-cena de rota, mapinha com pin e bandeira quadriculada no endereço, trilho de cidades). Rota fictícia:
+Mesmos status dos AGY1 a AGY9, com o cartão de localização (linha com a bandeira do estado, mapa com
+pin e nome das cidades, bandeira quadriculada só quando o pedido foi entregue, trilho com a previsão de entrega). Rota fictícia:
 São Paulo/SP → Curitiba/PR → Londrina/PR. Funcionam em todos os temas: `/tracking/paranabanco/ROTA3`,
 `/tracking/brb/ROTA5` etc.
 
-Por enquanto o cartão aparece **só** nesses códigos; pedidos reais e AGY1 a AGY10 seguem sem ele.
-Para liberar para todos os pedidos reais: `PUBLIC_TRACKING_LOCALIZACAO=todos` no `/etc/rastreamento.env`
-e reiniciar o serviço (não precisa de deploy). Spec e plano: `SPEC-localizacao-rastreio-2026-10-08.md`
+Desde 15/10/2026 o cartão aparece para **todos** os pedidos (reais e AGY), cada cliente com as suas cores.
+Para voltar a mostrar só nos ROTA: `PUBLIC_TRACKING_LOCALIZACAO=demo` no `/etc/rastreamento.env` e reiniciar o serviço. Spec e plano: `SPEC-localizacao-rastreio-2026-10-08.md`
 e `PLANO-localizacao-rastreio-2026-10-08.md` (pasta `instruções API` do Pedro).

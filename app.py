@@ -3929,7 +3929,7 @@ def montar_etapas_publicas(status_key, resultado):
             "title": "Entregue",
             "desc": "Previsão para entrega.",
             "icon": "🏁",
-            "date": resultado.get("previsao") or "",
+            "date": _previsao_resposta(resultado, status_key),   # previsao vencida nao aparece (no entregue a data real entra depois)
             "time": "",
             "done": status_key == "entregue"
         },
