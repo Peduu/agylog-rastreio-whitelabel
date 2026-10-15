@@ -45,7 +45,7 @@ class FuncoesTest(unittest.TestCase):
             {"cep_inicial": "50000000", "cep_final": "40000000", "dias": "3"},   # invertida
             {"cep_inicial": "", "cep_final": "1", "dias": "x"},
         ])
-        self.assertEqual(faixas, [("01000000", "05999999", 2), ("30000000", "39999999", 10)])
+        self.assertEqual(faixas, [("01000000", "05999999", 2, ""), ("30000000", "39999999", 10, "")])
         self.assertEqual(ign, 2)
 
     def test_faixa_mais_estreita_e_dias(self):
@@ -55,6 +55,35 @@ class FuncoesTest(unittest.TestCase):
         self.assertEqual(P.dias_para_cep(c, "30140071"), 3)
         self.assertEqual(P.dias_para_cep(c, "35000000"), 10)
         self.assertIsNone(P.dias_para_cep(c, "01310100"))
+
+    def test_tabela_do_tms_como_vem(self):
+        linhas = [{"CEP Inicial": "07000-000", "CEP Final": "07099-999", "Sigla do Serviço": s, "Prazo Entrega": "8",
+                   "Prazo Entrega Ult. Milha": "2"} for s in ("ENT_CONV", "ENT_EXP", "LEVE")]
+        faixas, ign = P.ler_faixas(linhas)
+        self.assertEqual(ign, 0)
+        self.assertEqual(sorted(faixas), [("07000000", "07099999", 8, "ENT_CONV"), ("07000000", "07099999", 8, "ENT_EXP"),
+                                          ("07000000", "07099999", 8, "LEVE")])        # "Prazo Entrega", nunca a ultima milha
+
+    def test_servicos_precisam_concordar(self):
+        c = sqlite3.connect(":memory:")
+        P.criar_tabelas(c)
+        P.substituir_faixas(c, [
+            ("07000000", "07099999", 8, "ENT_CONV"), ("07000000", "07099999", 8, "ENT_EXP"), ("07000000", "07099999", 8, "LEVE"),
+            ("30000000", "31999999", 8, "ENT_CONV"), ("30000000", "31999999", 8, "ENT_EXP"), ("30000000", "31999999", 8, "LEVE"),
+            ("30000001", "31999999", 4, "ENT_CONV"),                      # BH: convencional 4, os outros 8 -> diverge
+            ("72980000", "73699999", 4, "LEVE"),                          # so um servico cobre -> sem prazo
+        ])
+        self.assertEqual(P.dias_para_cep(c, "07050000"), 8)
+        self.assertIsNone(P.dias_para_cep(c, "30140071"))
+        self.assertIsNone(P.dias_para_cep(c, "73000000"))
+        self.assertIsNone(P.dias_para_cep(c, "99999999"))
+
+    def test_feriados_nacionais(self):
+        self.assertIn(date(2026, 10, 12), P.feriados_nacionais(2026))
+        self.assertIn(date(2026, 4, 3), P.feriados_nacionais(2026))     # Sexta-feira Santa de 2026
+        self.assertIn(date(2026, 11, 20), P.feriados_nacionais(2026))
+        self.assertEqual(P.somar_dias(date(2026, 9, 24), 8, uteis=True), date(2026, 10, 6))   # pedido 632: igual ao TMS
+        self.assertEqual(P.somar_dias(date(2026, 10, 8), 8, uteis=True), date(2026, 10, 21))  # pula o 12/10
 
     def test_somar_dias(self):
         sexta = date(2026, 10, 16)
@@ -165,6 +194,17 @@ class EndpointsTest(unittest.TestCase):
             self.assertEqual(self.client.post("/api/rastrear", json={"codigo": "PED9"}).get_json()["previsao"], "")
             sim = self.client.get("/api/admin/prazos-cep/simular?codigo=PED9").get_json()
         self.assertEqual(sim["motivo"], "CEP fora de todas as faixas da tabela")
+
+    def test_importa_o_arquivo_do_tms_em_latin1(self):
+        cab = "CEP Inicial;CEP Final;Sigla Unidade de Coleta;Sigla do Serviço;Prazo Entrega;Prazo Coleta;Prazo Entrega Ult. Milha;Descrição;"
+        linhas = [cab] + [f"86000-001;86124-999;SAO;{s};8;2;2;;" for s in ("ENT_CONV", "ENT_EXP", "LEVE")]
+        dados = {"arquivo": (io.BytesIO(("\n".join(linhas) + "\n").encode("latin1")), "abrangencia.csv")}
+        r = self.client.post("/api/admin/prazos-cep/importar", data=dados, content_type="multipart/form-data").get_json()
+        self.assertTrue(r["success"], r)
+        self.assertEqual((r["inseridas"], r["servicos"]), (3, ["ENT_CONV", "ENT_EXP", "LEVE"]))
+        conn = portal.get_db_connection()
+        self.assertEqual(P.dias_para_cep(conn, "86010000"), 8)
+        conn.close()
 
     def test_contagem_e_acesso_restrito(self):
         self.assertEqual(self.client.post("/api/admin/prazos-cep/config", json={"contagem": "uteis"}).get_json()["contagem"], "uteis")

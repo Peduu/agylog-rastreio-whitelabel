@@ -2407,8 +2407,10 @@ def admin_prazos_cep_importar():
         conn.commit()
     finally:
         conn.close()
-    return jsonify({"success": True, "message": f"Tabela trocada: {len(faixas)} faixas. Ignoradas: {ignoradas}.",
-                    "inseridas": len(faixas), "ignoradas": ignoradas})
+    servicos = sorted({f[3] for f in faixas if f[3]})
+    extra = f" Serviços: {', '.join(servicos)} (o prazo só vale onde todos dão o mesmo prazo)." if servicos else ""
+    return jsonify({"success": True, "message": f"Tabela trocada: {len(faixas)} faixas. Ignoradas: {ignoradas}.{extra}",
+                    "inseridas": len(faixas), "ignoradas": ignoradas, "servicos": servicos})
 
 
 @app.route("/api/admin/prazos-cep/config", methods=["POST"])

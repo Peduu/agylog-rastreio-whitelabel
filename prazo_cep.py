@@ -3,7 +3,10 @@
 A API do TMS nao traz prazo nem destino. O prazo sai de dado real:
 - CEP do destinatario: banco do sistema de subir arquivos (envios_modelos.db, tabela registros_modelo), que o
   portal so LE (nunca grava) e que recebe o CEP sozinho a cada arquivo novo;
-- tabela oficial de prazo por faixa de CEP (cep_inicial, cep_final, dias), importada no admin;
+- tabela oficial de prazo por faixa de CEP, importada no admin: a abrangencia do TMS como vem (CEP Inicial, CEP Final,
+  Prazo Entrega, Sigla do Servico) ou so cep_inicial;cep_final;dias. Vale para todos os clientes. O servico do pedido nao
+  e conhecido, entao o prazo so vale onde TODOS os servicos da tabela cobrem o CEP com o MESMO prazo (senao, nada);
+- dias uteis pulam sabado, domingo e feriados nacionais (o 632 confere: cadastro 24/09 + 8 uteis = 06/10, igual ao TMS);
 - data de cadastro no TMS: ocorrencia "1" (Criacao da solicitacao).
 
 Regras que nao podem regredir: nada inventado (sem CEP ou sem faixa = sem prazo); o cliente so ve prazo enquanto o pedido
@@ -41,9 +44,12 @@ def criar_tabelas(conn):
             cep_inicial TEXT NOT NULL,
             cep_final TEXT NOT NULL,
             dias INTEGER NOT NULL,
+            servico TEXT NOT NULL DEFAULT '',
             criado_em TEXT NOT NULL
         )
     """)
+    if "servico" not in {r[1] for r in conn.execute("PRAGMA table_info(prazos_cep)").fetchall()}:
+        conn.execute("ALTER TABLE prazos_cep ADD COLUMN servico TEXT NOT NULL DEFAULT ''")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_prazos_cep_faixa ON prazos_cep(cep_inicial, cep_final)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS config_portal (
@@ -71,11 +77,11 @@ def configuracao(conn):
 
 
 def substituir_faixas(conn, faixas):
-    """Troca a tabela inteira (e a tabela oficial; nao mistura com a anterior). faixas = [(cep_ini, cep_fim, dias)]."""
+    """Troca a tabela inteira (e a tabela oficial; nao mistura com a anterior). faixas = [(cep_ini, cep_fim, dias[, servico])]."""
     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn.execute("DELETE FROM prazos_cep")
-    conn.executemany("INSERT INTO prazos_cep (cep_inicial, cep_final, dias, criado_em) VALUES (?, ?, ?, ?)",
-                     [(a, b, d, agora) for a, b, d in faixas])
+    conn.executemany("INSERT INTO prazos_cep (cep_inicial, cep_final, dias, servico, criado_em) VALUES (?, ?, ?, ?, ?)",
+                     [(f[0], f[1], f[2], (f[3] if len(f) > 3 else "") or "", agora) for f in faixas])
 
 
 def ler_faixas(linhas):
@@ -91,7 +97,8 @@ def ler_faixas(linhas):
         row = {str(k or "").strip().lower().replace(" ", "_"): v for k, v in row.items()}
         ini = normalizar_cep(pegar(row, "cep_inicial", "cep_ini", "cep_inicio", "inicio", "inicial", "de"))
         fim = normalizar_cep(pegar(row, "cep_final", "cep_fim", "fim", "final", "ate", "até"))
-        dias_txt = pegar(row, "dias", "prazo", "prazo_dias", "dias_prazo", "prazo_(dias)")
+        dias_txt = pegar(row, "dias", "prazo", "prazo_dias", "dias_prazo", "prazo_(dias)", "prazo_entrega")   # TMS: "Prazo Entrega"
+        servico = pegar(row, "sigla_do_serviço", "sigla_do_servico", "servico", "serviço").upper()
         try:
             dias = int(float(dias_txt.replace(",", ".")))
         except ValueError:
@@ -99,32 +106,58 @@ def ler_faixas(linhas):
         if not ini or not fim or ini > fim or dias < 0 or dias > 120:
             ignoradas += 1
             continue
-        faixas.append((ini, fim, dias))
+        faixas.append((ini, fim, dias, servico))
     return faixas, ignoradas
 
 
 def dias_para_cep(conn, cep):
-    """Dias da faixa que contem o CEP (a mais estreita, se houver sobreposicao) ou None."""
+    """Dias para o CEP ou None. Em cada servico vale a faixa mais estreita que contem o CEP; o prazo so existe se TODOS
+    os servicos da tabela cobrem o CEP e dao o MESMO prazo (o servico do pedido nao e conhecido: nada de chute)."""
     cep = normalizar_cep(cep)
     if not cep:
         return None
-    row = conn.execute("""
-        SELECT dias FROM prazos_cep
+    servicos = {r[0] for r in conn.execute("SELECT DISTINCT servico FROM prazos_cep").fetchall()}
+    por_servico = {}
+    for servico, dias in conn.execute("""
+        SELECT servico, dias FROM prazos_cep
         WHERE cep_inicial <= ? AND cep_final >= ?
         ORDER BY CAST(cep_final AS INTEGER) - CAST(cep_inicial AS INTEGER) ASC, id ASC
-        LIMIT 1
-    """, (cep, cep)).fetchone()
-    return int(row[0]) if row else None
+    """, (cep, cep)).fetchall():
+        por_servico.setdefault(servico, int(dias))
+    if not por_servico or set(por_servico) != servicos or len(set(por_servico.values())) != 1:
+        return None
+    return next(iter(por_servico.values()))
+
+
+def _pascoa(ano):
+    """Domingo de Pascoa (algoritmo de Meeus/Butcher)."""
+    a, b, c = ano % 19, ano // 100, ano % 100
+    d, e = b // 4, b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    mes = (h + l - 7 * m + 114) // 31
+    dia = ((h + l - 7 * m + 114) % 31) + 1
+    return datetime(ano, mes, dia).date()
+
+
+def feriados_nacionais(ano):
+    """Feriados nacionais (lei): 1/1, Sexta-feira Santa, 21/4, 1/5, 7/9, 12/10, 2/11, 15/11, 20/11, 25/12."""
+    fixos = [(1, 1), (4, 21), (5, 1), (9, 7), (10, 12), (11, 2), (11, 15), (11, 20), (12, 25)]
+    return {datetime(ano, m, d).date() for m, d in fixos} | {_pascoa(ano) - timedelta(days=2)}
 
 
 def somar_dias(base, dias, uteis=False):
-    """Data base + dias corridos, ou + dias uteis (pula sabado e domingo; feriados nao entram)."""
+    """Data base + dias corridos, ou + dias uteis (pula sabado, domingo e feriados nacionais)."""
     if not uteis:
         return base + timedelta(days=dias)
     d, faltam = base, dias
     while faltam > 0:
         d += timedelta(days=1)
-        if d.weekday() < 5:
+        if d.weekday() < 5 and d not in feriados_nacionais(d.year):
             faltam -= 1
     return d
 
