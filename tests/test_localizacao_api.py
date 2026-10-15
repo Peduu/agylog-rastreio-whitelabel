@@ -48,15 +48,15 @@ class LocalizacaoApiTest(unittest.TestCase):
             self.assertIn("ROTA3", d["cliente"])
             self.assertEqual(d["status"], "transferencia_franquia")
 
-    def test_previsao_de_entrega_na_resposta(self):
+    def test_pagina_publica_sem_previsao_calculada(self):
+        # Pedro, 15/10/2026: "nada fake" -> a previsao das regras do admin nao sai na pagina publica (nem na da Simple)
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):
-            d = self.consulta("ROTA3", "paranabanco")
-            self.assertRegex(d["previsao"], r"^\d{2}/\d{2}/\d{4}$")
-            self.assertIn(f'previsão · {d["previsao"][:5]}', json.dumps(d["localizacao"], ensure_ascii=False))
-            self.assertEqual(self.consulta("AGY9", "paranabanco")["previsao"], "")   # entregue: sem previsao
-            self.assertEqual(self.consulta("AGY6", "brb")["previsao"], "")           # tentativa: sem previsao
+            for codigo, cliente in (("ROTA3", "paranabanco"), ("ROTA5", "brb"), ("AGY2", "inter"), ("AGY9", "caoa")):
+                d = self.consulta(codigo, cliente)
+                self.assertNotIn("previsao", d, codigo)
+                self.assertNotIn("previs", json.dumps(d, ensure_ascii=False).lower(), codigo)
             r = self.client.post("/api/rastrear/simplecompany", json={"codigo": "AGY5", "nome": "Demonstração AGY"})
-            self.assertRegex(r.get_json()["previsao"], r"^\d{2}/\d{2}/\d{4}$")
+            self.assertNotIn("previs", json.dumps(r.get_json(), ensure_ascii=False).lower())
 
     def test_ccxp_sem_devolucao_na_localizacao(self):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):

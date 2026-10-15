@@ -12,9 +12,7 @@ import json
 import os
 import re
 import unicodedata
-from datetime import datetime, timedelta, timezone
-
-BRASILIA = timezone(timedelta(hours=-3))   # a previsao vale ate o fim do dia no horario de Brasilia (o servidor pode estar em UTC)
+from datetime import datetime
 
 CAMINHO_MUNICIPIOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "municipios.json")
 APELIDOS = {}   # (UF, nome normalizado como o TMS escreve) -> nome normalizado do IBGE; so grafias confirmadas
@@ -23,8 +21,6 @@ _MUNICIPIOS = None
 STATUS_COM_LOCAL = {"preparacao_transporte", "transferencia_franquia", "chegada_franquia", "em_rota_entrega",
                     "atencao", "devolucao", "devolvido", "entregue"}
 PROBLEMA = {"atencao", "devolucao", "devolvido"}
-# Previsao de entrega no trilho (Pedro, 15/10/2026: no lugar do "a definir") so enquanto o pedido esta a caminho.
-COM_PREVISAO = {"preparacao_transporte", "transferencia_franquia", "chegada_franquia", "em_rota_entrega"}
 
 
 def normalizar(texto):
@@ -88,15 +84,6 @@ def _curta(data_iso):
     return d.strftime("%d/%m %H:%M") if d else ""
 
 
-def previsao_valida(previsao, hoje=None):
-    """A previsao de entrega (dd/mm/aaaa das regras de previsao) so vale se for de hoje em diante; vencida nao aparece."""
-    try:
-        d = datetime.strptime(str(previsao or "").strip()[:10], "%d/%m/%Y").date()
-    except ValueError:
-        return None
-    return d if d >= (hoje or datetime.now(BRASILIA).date()) else None
-
-
 def _paradas(ocorrencias):
     """Cidades distintas em ordem; a mesma cidade em seguida (duas unidades ou varias leituras) e uma parada so."""
     paradas = []
@@ -126,7 +113,7 @@ def _cidade(parada, atual=False):
     return {"t": parada["nome"], "uf": parada["uf"], "atual": atual}
 
 
-def montar_localizacao_publica(ocorrencias, status_key, cliente="", previsao=""):
+def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
     """None ou {linha, transito, trilho, pontos, atualizado}.
 
     linha = cidades da rota para mostrar com seta entre elas (origem -> onde esta); transito = True quando o pedido
@@ -146,9 +133,9 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente="", previsao="")
     t_origem = _item(1, origem["nome"], f'saiu · {_curta(origem["ultima"])}')
     linha = ([] if um else [_cidade(origem)]) + [_cidade(atual, True)]
     transito = False
-    prev = previsao_valida(previsao) if status_key in COM_PREVISAO else None
-    # Coluna do destino: "Seu endereco" com a previsao de entrega; a bandeira quadriculada so quando ENTREGUE (Pedro, 15/10)
-    endereco = _item(3, "Seu endereço", f'previsão · {prev.strftime("%d/%m")}' if prev else "")
+    # Coluna do destino: "Seu endereco", sem data inventada (Pedro, 15/10: nada de "a definir" e nada de previsao calculada;
+    # o prazo so entra quando o TMS mandar o Prazo Cliente). A bandeira quadriculada so quando ENTREGUE.
+    endereco = _item(3, "Seu endereço", "")
 
     if status_key in PROBLEMA:
         trilho = ([] if um else [t_origem]) + [_item(2, A, f"agora · {agora}")]
@@ -163,8 +150,6 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente="", previsao="")
         sub2 = {"chegada_franquia": f'chegou · {_curta(atual["primeira"])}'}.get(status_key, "unidade de entrega")
         if status_key == "entregue":
             fim = _item(3, "Seu endereço", f"entregue · {agora}", "chegada")
-        elif prev:
-            fim = endereco
         else:
             fim = _item(3, "Seu endereço", f"em rota · {agora}" if status_key == "em_rota_entrega" else "próxima etapa")
         trilho = ([] if um else [t_origem]) + [_item(2, A, sub2), fim]

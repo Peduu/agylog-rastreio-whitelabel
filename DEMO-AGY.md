@@ -32,7 +32,7 @@ Não use esses códigos em envios reais. As datas fictícias são relativas ao d
 ## Códigos ROTA1 a ROTA9 (cartão "Onde está seu pedido", 08/10/2026)
 
 Mesmos status dos AGY1 a AGY9, com o cartão de localização (linha com a bandeira do estado, mapa com
-pin e nome das cidades, bandeira quadriculada só quando o pedido foi entregue, trilho com a previsão de entrega). Rota fictícia:
+pin e nome das cidades, bandeira quadriculada só quando o pedido foi entregue, trilho com as datas). Rota fictícia:
 São Paulo/SP → Curitiba/PR → Londrina/PR. Funcionam em todos os temas: `/tracking/paranabanco/ROTA3`,
 `/tracking/brb/ROTA5` etc.
 

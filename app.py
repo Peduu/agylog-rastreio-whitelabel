@@ -13,7 +13,7 @@ import threading
 import time
 import unicodedata
 from depara_ocorrencias import DE_PARA_OCORRENCIAS, DE_PARA_INSUCESSO
-from localizacao import COM_PREVISAO, montar_localizacao_publica, ocorrencias_com_local, previsao_valida
+from localizacao import montar_localizacao_publica, ocorrencias_com_local
 from datetime import datetime, timedelta
 from collections import OrderedDict
 from io import StringIO
@@ -3743,7 +3743,6 @@ def api_rastrear_publico():
         "history": montar_historico_publico(resultado),
         "rastreioTerceiro": resultado.get("rastreioTerceiro"),
         "localizacao": _localizacao_resposta(resultado, status_key, cliente),
-        "previsao": _previsao_resposta(resultado, status_key),
     })
 
 
@@ -3788,7 +3787,6 @@ def api_rastrear_simplecompany():
         "stages": montar_etapas_publicas(status_key, resultado),
         "history": montar_historico_publico(resultado),
         "rastreioTerceiro": resultado.get("rastreioTerceiro"),
-        "previsao": _previsao_resposta(resultado, status_key),
     })
 
 
@@ -3927,9 +3925,9 @@ def montar_etapas_publicas(status_key, resultado):
         {
             "key": "entregue",
             "title": "Entregue",
-            "desc": "Previsão para entrega.",
+            "desc": "Pedido entregue ao destinatário.",
             "icon": "🏁",
-            "date": _previsao_resposta(resultado, status_key),   # previsao vencida nao aparece (no entregue a data real entra depois)
+            "date": "",   # sem previsao calculada na pagina publica (15/10/2026); no entregue a data real entra depois
             "time": "",
             "done": status_key == "entregue"
         },
@@ -4001,7 +3999,7 @@ def montar_historico_publico(resultado):
     historico.append({
         "title": resultado.get("statusBadge") or "Status atualizado",
         "desc": resultado.get("ultimoStatus") or "Atualização registrada no sistema.",
-        "when": resultado.get("dataBaixa") or resultado.get("previsao") or "-",
+        "when": resultado.get("dataBaixa") or "-",   # nunca a previsao calculada no lugar da data real (15/10/2026)
         "theme": "success" if resultado.get("statusBadge") == "ENTREGUE" else ""
     })
 
@@ -4043,15 +4041,7 @@ def _resultado_demo_rota(codigo):
 def _localizacao_resposta(resultado, status_key, cliente):
     if LOCALIZACAO_PUBLICA != "todos" and not resultado.get("_demo_localizacao"):
         return None
-    return montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente, resultado.get("previsao"))
-
-
-def _previsao_resposta(resultado, status_key):
-    """Previsao de entrega (prazo final) para o cartao de status: so a caminho e so se ainda nao venceu (15/10/2026)."""
-    if status_key not in COM_PREVISAO:
-        return ""
-    d = previsao_valida(resultado.get("previsao"))
-    return d.strftime("%d/%m/%Y") if d else ""
+    return montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente)
 
 
 def _resultado_demo_agy(codigo):
