@@ -889,7 +889,8 @@ def buscar_rastreio_logado(codigo, is_admin, cnpj_cliente, lista_cnpjs_admin):
 
         resultado_api = enriquecer_resultado_com_vinculo(resultado_api, codigo_limpo, vinculo)
         anexar_rastreio_terceiro(resultado_api)
-        return resultado_api
+        # A area logada devolve o resultado inteiro: os campos internos do prazo (CNPJ e servico do TMS) ficam de fora.
+        return {k: v for k, v in resultado_api.items() if k not in ("servicoTms", "cnpjsTms")}
 
     if resultado_banco:
         resultado_banco = enriquecer_resultado_com_vinculo(resultado_banco, codigo_limpo, vinculo)
@@ -2376,12 +2377,12 @@ def admin_prazos_cep():
         faixas = [dict(r) for r in conn.execute(
             "SELECT cep_inicial, cep_final, dias FROM prazos_cep ORDER BY cep_inicial LIMIT 200").fetchall()]
         extras = {nome: conn.execute(f"SELECT COUNT(*) FROM {nome}").fetchone()[0]
-                  for nome in ("prazos_tms", "prazos_cep_cliente", "prazos_cep_bloqueio")}
+                  for nome in ("prazos_tms", "prazos_cep_cliente", "prazos_cep_bloqueio", "prazos_cep_liberado")}
     finally:
         conn.close()
     return jsonify({"success": True, "total": total, "ligado": cfg["ligado"], "contagem": cfg["contagem"], "faixas": faixas,
                     "registrados_tms": extras["prazos_tms"], "observados_cliente": extras["prazos_cep_cliente"],
-                    "bloqueios": extras["prazos_cep_bloqueio"]})
+                    "bloqueios": extras["prazos_cep_bloqueio"], "liberados": extras["prazos_cep_liberado"]})
 
 
 @app.route("/api/admin/prazos-cep/modelo", methods=["GET"])

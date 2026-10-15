@@ -15,10 +15,11 @@ esta a caminho e nunca prazo vencido / "em atraso"; liga e desliga pelo admin (c
 Vistoria de 15/10/2026 (relatorio de entregas do TMS, 21 mil pedidos, + sondas so leitura no servidor):
 - prazo registrado do TMS (tabela prazos_tms, o "Dt. Prazo Atual" de cada pedido) vale antes de qualquer calculo;
 - CEP: base de enderecos + rastreios.cep do portal (so na linha do mesmo cliente do TMS); CEPs diferentes = conflito = nada;
+- cliente do pedido = CNPJ do embarcador nas ocorrencias da API (o remetente nao conta);
 - servico do pedido vem da API (campo "servico": 4 = Convencional, 8 = Expressa/Leve);
 - alguns clientes tem prazo proprio no TMS (BRB CARD no DF, CAOA, CCXP em alguns CEPs): prazo observado no TMS por cliente+CEP
-  (prazos_cep_cliente) vale antes da tabela geral, e onde a tabela geral errou para o cliente (prazos_cep_bloqueio) so vale o
-  observado. Teste cego (aprende ate 07/10, confere 08-15/10): 81% certo, 1 erro em 11.700, o resto sem prazo.
+  (prazos_cep_cliente) vale antes da tabela geral; onde a tabela geral errou para o cliente (prazos_cep_bloqueio) so vale o
+  observado; no DF e em SP 04xxx a tabela geral so vale com a regiao conferida para o cliente (prazos_cep_liberado).
 """
 import re
 import sqlite3
@@ -110,6 +111,13 @@ def criar_tabelas(conn):
         )
     """)
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS prazos_cep_liberado (
+            cnpj TEXT NOT NULL,
+            regiao TEXT NOT NULL,
+            PRIMARY KEY (cnpj, regiao)
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS prazos_tms (
             pedido TEXT NOT NULL,
             cnpj TEXT NOT NULL,
@@ -172,6 +180,15 @@ def substituir_bloqueios(conn, linhas):
     validas = {(so_digitos(c), r) for c, r in linhas if so_digitos(c) and r in REGIOES}
     conn.execute("DELETE FROM prazos_cep_bloqueio")
     conn.executemany("INSERT INTO prazos_cep_bloqueio (cnpj, regiao) VALUES (?, ?)", sorted(validas))
+    return len(validas)
+
+
+def substituir_liberados(conn, linhas):
+    """Troca as regioes sensiveis (DF, SP04) em que a tabela geral foi conferida com o TMS para o cliente.
+    linhas = [(cnpj, regiao)]. Devolve quantas entraram."""
+    validas = {(so_digitos(c), r) for c, r in linhas if so_digitos(c) and r in ("DF", "SP04")}
+    conn.execute("DELETE FROM prazos_cep_liberado")
+    conn.executemany("INSERT INTO prazos_cep_liberado (cnpj, regiao) VALUES (?, ?)", sorted(validas))
     return len(validas)
 
 
@@ -247,8 +264,9 @@ def _dias_tabela_geral(conn, cep, servico=None):
 
 def dias_para_cep(conn, cep, servico=None, cnpjs=()):
     """Dias para o CEP ou None.
-    Com o cliente do pedido (CNPJs do TMS): 1) prazo observado no TMS para o cliente+CEP (0 dia = vence no cadastro = nada);
-    2) regiao bloqueada para o cliente (a tabela geral errou para ele) = nada; 3) tabela geral pelo servico do pedido.
+    Com o cliente do pedido (CNPJ do embarcador no TMS): 1) prazo observado no TMS para o cliente+CEP (0 dia = vence no
+    cadastro = nada; dois valores = nada); 2) regiao bloqueada para o cliente (a tabela geral errou para ele) = nada;
+    3) DF e SP 04xxx so com a regiao conferida para o cliente; 4) tabela geral pelo servico do pedido.
     Sem o cliente: tabela geral, e nada no DF e em SP 04xxx (onde ha clientes com prazo proprio no TMS)."""
     cep = normalizar_cep(cep)
     if not cep:
@@ -264,10 +282,16 @@ def dias_para_cep(conn, cep, servico=None, cnpjs=()):
     observados = dict(conn.execute(f"SELECT cnpj, dias FROM prazos_cep_cliente WHERE cep = ? AND cnpj IN ({marcas})",
                                    [cep] + cnpjs).fetchall())
     if observados:
-        dias = int(next(observados[c] for c in cnpjs if c in observados))
+        if len({int(d) for d in observados.values()}) != 1:
+            return None
+        dias = int(next(iter(observados.values())))
         return dias if dias > 0 else None
+    regiao = regiao_cep(cep)
     if conn.execute(f"SELECT 1 FROM prazos_cep_bloqueio WHERE regiao = ? AND cnpj IN ({marcas}) LIMIT 1",
-                    [regiao_cep(cep)] + cnpjs).fetchone():
+                    [regiao] + cnpjs).fetchone():
+        return None
+    if regiao != "resto" and not conn.execute(
+            f"SELECT 1 FROM prazos_cep_liberado WHERE regiao = ? AND cnpj IN ({marcas}) LIMIT 1", [regiao] + cnpjs).fetchone():
         return None
     return _dias_tabela_geral(conn, cep, servico)
 
@@ -336,8 +360,10 @@ def servico_tms(ocorrencias):
 
 
 def cnpjs_tms(ocorrencias):
-    """CNPJs do pedido no TMS (embarcador e remetente), so digitos, sem repetir."""
-    return _cnpjs(o.get(campo) for o in ocorrencias or [] for campo in ("cnpj", "cnpjRemetente"))
+    """CNPJ do cliente (embarcador) do pedido no TMS, so digitos, numa lista. O remetente nao conta (pode ser outra empresa).
+    Lista vazia se faltar ou vier mais de um (resposta misturada = cliente desconhecido)."""
+    valores = _cnpjs(o.get("cnpj") for o in ocorrencias or [])
+    return valores if len(valores) == 1 else []
 
 
 def cep_do_pedido(caminho_db, codigos, conn_portal=None, cnpjs=()):
@@ -366,7 +392,7 @@ def cep_do_pedido(caminho_db, codigos, conn_portal=None, cnpjs=()):
                     if not chaves:
                         continue
                     onde = " OR ".join(f"{c} IN ({marcas})" for c in chaves)
-                    for (valor,) in conn.execute(f"SELECT destinatario_cep FROM {tabela} WHERE {onde} LIMIT 20",
+                    for (valor,) in conn.execute(f"SELECT destinatario_cep FROM {tabela} WHERE {onde} ORDER BY rowid DESC LIMIT 50",
                                                  codigos * len(chaves)).fetchall():
                         if normalizar_cep(valor):
                             ceps.add(normalizar_cep(valor))
@@ -387,20 +413,29 @@ def cep_do_pedido(caminho_db, codigos, conn_portal=None, cnpjs=()):
     return cep
 
 
-def prazo_tms_registrado(conn, pedidos, cnpjs):
-    """Prazo do TMS ("Dt. Prazo Atual") registrado para o pedido do mesmo cliente. None se nao houver ou se nao for unico."""
+def prazo_tms_registrado(conn, pedidos, cnpjs, cadastro):
+    """Prazo do TMS ("Dt. Prazo Atual") registrado para o pedido do mesmo cliente, ou None. So vale com o cadastro do pedido
+    no TMS: cadastro ate o dia da carga (pedido novo que repete o numero nao herda prazo velho) e prazo depois do cadastro
+    (o TMS grava prazo = dia do cadastro em alguns pedidos do DF: nunca mostrar). Mais de uma data = nada."""
     pedidos = [str(p or "").strip().upper() for p in pedidos if str(p or "").strip()]
     cnpjs = _cnpjs(cnpjs)
-    if not pedidos or not cnpjs:
+    if not pedidos or not cnpjs or not cadastro:
         return None
     datas = set()
-    for (valor,) in conn.execute(f"SELECT DISTINCT prazo FROM prazos_tms WHERE pedido IN ({','.join('?' * len(pedidos))}) "
-                                 f"AND cnpj IN ({','.join('?' * len(cnpjs))})", pedidos + cnpjs).fetchall():
+    for valor, carregado in conn.execute(
+            f"SELECT DISTINCT prazo, substr(carregado_em, 1, 10) FROM prazos_tms WHERE pedido IN ({','.join('?' * len(pedidos))}) "
+            f"AND cnpj IN ({','.join('?' * len(cnpjs))})", pedidos + cnpjs).fetchall():
         try:
-            datas.add(datetime.strptime(str(valor), "%Y-%m-%d").date())
+            prazo = datetime.strptime(str(valor), "%Y-%m-%d").date()
+            carregado = datetime.strptime(str(carregado), "%Y-%m-%d").date()
         except ValueError:
             return None
-    return next(iter(datas)) if len(datas) == 1 else None
+        if cadastro <= carregado:
+            datas.add(prazo)
+    if len(datas) != 1:
+        return None
+    prazo = datas.pop()
+    return prazo if prazo > cadastro else None
 
 
 def calcular(conn, caminho_modelos, codigos, ocorrencias, cnpjs=(), servico=None, pedidos_tms=None):
@@ -410,7 +445,7 @@ def calcular(conn, caminho_modelos, codigos, ocorrencias, cnpjs=(), servico=None
     base = data_cadastro_tms(ocorrencias)
     detalhe = {"cep": "", "dias": None, "cadastro": base, "contagem": cfg["contagem"], "ligado": cfg["ligado"],
                "prazo": None, "fonte": ""}
-    registrado = prazo_tms_registrado(conn, pedidos_tms if pedidos_tms else codigos, cnpjs)
+    registrado = prazo_tms_registrado(conn, pedidos_tms if pedidos_tms else codigos, cnpjs, base)
     if registrado:
         detalhe.update(prazo=registrado, fonte="tms")
         return detalhe

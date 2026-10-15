@@ -146,13 +146,21 @@ class FuncoesTest(unittest.TestCase):
         self.assertIsNone(P.dias_para_cep(c, "70050000", "8", cli))          # 0 dia = vence no cadastro: nunca mostra
         self.assertIsNone(P.dias_para_cep(c, "70060000", "8", cli))          # DF bloqueado para o cliente
         self.assertEqual(P.dias_para_cep(c, "01310100", "8", cli), 8)        # fora do DF a tabela geral vale
-        self.assertEqual(P.dias_para_cep(c, "70060000", "8", outro), 8)      # cliente sem erro no DF: tabela geral
+        self.assertIsNone(P.dias_para_cep(c, "70060000", "8", outro))        # DF sem conferencia para o cliente: nada
+        P.substituir_liberados(c, [("33333333000133", "DF"), ("33333333000133", "resto")])
+        self.assertEqual(P.dias_para_cep(c, "70060000", "8", outro), 8)      # DF conferido para o cliente: tabela geral
+        self.assertIsNone(P.dias_para_cep(c, "04538000", "8", outro))        # SP04 nao conferido: nada
+        self.assertEqual(P.dias_para_cep(c, "01310100", "8", ["44444444000144"]), 8)   # cliente novo fora do DF/SP04
+        self.assertIsNone(P.dias_para_cep(c, "70060000", "8", ["44444444000144"]))
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM prazos_cep_liberado").fetchone()[0], 1)
         self.assertIsNone(P.dias_para_cep(c, "04538000", "8", ["22222222000122"]))
         self.assertIsNone(P.dias_para_cep(c, "70060000", "8"))               # cliente desconhecido: regra antiga (sem DF)
         self.assertIsNone(P.dias_para_cep(c, "04538000"))
         self.assertEqual(P.dias_para_cep(c, "70040000", "8", ["", None, "11111111000111"]), 6)
         self.assertEqual(c.execute("SELECT COUNT(*) FROM prazos_cep_cliente").fetchone()[0], 2)
         self.assertEqual(c.execute("SELECT COUNT(*) FROM prazos_cep_bloqueio").fetchone()[0], 2)
+        P.substituir_prazos_cliente(c, [("11111111000111", "70040000", 6), ("22222222000122", "70040000", 2)])
+        self.assertIsNone(P.dias_para_cep(c, "70040000", "8", ["11111111000111", "22222222000122"]))   # dois valores: nada
         self.assertEqual(P.substituir_prazos_cliente(c, [("1", "70040000", 6), ("1", "70040000", 7), ("1", "01310100", 8)]), 1)
 
     def test_sem_conferencia_por_cliente_vale_a_regra_antiga(self):
@@ -186,16 +194,22 @@ class FuncoesTest(unittest.TestCase):
         n = P.substituir_prazos_tms(c, [("633", "65949995000187", "2026-10-26"), ("634", "1", "26/10/2026"), ("", "1", "2026-10-26"),
                                         ("635", "65949995000187", "2026-10-20"), ("635", "11111111000111", "2026-10-27")])
         self.assertEqual(n, 3)
-        self.assertEqual(P.prazo_tms_registrado(c, ["633"], ["65949995000187"]), date(2026, 10, 26))
-        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["11111111000111"]))      # outro cliente: nao vale
-        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], []))
-        self.assertIsNone(P.prazo_tms_registrado(c, ["635"], ["65949995000187", "11111111000111"]))   # duas datas: nada
-        detalhe = P.calcular(c, "", ["633"], [], cnpjs=["65949995000187"])
+        cad = date(2026, 10, 14)
+        self.assertEqual(P.prazo_tms_registrado(c, ["633"], ["65949995000187"], cad), date(2026, 10, 26))
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["65949995000187"], None))  # sem cadastro do TMS: nada
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["11111111000111"], cad))      # outro cliente: nao vale
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], [], cad))
+        self.assertIsNone(P.prazo_tms_registrado(c, ["635"], ["65949995000187", "11111111000111"], cad))   # duas datas: nada
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["65949995000187"], date(2026, 10, 26)))   # prazo = cadastro
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["65949995000187"], date(2099, 1, 1)))     # pedido novo, numero velho
+        oc = [{"codigoOcorrencia": "1", "dtOcorrencia": "2026-10-14 19:10:00"}]
+        detalhe = P.calcular(c, "", ["633"], oc, cnpjs=["65949995000187"])
         self.assertEqual((detalhe["prazo"], detalhe["fonte"]), (date(2026, 10, 26), "tms"))
-        detalhe = P.calcular(c, "", ["999"], [], cnpjs=["65949995000187"])
+        self.assertEqual(P.calcular(c, "", ["633"], [], cnpjs=["65949995000187"])["fonte"], "")   # arquivo do portal: nada
+        detalhe = P.calcular(c, "", ["999"], oc, cnpjs=["65949995000187"])
         self.assertEqual((detalhe["prazo"], detalhe["fonte"]), (None, ""))
         self.assertEqual(P.substituir_prazos_tms(c, [("633", "1", "2026-10-26"), ("633", "1", "2026-10-27"), ("7", "1", "2026-10-27")]), 1)
-        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["1"]))                   # conflito na carga: fica de fora
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["1"], cad))              # conflito na carga: fica de fora
 
     def test_calcular_com_servico_e_cliente(self):
         c = self.tabela_bh()
@@ -210,7 +224,8 @@ class FuncoesTest(unittest.TestCase):
         oc = [{"servico": "8", "cnpj": "11.111.111/0001-11", "cnpjRemetente": ""},
               {"servico": 8, "cnpj": "11111111000111", "cnpjRemetente": "22222222000122"}]
         self.assertEqual(P.servico_tms(oc), "8")
-        self.assertEqual(P.cnpjs_tms(oc), ["11111111000111", "22222222000122"])
+        self.assertEqual(P.cnpjs_tms(oc), ["11111111000111"])                          # so o embarcador; remetente nao conta
+        self.assertEqual(P.cnpjs_tms(oc + [{"cnpj": "33333333000133"}]), [])            # dois clientes: desconhecido
         self.assertEqual(P.servico_tms(oc + [{"servico": "4"}]), "")                    # misturado: desconhecido
         self.assertEqual((P.servico_tms([]), P.cnpjs_tms(None)), ("", []))
 
@@ -316,7 +331,7 @@ class EndpointsTest(unittest.TestCase):
         ao_vivo = dict(self.resultado(), cnpjsTms=["65949995000187"], servicoTms="4")
         arquivado = dict(self.resultado(), cnpjCliente="65.949.995/0001-87", ocorrencias=[])
         outro = dict(self.resultado(), cnpjsTms=["11111111000111"])
-        for res, esperado in ((ao_vivo, prazo.strftime("%d/%m/%Y")), (arquivado, prazo.strftime("%d/%m/%Y")), (outro, "")):
+        for res, esperado in ((ao_vivo, prazo.strftime("%d/%m/%Y")), (arquivado, ""), (outro, "")):
             with patch.object(portal, "buscar_rastreio_publico", return_value=res):
                 d = self.client.post("/api/rastrear", json={"codigo": "PED9"}).get_json()
             self.assertEqual(d["previsao"], esperado)
@@ -349,6 +364,15 @@ class EndpointsTest(unittest.TestCase):
         res["cnpjsTms"] = ["11111111000111"]                                   # o TMS diz outro cliente: CEP nao serve
         with patch.object(portal, "buscar_rastreio_publico", return_value=res):
             self.assertEqual(self.client.post("/api/rastrear", json={"codigo": "SIM633"}).get_json()["previsao"], "")
+
+    def test_area_logada_nao_devolve_campos_internos_do_prazo(self):
+        cru = dict(self.resultado(), cnpjsTms=["65949995000187"], servicoTms="4", destinatario="x")
+        with patch.object(portal, "buscar_rastreio_na_api", return_value=cru),                 patch.object(portal, "buscar_rastreio_no_banco", return_value=None),                 patch.object(portal, "buscar_vinculo_ar", return_value=None):
+            r = portal.buscar_rastreio_logado("PED9", False, "65949995000187", [])
+        self.assertNotIn("cnpjsTms", r)
+        self.assertNotIn("servicoTms", r)
+        self.assertEqual(r["codigoCliente"], "PED9")
+        self.assertIn("cnpjsTms", cru)                                       # o resultado original (cache) continua inteiro
 
     def apagar_rastreio(self, codigo):
         conn = portal.get_db_connection()
