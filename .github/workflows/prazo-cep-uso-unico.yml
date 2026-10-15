@@ -1,0 +1,158 @@
+# USO UNICO: carrega a tabela de prazo por faixa de CEP (abrangencia do TMS) no banco do rastreio, escolhe dias uteis e,
+# com LIGAR, liga o prazo para o cliente. A tabela vem de segredos temporarios (o repositorio e publico; ela nunca vai para o
+# codigo nem para o log). Sem "CARREGAR" so relata. Backup do banco antes de gravar.
+# Apagar este arquivo e os segredos PRAZO_CEP_TABELA_1 e PRAZO_CEP_TABELA_2 depois do uso.
+name: "Uso unico - Tabela de prazo por CEP"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: "Vazio = so relata. Digite CARREGAR para gravar (com backup do banco antes)"
+        required: false
+        default: ""
+        type: string
+      ligar:
+        description: "Digite LIGAR para ligar o prazo no rastreio junto com a carga"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: rastreamento-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  carga:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Montar o arquivo da tabela a partir dos segredos
+        env:
+          P1: ${{ secrets.PRAZO_CEP_TABELA_1 }}
+          P2: ${{ secrets.PRAZO_CEP_TABELA_2 }}
+        run: |
+          set -euo pipefail
+          mkdir -p carga
+          printf '%s%s' "$P1" "$P2" | base64 -d > carga/prazo_cep_tabela.csv.gz
+          gzip -t carga/prazo_cep_tabela.csv.gz
+          echo "linhas (com cabecalho): $(gzip -dc carga/prazo_cep_tabela.csv.gz | wc -l)"
+          echo "sha256: $(gzip -dc carga/prazo_cep_tabela.csv.gz | sha256sum | cut -c1-16)"
+
+      - name: Enviar o arquivo para a VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          source: carga/prazo_cep_tabela.csv.gz
+          target: /tmp/prazo-cep-carga
+          strip_components: 1
+
+      - name: Relatar / gravar na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+          LIGAR: ${{ inputs.ligar }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CONFIRMAR,LIGAR
+          script: |
+            set -euo pipefail
+            CONFIRMAR="$CONFIRMAR" LIGAR="$LIGAR" python3 - <<'PY'
+            import csv, gzip, io, json, os, shutil, sqlite3, sys, urllib.request
+            from datetime import datetime
+
+            DB = "/home/rastreamento/database.db"
+            ARQ = "/tmp/prazo-cep-carga/prazo_cep_tabela.csv.gz"
+            MODELOS = "/home/subir_arquivos/envios_modelos.db"
+            gravar = os.environ.get("CONFIRMAR", "").strip() == "CARREGAR"
+            ligar = os.environ.get("LIGAR", "").strip() == "LIGAR"
+
+            try:
+                if not os.path.exists(DB):
+                    sys.exit(f"ERRO: {DB} nao existe. Nada foi alterado.")
+                texto = gzip.open(ARQ).read().decode("ascii")
+                faixas, ignoradas = [], 0
+                for r in csv.DictReader(io.StringIO(texto), delimiter=";"):
+                    ini, fim, dias, serv = r["cep_inicial"], r["cep_final"], r["dias"], r["servico"].strip().upper()
+                    if len(ini) == 8 and len(fim) == 8 and ini.isdigit() and fim.isdigit() and ini <= fim and dias.isdigit() and int(dias) <= 120 and serv:
+                        faixas.append((ini, fim, int(dias), serv))
+                    else:
+                        ignoradas += 1
+                print(f"arquivo: {len(faixas)} faixas validas, {ignoradas} ignoradas, servicos {sorted({f[3] for f in faixas})}")
+                if not faixas:
+                    sys.exit("ERRO: nenhuma faixa valida. Nada foi alterado.")
+
+                conn = sqlite3.connect(DB)
+                tabelas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                if not {"prazos_cep", "config_portal"} <= tabelas:
+                    sys.exit("ERRO: tabelas do prazo por CEP nao existem no banco (deploy ab6959d?). Nada foi alterado.")
+                if "servico" not in {r[1] for r in conn.execute("PRAGMA table_info(prazos_cep)")}:
+                    sys.exit("ERRO: prazos_cep sem a coluna servico (deploy ab6959d?). Nada foi alterado.")
+                cfg = dict(conn.execute("SELECT chave, valor FROM config_portal").fetchall())
+                atual = conn.execute("SELECT COUNT(*) FROM prazos_cep").fetchone()[0]
+                print(f"banco agora: {atual} faixas; contagem={cfg.get('prazo_cep_contagem', 'corridos')}; ligado={cfg.get('prazo_cep_ligado', '0')}")
+
+                if not gravar:
+                    print("SO RELATO. Nada foi alterado. Rode de novo com confirmar=CARREGAR para gravar.")
+                    sys.exit(0)
+
+                os.makedirs("/home/rastreamento/backups", exist_ok=True)
+                backup = f"/home/rastreamento/backups/prazo-cep-{datetime.now():%Y%m%d-%H%M%S}.db"
+                destino = sqlite3.connect(backup)
+                conn.backup(destino)
+                destino.close()
+                print(f"backup do banco: {backup}")
+
+                agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                with conn:
+                    conn.execute("DELETE FROM prazos_cep")
+                    conn.executemany("INSERT INTO prazos_cep (cep_inicial, cep_final, dias, servico, criado_em) VALUES (?, ?, ?, ?, ?)",
+                                     [(a, b, d, s, agora) for a, b, d, s in faixas])
+                    conn.execute("INSERT OR REPLACE INTO config_portal (chave, valor) VALUES ('prazo_cep_contagem', 'uteis')")
+                    if ligar:
+                        conn.execute("INSERT OR REPLACE INTO config_portal (chave, valor) VALUES ('prazo_cep_ligado', '1')")
+                cfg = dict(conn.execute("SELECT chave, valor FROM config_portal").fetchall())
+                total = conn.execute("SELECT COUNT(*) FROM prazos_cep").fetchone()[0]
+                conn.close()
+                # arquivos auxiliares do sqlite com o mesmo dono do banco (o servico do portal precisa escrever neles)
+                st = os.stat(DB)
+                for sufixo in ("-journal", "-wal", "-shm"):
+                    if os.path.exists(DB + sufixo):
+                        os.chown(DB + sufixo, st.st_uid, st.st_gid)
+                print(f"GRAVADO: {total} faixas; contagem={cfg.get('prazo_cep_contagem')}; ligado={cfg.get('prazo_cep_ligado', '0')}")
+
+                # conferencia sem expor nada: prazo de CEPs conhecidos e, nos pedidos recentes da base de enderecos, quantos
+                # recebem prazo pela pagina publica (so totais; nenhum codigo, nome ou CEP no log)
+                sys.path.insert(0, "/home/rastreamento")
+                import prazo_cep
+                c2 = sqlite3.connect(DB)
+                print("faixa 07050000 ->", prazo_cep.dias_para_cep(c2, "07050000"), "dias | 30140071 ->", prazo_cep.dias_para_cep(c2, "30140071"))
+                c2.close()
+                if os.path.exists(MODELOS):
+                    m = sqlite3.connect(f"file:{MODELOS}?mode=ro", uri=True)
+                    pedidos = [r[0] for r in m.execute(
+                        "SELECT nroPedido FROM registros_modelo WHERE IFNULL(destinatario_cep, '') <> '' AND IFNULL(nroPedido, '') <> '' "
+                        "ORDER BY datetime(criado_em) DESC LIMIT 6")]
+                    m.close()
+                    com_prazo, sem_prazo, falha = 0, 0, 0
+                    for codigo in pedidos:
+                        try:
+                            req = urllib.request.Request("http://127.0.0.1:8000/api/rastrear", data=json.dumps({"codigo": str(codigo)}).encode(),
+                                                         headers={"Content-Type": "application/json"})
+                            d = json.loads(urllib.request.urlopen(req, timeout=40).read().decode("utf-8"))
+                            if d.get("previsao"):
+                                com_prazo += 1
+                            else:
+                                sem_prazo += 1
+                        except Exception:
+                            falha += 1
+                    print(f"pedidos recentes testados na pagina: {len(pedidos)} | com prazo: {com_prazo} | sem prazo (entregue, vencido ou fora da tabela): {sem_prazo} | sem resposta: {falha}")
+            finally:
+                shutil.rmtree("/tmp/prazo-cep-carga", ignore_errors=True)
+            PY
