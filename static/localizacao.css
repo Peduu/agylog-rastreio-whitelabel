@@ -26,14 +26,17 @@
   grid-column: var(--slot); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; min-width: 0;
 }
 .localizacao-card .loc-ponto strong { font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
-.localizacao-card .loc-ponto span { font-size: 11px; opacity: .65; }
+.localizacao-card .loc-ponto .loc-sub { font-size: 11px; opacity: .65; }
+.localizacao-card .loc-quando::before { content: " · "; }
 .localizacao-card .loc-icone-chegada { width: 13px; height: 15px; flex: 0 0 auto; }
-.localizacao-card .loc-nota { margin: 10px 0 0; font-size: 11px; opacity: .55; text-align: center; }
 
 @media (max-width: 560px) {
   .localizacao-card .loc-frase { font-size: 15px; gap: 2px 8px; }
   .localizacao-card .loc-atual { font-size: 16px; }
   .localizacao-card .loc-trilho { gap: 6px; }
   .localizacao-card .loc-ponto strong { font-size: 11.5px; }
-  .localizacao-card .loc-ponto span { font-size: 10.5px; }
+  .localizacao-card .loc-ponto .loc-sub { font-size: 10.5px; }
+  /* celular: acao numa linha, data inteira na de baixo */
+  .localizacao-card .loc-acao, .localizacao-card .loc-quando { display: block; }
+  .localizacao-card .loc-quando::before { content: none; }
 }

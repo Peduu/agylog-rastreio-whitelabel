@@ -114,7 +114,7 @@ def _cidade(parada, atual=False):
 
 
 def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
-    """None ou {linha, transito, trilho, pontos, atualizado}.
+    """None ou {linha, transito, trilho, pontos}.
 
     linha = cidades da rota para mostrar com seta entre elas (origem -> onde esta); transito = True quando o pedido
     saiu e ainda nao chegou em outra unidade (o front mostra "-> em transito" depois da cidade).
@@ -130,7 +130,9 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
     um = len(paradas) == 1
     A = atual["nome"]
     agora = _curta(atual["ultima"])
+    # Trilho = linha do tempo (Pedro, 15/10: "meio confuso"): cada coluna e lugar + o que aconteceu ali + quando.
     t_origem = _item(1, origem["nome"], f'saiu · {_curta(origem["ultima"])}')
+    chegou = f'chegou · {_curta(atual["primeira"])}'
     linha = ([] if um else [_cidade(origem)]) + [_cidade(atual, True)]
     transito = False
     # Coluna do destino: "Seu endereco", sem data inventada (Pedro, 15/10: nada de "a definir" e nada de previsao calculada;
@@ -138,21 +140,22 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
     endereco = _item(3, "Seu endereço", "")
 
     if status_key in PROBLEMA:
-        trilho = ([] if um else [t_origem]) + [_item(2, A, f"agora · {agora}")]
+        trilho = ([] if um else [t_origem]) + [_item(2, A, f"última leitura · {agora}")]
     elif status_key == "preparacao_transporte":
-        trilho = [_item(2, A, f'desde {_curta(atual["primeira"])}'), endereco]
+        trilho = [_item(2, A, chegou), endereco]
     elif status_key == "transferencia_franquia" and um:
         transito = True
         trilho = [t_origem, endereco]
     elif status_key == "transferencia_franquia":
-        trilho = [t_origem, _item(2, A, f"agora · {agora}"), endereco]
+        trilho = [t_origem, _item(2, A, chegou), endereco]
     else:
-        sub2 = {"chegada_franquia": f'chegou · {_curta(atual["primeira"])}'}.get(status_key, "unidade de entrega")
         if status_key == "entregue":
             fim = _item(3, "Seu endereço", f"entregue · {agora}", "chegada")
+        elif status_key == "em_rota_entrega":
+            fim = _item(3, "Seu endereço", f"a caminho · {agora}")   # saiu da unidade para a entrega
         else:
-            fim = _item(3, "Seu endereço", f"em rota · {agora}" if status_key == "em_rota_entrega" else "próxima etapa")
-        trilho = ([] if um else [t_origem]) + [_item(2, A, sub2), fim]
+            fim = endereco
+        trilho = ([] if um else [t_origem]) + [_item(2, A, chegou), fim]
 
     pontos = []
     if atual["ibge"]:
@@ -164,4 +167,4 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
             pontos = [p for p in pontos if p["papel"] != "atual"]
             pontos.append({"papel": "destino", "nome": atual["nome"], "uf": atual["uf"],
                            "lat": atual["ibge"]["lat"], "lon": atual["ibge"]["lon"]})
-    return {"linha": linha, "transito": transito, "trilho": trilho, "pontos": pontos, "atualizado": agora}
+    return {"linha": linha, "transito": transito, "trilho": trilho, "pontos": pontos}

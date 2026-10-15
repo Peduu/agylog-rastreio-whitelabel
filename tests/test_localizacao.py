@@ -86,11 +86,10 @@ class MontarTests(unittest.TestCase):
         loc = L.montar_localizacao_publica(rota(SAO, CWB), "transferencia_franquia")
         self.assertEqual(texto(loc), "São Paulo/SP → Curitiba/PR")
         self.assertEqual(bandeira(loc), ["PR"])                       # bandeira so do estado onde o pedido ESTA
-        self.assertEqual(loc["trilho"][1], {"slot": 2, "titulo": "Curitiba/PR", "sub": "agora · 07/10 14:20"})
+        self.assertEqual(loc["trilho"][1], {"slot": 2, "titulo": "Curitiba/PR", "sub": "chegou · 07/10 14:20"})
         self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "atual"])
         self.assertEqual([p["uf"] for p in loc["pontos"]], ["SP", "PR"])
         self.assertEqual([p["nome"] for p in loc["pontos"]], ["São Paulo/SP", "Curitiba/PR"])   # rotulo das cidades no mapa
-        self.assertEqual(loc["atualizado"], "07/10 14:20")
 
     def test_cidade_repetida_em_seguida_vira_uma_parada(self):
         loc = L.montar_localizacao_publica(rota(SAO, SAO, CWB, CWB), "transferencia_franquia")
@@ -104,26 +103,38 @@ class MontarTests(unittest.TestCase):
     def test_chegada(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "chegada_franquia")
         self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
-        self.assertEqual(loc["trilho"][2], {"slot": 3, "titulo": "Seu endereço", "sub": "próxima etapa"})   # sem bandeira xadrez
+        self.assertEqual(loc["trilho"][1], {"slot": 2, "titulo": "Londrina/PR", "sub": "chegou · 07/10 14:20"})
+        self.assertEqual(loc["trilho"][2], {"slot": 3, "titulo": "Seu endereço", "sub": ""})   # sem bandeira xadrez
         self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "atual"])                      # bandeira so no entregue
 
     def test_em_rota(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "em_rota_entrega")
         self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
-        self.assertEqual(loc["trilho"][2]["sub"], "em rota · 07/10 14:20")
+        self.assertEqual(loc["trilho"][2]["sub"], "a caminho · 07/10 14:20")
 
     def test_tentativa(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "atencao")
         self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
         self.assertEqual(loc["trilho"], [{"slot": 1, "titulo": "São Paulo/SP", "sub": "saiu · 06/10 14:20"},
-                                         {"slot": 2, "titulo": "Londrina/PR", "sub": "agora · 07/10 14:20"}])   # neutro: cancelado tambem vira atencao
+                                         {"slot": 2, "titulo": "Londrina/PR", "sub": "última leitura · 07/10 14:20"}])   # neutro: cancelado tambem vira atencao
+
+    def test_trilho_e_linha_do_tempo(self):
+        # Pedro, 15/10/2026 ("meio confuso"): cada coluna = lugar + o que aconteceu + quando; nada de "unidade de entrega"
+        loc = L.montar_localizacao_publica(rota(SAO, CWB, LDB), "em_rota_entrega")
+        self.assertEqual([(t["titulo"], t["sub"]) for t in loc["trilho"]],
+                         [("São Paulo/SP", "saiu · 06/10 14:20"), ("Londrina/PR", "chegou · 08/10 14:20"), ("Seu endereço", "a caminho · 08/10 14:20")])
+        loc = L.montar_localizacao_publica(rota(SAO, LDB), "entregue")
+        self.assertEqual([t["sub"] for t in loc["trilho"]], ["saiu · 06/10 14:20", "chegou · 07/10 14:20", "entregue · 07/10 14:20"])
+        self.assertNotIn("atualizado", loc)
+        for st in ("preparacao_transporte", "transferencia_franquia", "chegada_franquia", "em_rota_entrega", "atencao", "entregue"):
+            self.assertNotIn("unidade de entrega", json.dumps(L.montar_localizacao_publica(rota(SAO, LDB), st), ensure_ascii=False), st)
 
     def test_sem_previsao_calculada(self):
         # Pedro, 15/10/2026: "nada fake" -> nenhuma data de previsao inventada; o prazo so entra quando o TMS mandar
         self.assertEqual(L.montar_localizacao_publica(rota(SAO), "transferencia_franquia")["trilho"][1],
                          {"slot": 3, "titulo": "Seu endereço", "sub": ""})
-        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "chegada_franquia")["trilho"][2]["sub"], "próxima etapa")
-        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "em_rota_entrega")["trilho"][2]["sub"], "em rota · 07/10 14:20")
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "chegada_franquia")["trilho"][2]["sub"], "")
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "em_rota_entrega")["trilho"][2]["sub"], "a caminho · 07/10 14:20")
         for st in ("preparacao_transporte", "transferencia_franquia", "chegada_franquia", "em_rota_entrega", "entregue"):
             self.assertNotIn("previs", json.dumps(L.montar_localizacao_publica(rota(SAO, LDB), st), ensure_ascii=False), st)
 

@@ -11,7 +11,7 @@
   <title>Rastreio · AGYLOG</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='tracking_publico.css') }}?v=20261015b" />
   <link rel="stylesheet" href="{{ url_for('static', filename='correios_tracking.css') }}?v=20260928" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='localizacao.css') }}?v=20261009c" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='localizacao.css') }}?v=20261015a" />
 </head>
 <body>
   <div class="bg-glow glow-1"></div>
@@ -102,7 +102,6 @@
           <p class="loc-frase" id="locFrase"></p>
           <div class="loc-cena" id="locCena"></div>
           <div class="loc-trilho" id="locTrilho"></div>
-          <p class="loc-nota" id="locNota">Última leitura numa unidade AGYLOG.</p>
         </div>
 
         {% with card_id='thirdPartyCard', card_class='history-card', head_class='timeline-head', value_class='info-value', copy_class='paste-btn', action_class='rastrear-btn', code_id='thirdPartyCode', link_id='thirdPartyLink' %}
@@ -142,7 +141,7 @@
   </footer>
 
   <script src="{{ url_for('static', filename='correios_tracking.js') }}?v=20260928"></script>
-  <script src="{{ url_for('static', filename='localizacao.js') }}?v=20261009c"></script>
+  <script src="{{ url_for('static', filename='localizacao.js') }}?v=20261015a"></script>
   <script src="{{ url_for('static', filename='tracking_publico.js') }}?v=20261015b"></script>
 </body>
 </html>

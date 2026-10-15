@@ -298,8 +298,20 @@
       const t = document.createElement('strong');
       if (item.icone === 'chegada') t.appendChild(iconeChegada());
       t.appendChild(document.createTextNode(String(item.titulo || '')));
+      // "chegou · 15/10 13:04": acao e quando em partes separadas (no celular a data vai para a linha de baixo, inteira)
       const s = document.createElement('span');
-      s.textContent = String(item.sub || '');
+      s.className = 'loc-sub';
+      const [acao, ...resto] = String(item.sub || '').split(' · ');
+      const a = document.createElement('span');
+      a.className = 'loc-acao';
+      a.textContent = acao;
+      s.appendChild(a);
+      if (resto.length) {
+        const q = document.createElement('span');
+        q.className = 'loc-quando';
+        q.textContent = resto.join(' · ');
+        s.appendChild(q);
+      }
       d.appendChild(t);
       d.appendChild(s);
       destino.appendChild(d);
@@ -339,8 +351,6 @@
     const minha = ++geracao;
     preencherLinha(document.getElementById('locFrase'), loc);
     preencherTrilho(document.getElementById('locTrilho'), loc.trilho);
-    const nota = document.getElementById('locNota');
-    if (nota) nota.textContent = loc.atualizado ? `Última leitura numa unidade AGYLOG: ${loc.atualizado}.` : 'Última leitura numa unidade AGYLOG.';
     card.hidden = false;
     await desenharMapa(document.getElementById('locCena'), cliente, loc, minha);
   }
