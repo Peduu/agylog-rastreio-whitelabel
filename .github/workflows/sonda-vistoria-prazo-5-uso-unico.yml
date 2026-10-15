@@ -1,0 +1,85 @@
+# USO UNICO (so leitura): Sonda 5 da vistoria (BRB AGENCIA sem prazo).
+# Dados de pedidos vem do segredo temporario SONDA_AMOSTRA5 (o repositorio e publico; o log mostra so totais, formatos e hashes,
+# nunca pedido, CEP, nome ou CNPJ). Nao grava nada. Apagar este arquivo e o segredo SONDA_AMOSTRA5 depois do uso.
+name: "Uso unico - Sonda 5 da vistoria (BRB AGENCIA sem prazo)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AMOSTRA: ${{ secrets.SONDA_AMOSTRA5 }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: AMOSTRA
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            AMOSTRA="$AMOSTRA" python3 - <<'PY'
+            import base64, gzip, json, os, re, sqlite3, sys, urllib.request
+            from collections import Counter
+            from datetime import datetime
+            from pathlib import Path
+
+            APP = "/home/rastreamento"
+            sys.path.insert(0, APP)
+            import prazo_cep as P   # modulo puro (sem efeito colateral)
+
+            PORTAL = APP + "/database.db"
+            env = {}
+            for linha in open("/etc/rastreamento.env", encoding="utf-8", errors="replace"):
+                linha = linha.strip()
+                if linha and not linha.startswith("#") and "=" in linha:
+                    k, v = linha.split("=", 1)
+                    env[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
+            TOKEN = env.get("TMS_API_TOKEN", "")
+            URL = env.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
+            amostra = [l.split(";") for l in gzip.decompress(base64.b64decode(os.environ["AMOSTRA"])).decode().splitlines() if l.strip()]
+            print("amostra:", len(amostra))
+
+
+            def consulta(cnpj, chave, codigo):
+                body = json.dumps({"cnpjEmbarcador": cnpj, chave: [codigo]}).encode()
+                req = urllib.request.Request(URL, data=body, headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json",
+                                                                      "Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=40) as resp:
+                    d = json.loads(resp.read().decode("utf-8"))
+                res = d.get("listaResultados")
+                return res if (not d.get("flagErro") and isinstance(res, list) and res) else None
+
+
+            p = sqlite3.connect(Path(PORTAL).resolve().as_uri() + "?mode=ro", uri=True)
+            r = Counter()
+            for ped, cc, cf, g in amostra:
+                row = p.execute("SELECT cnpj_cliente FROM rastreios WHERE codigo = ?", (ped.upper(),)).fetchone()
+                if not row:
+                    r[(g, "fora do rastreios")] += 1
+                    continue
+                res = consulta(row[0], "listaNotasFiscais", ped.upper()) or consulta(row[0], "listaPedidos", ped.upper())
+                if not res:
+                    r[(g, "TMS nao achou")] += 1
+                    continue
+                res = sorted(res, key=lambda o: P._data(o.get("dtOcorrencia")) or datetime.min)
+                cn = {P.so_digitos(o.get("cnpj")) for o in res} - {""}
+                r[(g, "cnpj na API: " + ("= cliente" if cn == {cc} else "= filial" if cn == {cf} else f"{len(cn)} valores"))] += 1
+                peds = {str(o.get("nroPedido") or "").strip().upper() for o in res}
+                r[(g, "nroPedido na API " + ("= pedido" if peds == {ped.upper()} else f"{len(peds)} valores, contem={ped.upper() in peds}"))] += 1
+                cnpjs = P.cnpjs_tms(res)
+                cad = P.data_cadastro_tms([{"codigoOcorrencia": o.get("codigoOcorrencia"), "dtOcorrencia": o.get("dtOcorrencia")} for o in res])
+                reg = P.prazo_tms_registrado(p, [str(res[-1].get("nroPedido") or ped).strip()], cnpjs, cad)
+                linhas = p.execute("SELECT cnpj FROM prazos_tms WHERE pedido = ?", (ped.upper(),)).fetchall()
+                chaves = {x[0] for x in linhas}
+                r[(g, "prazos_tms tem: " + ("cliente " if cc in chaves else "") + ("filial" if cf in chaves else "") + ("nada" if not chaves else ""))] += 1
+                r[(g, "registrado acha: " + ("SIM" if reg else "nao") + (" | cadastro ok" if cad else " | sem cadastro"))] += 1
+            for k, n in sorted(r.items()):
+                print(" ", k, n)
+            PY
