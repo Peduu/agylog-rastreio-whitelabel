@@ -34,14 +34,29 @@ class LocalizacaoApiTest(unittest.TestCase):
             self.assertEqual(texto(self.consulta("ROTA5", "brb")["localizacao"]), "São Paulo/SP → Londrina/PR")
             self.assertEqual(texto(self.consulta("ROTA9", "caoa")["localizacao"]), "São Paulo/SP → Londrina/PR")
 
-    def test_por_enquanto_so_nos_codigos_rota(self):
+    def test_liberado_para_todos_e_volta_ao_modo_demo_pela_variavel(self):
+        self.assertEqual(portal.LOCALIZACAO_PUBLICA, "todos")                # padrao desde 15/10/2026
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):
-            for n in range(1, 10):
-                self.assertIsNone(self.consulta(f"AGY{n}", "paranabanco")["localizacao"], f"AGY{n}")
+            self.assertIsNotNone(self.consulta("AGY5", "paranabanco")["localizacao"])
+            self.assertIsNone(self.consulta("AGY1", "paranabanco")["localizacao"])      # aguardando postagem: sem cidade
+            with patch.object(portal, "LOCALIZACAO_PUBLICA", "demo"):
+                for n in range(1, 10):
+                    self.assertIsNone(self.consulta(f"AGY{n}", "paranabanco")["localizacao"], f"AGY{n}")
+                self.assertIsNotNone(self.consulta("ROTA5", "paranabanco")["localizacao"])
             d = self.consulta("rota3", "paranabanco")
             self.assertTrue(d["demo"])
             self.assertIn("ROTA3", d["cliente"])
             self.assertEqual(d["status"], "transferencia_franquia")
+
+    def test_previsao_de_entrega_na_resposta(self):
+        with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):
+            d = self.consulta("ROTA3", "paranabanco")
+            self.assertRegex(d["previsao"], r"^\d{2}/\d{2}/\d{4}$")
+            self.assertIn(f'previsão · {d["previsao"][:5]}', json.dumps(d["localizacao"], ensure_ascii=False))
+            self.assertEqual(self.consulta("AGY9", "paranabanco")["previsao"], "")   # entregue: sem previsao
+            self.assertEqual(self.consulta("AGY6", "brb")["previsao"], "")           # tentativa: sem previsao
+            r = self.client.post("/api/rastrear/simplecompany", json={"codigo": "AGY5", "nome": "Demonstração AGY"})
+            self.assertRegex(r.get_json()["previsao"], r"^\d{2}/\d{2}/\d{4}$")
 
     def test_ccxp_sem_devolucao_na_localizacao(self):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):
@@ -68,9 +83,9 @@ class LocalizacaoApiTest(unittest.TestCase):
                          [("SAO PAULO", "SP", "SAO"), ("CURITIBA", "PR", "CWB")])
         with patch.object(portal, "buscar_rastreio_publico", return_value=resultado), \
                 patch.object(portal, "converter_status_publico", return_value="transferencia_franquia"):
-            self.assertIsNone(self.consulta("PEDIDOREAL1", "paranabanco")["localizacao"])   # por enquanto so nos ROTA
-            with patch.object(portal, "LOCALIZACAO_PUBLICA", "todos"):
-                d = self.consulta("PEDIDOREAL1", "paranabanco")
+            with patch.object(portal, "LOCALIZACAO_PUBLICA", "demo"):
+                self.assertIsNone(self.consulta("PEDIDOREAL1", "paranabanco")["localizacao"])   # modo demo: so nos ROTA
+            d = self.consulta("PEDIDOREAL1", "paranabanco")
         self.assertEqual(texto(d["localizacao"]), "São Paulo/SP → Curitiba/PR")
         bruto = json.dumps(d)
         for proibido in ("23.987654", "46.123456", "25.111111", "49.999999", "latitude", "longitude"):

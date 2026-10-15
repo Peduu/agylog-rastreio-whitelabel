@@ -13,7 +13,7 @@ import threading
 import time
 import unicodedata
 from depara_ocorrencias import DE_PARA_OCORRENCIAS, DE_PARA_INSUCESSO
-from localizacao import montar_localizacao_publica, ocorrencias_com_local
+from localizacao import COM_PREVISAO, montar_localizacao_publica, ocorrencias_com_local, previsao_valida
 from datetime import datetime, timedelta
 from collections import OrderedDict
 from io import StringIO
@@ -3743,6 +3743,7 @@ def api_rastrear_publico():
         "history": montar_historico_publico(resultado),
         "rastreioTerceiro": resultado.get("rastreioTerceiro"),
         "localizacao": _localizacao_resposta(resultado, status_key, cliente),
+        "previsao": _previsao_resposta(resultado, status_key),
     })
 
 
@@ -3787,6 +3788,7 @@ def api_rastrear_simplecompany():
         "stages": montar_etapas_publicas(status_key, resultado),
         "history": montar_historico_publico(resultado),
         "rastreioTerceiro": resultado.get("rastreioTerceiro"),
+        "previsao": _previsao_resposta(resultado, status_key),
     })
 
 
@@ -4022,9 +4024,9 @@ DEMO_AGY = {
 }
 
 
-# Cartao "Onde esta seu pedido": por enquanto SO nos codigos de demonstracao ROTA1..ROTA9 (pedido do Pedro, 08/10/2026).
-# Para liberar para todos os pedidos reais: PUBLIC_TRACKING_LOCALIZACAO=todos no /etc/rastreamento.env (sem novo deploy).
-LOCALIZACAO_PUBLICA = os.getenv("PUBLIC_TRACKING_LOCALIZACAO", "demo").strip().lower()
+# Cartao "Onde esta seu pedido": liberado para TODOS os pedidos (Pedro, 15/10/2026), cada cliente com as suas cores.
+# Para voltar a mostrar so nos codigos ROTA1..ROTA9: PUBLIC_TRACKING_LOCALIZACAO=demo no /etc/rastreamento.env + restart.
+LOCALIZACAO_PUBLICA = os.getenv("PUBLIC_TRACKING_LOCALIZACAO", "todos").strip().lower()
 DEMO_ROTA = {f"ROTA{n}": f"AGY{n}" for n in range(1, 10)}   # mesmos status dos AGY1..AGY9, com o cartao de localizacao
 
 
@@ -4041,7 +4043,15 @@ def _resultado_demo_rota(codigo):
 def _localizacao_resposta(resultado, status_key, cliente):
     if LOCALIZACAO_PUBLICA != "todos" and not resultado.get("_demo_localizacao"):
         return None
-    return montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente)
+    return montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente, resultado.get("previsao"))
+
+
+def _previsao_resposta(resultado, status_key):
+    """Previsao de entrega (prazo final) para o cartao de status: so a caminho e so se ainda nao venceu (15/10/2026)."""
+    if status_key not in COM_PREVISAO:
+        return ""
+    d = previsao_valida(resultado.get("previsao"))
+    return d.strftime("%d/%m/%Y") if d else ""
 
 
 def _resultado_demo_agy(codigo):

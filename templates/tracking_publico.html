@@ -9,7 +9,7 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <meta name="referrer" content="no-referrer" />
   <title>Rastreio · AGYLOG</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='tracking_publico.css') }}?v=20261009a" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='tracking_publico.css') }}?v=20261015a" />
   <link rel="stylesheet" href="{{ url_for('static', filename='correios_tracking.css') }}?v=20260928" />
   <link rel="stylesheet" href="{{ url_for('static', filename='localizacao.css') }}?v=20261009c" />
 </head>
@@ -88,6 +88,7 @@
             <p id="journeyMessage">Consulte o pedido para visualizar a etapa atual da entrega.</p>
 
             <div class="visual-meta">
+              <span id="previsaoLabel" class="previsao-label"></span>
               <span id="lastUpdateLabel"></span>
             </div>
           </div>
@@ -143,6 +144,6 @@
 
   <script src="{{ url_for('static', filename='correios_tracking.js') }}?v=20260928"></script>
   <script src="{{ url_for('static', filename='localizacao.js') }}?v=20261009c"></script>
-  <script src="{{ url_for('static', filename='tracking_publico.js') }}?v=20261009a"></script>
+  <script src="{{ url_for('static', filename='tracking_publico.js') }}?v=20261015a"></script>
 </body>
 </html>

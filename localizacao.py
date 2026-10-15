@@ -20,8 +20,9 @@ _MUNICIPIOS = None
 
 STATUS_COM_LOCAL = {"preparacao_transporte", "transferencia_franquia", "chegada_franquia", "em_rota_entrega",
                     "atencao", "devolucao", "devolvido", "entregue"}
-DESTINO_CONHECIDO = {"chegada_franquia", "em_rota_entrega", "atencao", "entregue"}
 PROBLEMA = {"atencao", "devolucao", "devolvido"}
+# Previsao de entrega no trilho (Pedro, 15/10/2026: no lugar do "a definir") so enquanto o pedido esta a caminho.
+COM_PREVISAO = {"preparacao_transporte", "transferencia_franquia", "chegada_franquia", "em_rota_entrega"}
 
 
 def normalizar(texto):
@@ -85,6 +86,15 @@ def _curta(data_iso):
     return d.strftime("%d/%m %H:%M") if d else ""
 
 
+def previsao_valida(previsao, hoje=None):
+    """A previsao de entrega (dd/mm/aaaa das regras de previsao) so vale se for de hoje em diante; vencida nao aparece."""
+    try:
+        d = datetime.strptime(str(previsao or "").strip()[:10], "%d/%m/%Y").date()
+    except ValueError:
+        return None
+    return d if d >= (hoje or datetime.now().date()) else None
+
+
 def _paradas(ocorrencias):
     """Cidades distintas em ordem; a mesma cidade em seguida (duas unidades ou varias leituras) e uma parada so."""
     paradas = []
@@ -114,7 +124,7 @@ def _cidade(parada, atual=False):
     return {"t": parada["nome"], "uf": parada["uf"], "atual": atual}
 
 
-def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
+def montar_localizacao_publica(ocorrencias, status_key, cliente="", previsao=""):
     """None ou {linha, transito, trilho, pontos, atualizado}.
 
     linha = cidades da rota para mostrar com seta entre elas (origem -> onde esta); transito = True quando o pedido
@@ -131,28 +141,32 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
     A = atual["nome"]
     agora = _curta(atual["ultima"])
     t_origem = _item(1, origem["nome"], f'saiu · {_curta(origem["ultima"])}')
-    destino_ok = status_key in DESTINO_CONHECIDO and not (ccxp and status_key in PROBLEMA)
     linha = ([] if um else [_cidade(origem)]) + [_cidade(atual, True)]
     transito = False
+    prev = previsao_valida(previsao) if status_key in COM_PREVISAO else None
+    # Coluna do destino: "Seu endereco" com a previsao de entrega; a bandeira quadriculada so quando ENTREGUE (Pedro, 15/10)
+    endereco = _item(3, "Seu endereço", f'previsão · {prev.strftime("%d/%m")}' if prev else "")
 
     if status_key in PROBLEMA and (ccxp or status_key != "atencao"):
         trilho = ([] if um else [t_origem]) + [_item(2, A, f"agora · {agora}")]
     elif status_key == "preparacao_transporte":
-        trilho = [_item(2, A, f'desde {_curta(atual["primeira"])}'), _item(3, "Destino", "a definir")]
+        trilho = [_item(2, A, f'desde {_curta(atual["primeira"])}'), endereco]
     elif status_key == "transferencia_franquia" and um:
         transito = True
-        trilho = [t_origem, _item(2, "Unidade de entrega", "a definir")]
+        trilho = [t_origem, endereco]
     elif status_key == "transferencia_franquia":
-        trilho = [t_origem, _item(2, A, f"agora · {agora}"), _item(3, "Unidade de entrega", "a definir")]
+        trilho = [t_origem, _item(2, A, f"agora · {agora}"), endereco]
     else:
-        textos = {
-            "chegada_franquia": (f'chegou · {_curta(atual["primeira"])}', "próxima etapa"),
-            "em_rota_entrega": ("unidade de entrega", f"em rota · {agora}"),
-            "atencao": ("unidade de entrega", f"tentativa · {agora}"),
-            "entregue": ("unidade de entrega", f"entregue · {agora}"),
-        }
-        sub2, sub3 = textos[status_key]
-        trilho = ([] if um else [t_origem]) + [_item(2, A, sub2), _item(3, "Seu endereço", sub3, "chegada")]
+        sub2 = {"chegada_franquia": f'chegou · {_curta(atual["primeira"])}'}.get(status_key, "unidade de entrega")
+        if status_key == "entregue":
+            fim = _item(3, "Seu endereço", f"entregue · {agora}", "chegada")
+        elif status_key == "atencao":
+            fim = _item(3, "Seu endereço", f"tentativa · {agora}")
+        elif prev:
+            fim = endereco
+        else:
+            fim = _item(3, "Seu endereço", f"em rota · {agora}" if status_key == "em_rota_entrega" else "próxima etapa")
+        trilho = ([] if um else [t_origem]) + [_item(2, A, sub2), fim]
 
     pontos = []
     if atual["ibge"]:
@@ -160,9 +174,8 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
         for i, p in enumerate(com_ibge):
             papel = "atual" if p is atual else ("origem" if i == 0 else "passagem")
             pontos.append({"papel": papel, "nome": p["nome"], "uf": p["uf"], "lat": p["ibge"]["lat"], "lon": p["ibge"]["lon"]})
-        if destino_ok:
+        if status_key == "entregue":                                  # so ENTREGUE ganha a bandeira xadrez, no lugar do pin
+            pontos = [p for p in pontos if p["papel"] != "atual"]
             pontos.append({"papel": "destino", "nome": atual["nome"], "uf": atual["uf"],
                            "lat": atual["ibge"]["lat"], "lon": atual["ibge"]["lon"]})
-            if status_key == "entregue":
-                pontos = [p for p in pontos if p["papel"] != "atual"]   # entregue: a bandeira xadrez substitui o pin
     return {"linha": linha, "transito": transito, "trilho": trilho, "pontos": pontos, "atualizado": agora}

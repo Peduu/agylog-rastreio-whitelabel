@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import unittest
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import localizacao as L  # noqa: E402
@@ -27,6 +28,11 @@ def texto(loc):
     """A linha como o cliente le: cidades com seta entre elas."""
     partes = [c["t"] for c in loc["linha"]] + (["em trânsito"] if loc["transito"] else [])
     return " → ".join(partes)
+
+
+def previsao(dias):
+    """Previsao de entrega no formato das regras de previsao (dd/mm/aaaa), relativa a hoje."""
+    return (datetime.now() + timedelta(days=dias)).strftime("%d/%m/%Y")
 
 
 def bandeira(loc):
@@ -72,14 +78,15 @@ class MontarTests(unittest.TestCase):
         loc = L.montar_localizacao_publica(rota(SAO), "preparacao_transporte")
         self.assertEqual(texto(loc), "São Paulo/SP")
         self.assertEqual(bandeira(loc), ["SP"])
-        self.assertEqual([(t["slot"], t["titulo"]) for t in loc["trilho"]], [(2, "São Paulo/SP"), (3, "Destino")])
+        self.assertEqual([(t["slot"], t["titulo"]) for t in loc["trilho"]], [(2, "São Paulo/SP"), (3, "Seu endereço")])
         self.assertEqual([p["papel"] for p in loc["pontos"]], ["atual"])
+        self.assertNotIn("a definir", json.dumps(loc, ensure_ascii=False))
 
     def test_transferencia_saindo_da_origem(self):
         loc = L.montar_localizacao_publica(rota(SAO), "transferencia_franquia")
         self.assertEqual(texto(loc), "São Paulo/SP → em trânsito")
         self.assertEqual(loc["trilho"][0], {"slot": 1, "titulo": "São Paulo/SP", "sub": "saiu · 06/10 14:20"})
-        self.assertEqual(loc["trilho"][1]["titulo"], "Unidade de entrega")
+        self.assertEqual(loc["trilho"][1], {"slot": 3, "titulo": "Seu endereço", "sub": ""})   # sem previsao: sem "a definir"
 
     def test_transferencia_em_outra_unidade(self):
         loc = L.montar_localizacao_publica(rota(SAO, CWB), "transferencia_franquia")
@@ -103,8 +110,8 @@ class MontarTests(unittest.TestCase):
     def test_chegada(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "chegada_franquia")
         self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
-        self.assertEqual(loc["trilho"][2], {"slot": 3, "titulo": "Seu endereço", "sub": "próxima etapa", "icone": "chegada"})
-        self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "atual", "destino"])
+        self.assertEqual(loc["trilho"][2], {"slot": 3, "titulo": "Seu endereço", "sub": "próxima etapa"})   # sem bandeira xadrez
+        self.assertEqual([p["papel"] for p in loc["pontos"]], ["origem", "atual"])                      # bandeira so no entregue
 
     def test_em_rota(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "em_rota_entrega")
@@ -116,6 +123,31 @@ class MontarTests(unittest.TestCase):
         self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
         self.assertEqual(loc["trilho"][2]["sub"], "tentativa · 07/10 14:20")
 
+    def test_previsao_de_entrega_no_lugar_do_a_definir(self):
+        p = previsao(3)
+        dd = p[:5]
+        loc = L.montar_localizacao_publica(rota(SAO), "transferencia_franquia", previsao=p)
+        self.assertEqual(loc["trilho"][1], {"slot": 3, "titulo": "Seu endereço", "sub": f"previsão · {dd}"})
+        loc = L.montar_localizacao_publica(rota(SAO, CWB), "transferencia_franquia", previsao=p)
+        self.assertEqual(loc["trilho"][2]["sub"], f"previsão · {dd}")
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO), "preparacao_transporte", previsao=p)["trilho"][1]["sub"], f"previsão · {dd}")
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "chegada_franquia", previsao=p)["trilho"][2]["sub"], f"previsão · {dd}")
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "em_rota_entrega", previsao=p)["trilho"][2]["sub"], f"previsão · {dd}")
+        # previsao vencida ou invalida nao aparece; entregue e tentativa continuam com o proprio texto
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO), "transferencia_franquia", previsao=previsao(-1))["trilho"][1]["sub"], "")
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO), "transferencia_franquia", previsao="-")["trilho"][1]["sub"], "")
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "entregue", previsao=p)["trilho"][2]["sub"], "entregue · 07/10 14:20")
+        self.assertEqual(L.montar_localizacao_publica(rota(SAO, LDB), "atencao", previsao=p)["trilho"][2]["sub"], "tentativa · 07/10 14:20")
+
+    def test_previsao_valida(self):
+        hoje = datetime(2026, 10, 15).date()
+        self.assertEqual(L.previsao_valida("17/10/2026", hoje), datetime(2026, 10, 17).date())
+        self.assertEqual(L.previsao_valida("15/10/2026", hoje), hoje)
+        self.assertIsNone(L.previsao_valida("14/10/2026", hoje))
+        self.assertIsNone(L.previsao_valida("", hoje))
+        self.assertIsNone(L.previsao_valida(None, hoje))
+        self.assertIsNone(L.previsao_valida("2026-10-17", hoje))
+
     def test_entregue_bandeira_xadrez_no_lugar_do_pin(self):
         loc = L.montar_localizacao_publica(rota(SAO, LDB), "entregue")
         self.assertEqual(texto(loc), "São Paulo/SP → Londrina/PR")
@@ -124,7 +156,7 @@ class MontarTests(unittest.TestCase):
     def test_entrega_na_mesma_cidade(self):
         loc = L.montar_localizacao_publica(rota(SAO), "em_rota_entrega")
         self.assertEqual(texto(loc), "São Paulo/SP")
-        self.assertEqual([p["papel"] for p in loc["pontos"]], ["atual", "destino"])
+        self.assertEqual([p["papel"] for p in loc["pontos"]], ["atual"])
         self.assertEqual([t["slot"] for t in loc["trilho"]], [2, 3])
 
     def test_devolucao(self):
