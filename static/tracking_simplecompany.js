@@ -10,7 +10,7 @@
     document.getElementById('pedidoCode').textContent=data.pedido||input.value.trim();
     document.getElementById('statusPill').textContent=data.status_label||'-';
     document.getElementById('statusTitle').textContent=data.status_label||'Acompanhamento da entrega';
-    document.getElementById('statusMessage').textContent='Confira abaixo as atualizações mais recentes do seu pedido.';
+    document.getElementById('statusMessage').textContent=data.previsao?`Previsão de entrega: ${data.previsao}.`:'Confira abaixo as atualizações mais recentes do seu pedido.';
     let stages=Array.isArray(data.stages)?[...data.stages]:[];
     const problemKeys=['atencao','devolucao','devolvido'];
     const isProblemFlow=problemKeys.includes(data.status);

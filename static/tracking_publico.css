@@ -2496,3 +2496,7 @@ body[data-client="caoa"] .client-header-inner::after {
   [data-client="pinbank"] .dest-header-inner::after,
   [data-client="pinbank"] .client-header-inner::after { width: 96px !important; height: 32px !important; flex: 0 0 96px !important; }
 }
+
+/* 15/10/2026: prazo de entrega real (faixa de CEP) no cartao de status, acima do "Atualizado em" */
+.visual-meta .previsao-label { display: block; margin-bottom: 4px; font-size: .95rem; font-weight: 700; color: var(--text); opacity: .92; }
+.visual-meta .previsao-label:empty { display: none; }

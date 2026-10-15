@@ -53,10 +53,11 @@ class LocalizacaoApiTest(unittest.TestCase):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):
             for codigo, cliente in (("ROTA3", "paranabanco"), ("ROTA5", "brb"), ("AGY2", "inter"), ("AGY9", "caoa")):
                 d = self.consulta(codigo, cliente)
-                self.assertNotIn("previsao", d, codigo)
+                self.assertEqual(d.pop("previsao", ""), "", codigo)          # so o prazo real por CEP (prazo_cep.py), e demo nao tem
                 self.assertNotIn("previs", json.dumps(d, ensure_ascii=False).lower(), codigo)
-            r = self.client.post("/api/rastrear/simplecompany", json={"codigo": "AGY5", "nome": "Demonstração AGY"})
-            self.assertNotIn("previs", json.dumps(r.get_json(), ensure_ascii=False).lower())
+            r = self.client.post("/api/rastrear/simplecompany", json={"codigo": "AGY5", "nome": "Demonstração AGY"}).get_json()
+            self.assertEqual(r.pop("previsao", ""), "")
+            self.assertNotIn("previs", json.dumps(r, ensure_ascii=False).lower())
 
     def test_ccxp_sem_devolucao_na_localizacao(self):
         with patch.object(portal, "buscar_rastreio_publico", side_effect=AssertionError("consulta real")):

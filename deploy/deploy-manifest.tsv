@@ -16,6 +16,7 @@ templates/tracking_simplecompany.html	/home/rastreamento/templates/tracking_simp
 static/admin_modelos.js	/home/rastreamento/static/admin_modelos.js
 static/admin.css	/home/rastreamento/static/admin.css
 static/admin.js	/home/rastreamento/static/admin.js
+static/admin_prazo_cep.js	/home/rastreamento/static/admin_prazo_cep.js
 static/assets/box.png	/home/rastreamento/static/assets/box.png
 static/assets/check.gif	/home/rastreamento/static/assets/check.gif
 static/assets/codex-in-transit.gif	/home/rastreamento/static/assets/codex-in-transit.gif
@@ -75,6 +76,7 @@ static/correios_tracking.css	/home/rastreamento/static/correios_tracking.css
 static/logos/correios.svg	/home/rastreamento/static/logos/correios.svg
 static/correios_tracking.js	/home/rastreamento/static/correios_tracking.js
 localizacao.py	/home/rastreamento/localizacao.py
+prazo_cep.py	/home/rastreamento/prazo_cep.py
 data/municipios.json	/home/rastreamento/data/municipios.json
 static/localizacao.js	/home/rastreamento/static/localizacao.js
 static/localizacao.css	/home/rastreamento/static/localizacao.css

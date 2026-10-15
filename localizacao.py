@@ -113,7 +113,7 @@ def _cidade(parada, atual=False):
     return {"t": parada["nome"], "uf": parada["uf"], "atual": atual}
 
 
-def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
+def montar_localizacao_publica(ocorrencias, status_key, cliente="", prazo=""):
     """None ou {linha, transito, trilho, pontos}.
 
     linha = cidades da rota para mostrar com seta entre elas (origem -> onde esta); transito = True quando o pedido
@@ -135,9 +135,10 @@ def montar_localizacao_publica(ocorrencias, status_key, cliente=""):
     chegou = f'chegou · {_curta(atual["primeira"])}'
     linha = ([] if um else [_cidade(origem)]) + [_cidade(atual, True)]
     transito = False
-    # Coluna do destino: "Seu endereco", sem data inventada (Pedro, 15/10: nada de "a definir" e nada de previsao calculada;
-    # o prazo so entra quando o TMS mandar o Prazo Cliente). A bandeira quadriculada so quando ENTREGUE.
-    endereco = _item(3, "Seu endereço", "")
+    # Coluna do destino: "Seu endereco", sem data inventada (Pedro, 15/10: nada de "a definir" nem previsao calculada).
+    # `prazo` (dd/mm/aaaa) so chega do prazo por faixa de CEP (prazo_cep.py) quando ligado, real e nao vencido.
+    # A bandeira quadriculada so quando ENTREGUE.
+    endereco = _item(3, "Seu endereço", f"previsão · {prazo[:5]}" if prazo else "")
 
     if status_key in PROBLEMA:
         trilho = ([] if um else [t_origem]) + [_item(2, A, f"última leitura · {agora}")]

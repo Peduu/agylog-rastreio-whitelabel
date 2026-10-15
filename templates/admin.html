@@ -27,6 +27,7 @@
             <button class="nav-menu-link" type="button" data-nav-target="usuariosSection">Usuarios</button>
             <button class="nav-menu-link" type="button" data-nav-target="databaseSection">Banco</button>
             <button class="nav-menu-link" type="button" data-nav-target="regrasPrevisaoSection">Previsoes</button>
+            <button class="nav-menu-link" type="button" data-nav-target="prazoCepSection">Prazo por CEP</button>
           </div>
         </div>
         <a href="{{ url_for('home') }}" class="ghost-btn">Voltar ao portal</a>
@@ -311,10 +312,40 @@
         </table>
       </div>
     </section>
+    <section class="admin-card admin-card-full" id="prazoCepSection">
+      <h2>Prazo por CEP</h2>
+      <p>Prazo de entrega mostrado ao cliente no rastreio: data de cadastro no TMS + dias da faixa do CEP do destinatario (CEP lido da base de enderecos). Sem CEP ou fora da tabela, nada aparece. Comeca desligado: ligue so depois de conferir alguns pedidos no simulador com o Prazo Cliente do TMS.</p>
+
+      <div class="admin-toolbar admin-toolbar-wrap">
+        <strong id="prazoCepEstado">Carregando...</strong>
+        <select id="prazoCepContagem" class="admin-search-input" style="max-width: 200px;">
+          <option value="corridos">Dias corridos</option>
+          <option value="uteis">Dias uteis</option>
+        </select>
+        <button id="prazoCepLigar" class="primary-btn" type="button">Ligar no rastreio</button>
+      </div>
+
+      <div class="admin-toolbar admin-toolbar-wrap">
+        <a class="ghost-btn" href="/api/admin/prazos-cep/modelo">Baixar modelo</a>
+        <form id="prazoCepImportarForm" class="admin-form-inline">
+          <input id="prazoCepArquivo" type="file" accept=".csv,.xlsx" class="admin-search-input" style="max-width: 260px;" />
+          <button class="primary-btn" type="submit">Importar tabela (substitui a atual)</button>
+        </form>
+      </div>
+
+      <form id="prazoCepSimularForm" class="admin-form-inline">
+        <input id="prazoCepCodigo" class="admin-search-input" type="text" maxlength="80" placeholder="Pedido ou codigo para conferir com o TMS" />
+        <button class="ghost-btn" type="submit">Simular</button>
+      </form>
+
+      <div id="prazoCepAlert" class="admin-alert hidden"></div>
+      <div id="prazoCepResultado" class="table-wrap"></div>
+    </section>
   </main>
 
   <datalist id="cnpjSugestoes"></datalist>
 
   <script src="{{ url_for('static', filename='admin.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_prazo_cep.js') }}?v=20261015a"></script>
 </body>
 </html>

@@ -14,6 +14,7 @@ import time
 import unicodedata
 from depara_ocorrencias import DE_PARA_OCORRENCIAS, DE_PARA_INSUCESSO
 from localizacao import montar_localizacao_publica, ocorrencias_com_local
+import prazo_cep
 from datetime import datetime, timedelta
 from collections import OrderedDict
 from io import StringIO
@@ -436,6 +437,7 @@ def garantir_tabelas_app():
             SET codigo_ocorrencia = COALESCE(NULLIF(codigo_ocorrencia, ''), 'GERAL')
         """)
 
+    prazo_cep.criar_tabelas(conn)   # prazo de entrega por faixa de CEP (prazo_cep.py)
     conn.commit()
     conn.close()
 
@@ -2321,6 +2323,154 @@ def rastreio():
     })
 
 
+
+# ============================================================
+# ADMINISTRADOR - PRAZO DE ENTREGA POR FAIXA DE CEP (prazo_cep.py)
+# ============================================================
+
+def _admin_ok():
+    if "usuario_id" not in session:
+        return jsonify({"success": False, "message": "Não autenticado."}), 401
+    if session.get("is_admin") != 1:
+        return jsonify({"success": False, "message": "Acesso negado."}), 403
+    return None
+
+
+def _linhas_planilha(arquivo):
+    """Linhas (dicts) de um CSV (; ou ,) ou Excel enviado no admin."""
+    nome = str(arquivo.filename or "").lower()
+    bruto = arquivo.read()
+    if nome.endswith((".xlsx", ".xlsm")):
+        import openpyxl
+        planilha = openpyxl.load_workbook(io.BytesIO(bruto), read_only=True, data_only=True).active
+        linhas = [list(r) for r in planilha.iter_rows(values_only=True)]
+        if not linhas:
+            return []
+        cab = [str(c or "").strip() for c in linhas[0]]
+        return [dict(zip(cab, ["" if v is None else str(v) for v in r])) for r in linhas[1:]]
+    texto = None
+    for enc in ("utf-8-sig", "utf-8", "latin1"):
+        try:
+            texto = bruto.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if texto is None:
+        raise ValueError("Não foi possível ler o arquivo.")
+    separador = ";" if texto.split("\n", 1)[0].count(";") >= texto.split("\n", 1)[0].count(",") else ","
+    return list(csv.DictReader(StringIO(texto), delimiter=separador))
+
+
+@app.route("/api/admin/prazos-cep", methods=["GET"])
+def admin_prazos_cep():
+    negado = _admin_ok()
+    if negado:
+        return negado
+    conn = get_db_connection()
+    try:
+        cfg = prazo_cep.configuracao(conn)
+        total = conn.execute("SELECT COUNT(*) FROM prazos_cep").fetchone()[0]
+        faixas = [dict(r) for r in conn.execute(
+            "SELECT cep_inicial, cep_final, dias FROM prazos_cep ORDER BY cep_inicial LIMIT 200").fetchall()]
+    finally:
+        conn.close()
+    return jsonify({"success": True, "total": total, "ligado": cfg["ligado"], "contagem": cfg["contagem"], "faixas": faixas})
+
+
+@app.route("/api/admin/prazos-cep/modelo", methods=["GET"])
+def admin_prazos_cep_modelo():
+    negado = _admin_ok()
+    if negado:
+        return negado
+    conteudo = "\n".join(["cep_inicial;cep_final;dias", "01000000;05999999;2", "30000000;39999999;10"])
+    return Response("\ufeff" + conteudo, mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=modelo_prazo_por_cep.csv"})
+
+
+@app.route("/api/admin/prazos-cep/importar", methods=["POST"])
+def admin_prazos_cep_importar():
+    negado = _admin_ok()
+    if negado:
+        return negado
+    arquivo = request.files.get("arquivo")
+    if not arquivo or not arquivo.filename:
+        return jsonify({"success": False, "message": "Envie a tabela (CSV ou Excel)."}), 400
+    try:
+        faixas, ignoradas = prazo_cep.ler_faixas(_linhas_planilha(arquivo))
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Não foi possível ler a tabela: {type(e).__name__}"}), 400
+    if not faixas:
+        return jsonify({"success": False, "message": "Nenhuma faixa válida (colunas: cep_inicial, cep_final, dias)."}), 400
+    conn = get_db_connection()
+    try:
+        prazo_cep.substituir_faixas(conn, faixas)
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({"success": True, "message": f"Tabela trocada: {len(faixas)} faixas. Ignoradas: {ignoradas}.",
+                    "inseridas": len(faixas), "ignoradas": ignoradas})
+
+
+@app.route("/api/admin/prazos-cep/config", methods=["POST"])
+def admin_prazos_cep_config():
+    negado = _admin_ok()
+    if negado:
+        return negado
+    dados = request.get_json() or {}
+    conn = get_db_connection()
+    try:
+        if "contagem" in dados:
+            contagem = str(dados.get("contagem") or "").strip().lower()
+            if contagem not in ("corridos", "uteis"):
+                return jsonify({"success": False, "message": "Contagem inválida."}), 400
+            prazo_cep.gravar_config(conn, "prazo_cep_contagem", contagem)
+        if "ligado" in dados:
+            prazo_cep.gravar_config(conn, "prazo_cep_ligado", "1" if dados.get("ligado") else "0")
+        conn.commit()
+        cfg = prazo_cep.configuracao(conn)
+    finally:
+        conn.close()
+    return jsonify({"success": True, "ligado": cfg["ligado"], "contagem": cfg["contagem"]})
+
+
+@app.route("/api/admin/prazos-cep/simular", methods=["GET"])
+def admin_prazos_cep_simular():
+    """Mostra o calculo de um pedido real (CEP, faixa, cadastro no TMS e prazo) para conferir com o Prazo Cliente do TMS."""
+    negado = _admin_ok()
+    if negado:
+        return negado
+    codigo = str(request.args.get("codigo", "")).strip().upper()
+    if not codigo or len(codigo) > 80 or not re.fullmatch(r"[A-Z0-9._/-]+", codigo):
+        return jsonify({"success": False, "message": "Código inválido."}), 400
+    resultado = buscar_rastreio_publico(codigo, "")
+    if not resultado:
+        return jsonify({"success": False, "message": "Pedido não encontrado no TMS."}), 404
+    status_key = converter_status_publico(str(resultado.get("statusBadge") or "").upper())
+    detalhe = _detalhe_prazo(resultado, codigo) or {}
+    prazo = detalhe.get("prazo")
+    cadastro = detalhe.get("cadastro")
+    if not detalhe.get("cep"):
+        motivo = "sem CEP do destinatário no banco de arquivos"
+    elif detalhe.get("dias") is None:
+        motivo = "CEP fora de todas as faixas da tabela"
+    elif not cadastro:
+        motivo = "sem data de cadastro no TMS"
+    else:
+        motivo = ""
+    return jsonify({
+        "success": True,
+        "codigo": codigo,
+        "pedido": resultado.get("codigoCliente") or "",
+        "status": status_key,
+        "cep": detalhe.get("cep") or "",
+        "dias": detalhe.get("dias"),
+        "contagem": detalhe.get("contagem") or "",
+        "cadastro": cadastro.strftime("%d/%m/%Y") if cadastro else "",
+        "prazo": prazo.strftime("%d/%m/%Y") if prazo else "",
+        "motivo": motivo,
+        "cliente_veria": prazo_cep.prazo_para_cliente(dict(detalhe, ligado=True), status_key) if detalhe else "",
+    })
+
 # ============================================================
 # ADMINISTRADOR - IMPORTAÇÃO DE RASTREIOS
 # ============================================================
@@ -3733,6 +3883,7 @@ def api_rastrear_publico():
         # O CCXP nao tem devolucao: essas etapas nunca saem na resposta do CCXP.
         etapas_publicas = [e for e in etapas_publicas if e.get("key") not in {"devolucao", "devolvido"}]
 
+    prazo = _prazo_publico(resultado, codigo, status_key)
     return jsonify({
         "ok": True,
         "demo": bool(resultado.get("_demo_status")),
@@ -3742,7 +3893,8 @@ def api_rastrear_publico():
         "stages": etapas_publicas,
         "history": montar_historico_publico(resultado),
         "rastreioTerceiro": resultado.get("rastreioTerceiro"),
-        "localizacao": _localizacao_resposta(resultado, status_key, cliente),
+        "localizacao": _localizacao_resposta(resultado, status_key, cliente, prazo),
+        "previsao": prazo,
     })
 
 
@@ -3787,6 +3939,7 @@ def api_rastrear_simplecompany():
         "stages": montar_etapas_publicas(status_key, resultado),
         "history": montar_historico_publico(resultado),
         "rastreioTerceiro": resultado.get("rastreioTerceiro"),
+        "previsao": _prazo_publico(resultado, codigo, status_key),
     })
 
 
@@ -4038,10 +4191,41 @@ def _resultado_demo_rota(codigo):
     return resultado
 
 
-def _localizacao_resposta(resultado, status_key, cliente):
+def _localizacao_resposta(resultado, status_key, cliente, prazo=""):
     if LOCALIZACAO_PUBLICA != "todos" and not resultado.get("_demo_localizacao"):
         return None
-    return montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente)
+    return montar_localizacao_publica(resultado.get("ocorrenciasLocal") or [], status_key, cliente, prazo)
+
+
+def _detalhe_prazo(resultado, codigo):
+    """Calculo do prazo por CEP (prazo_cep.py) com os dados reais do pedido; None se der qualquer erro."""
+    try:
+        conn = get_db_connection()
+        try:
+            return prazo_cep.calcular(conn, resolver_modelos_db_path(), [codigo, resultado.get("codigoCliente")],
+                                      resultado.get("ocorrencias") or [])
+        finally:
+            conn.close()
+    except Exception as e:   # o prazo nunca pode derrubar a pagina de rastreio
+        print(f"[PRAZO] falha no calculo: {type(e).__name__}")
+        return None
+
+
+def _prazo_publico(resultado, codigo, status_key):
+    """Prazo de entrega para o cliente: "" se desligado no admin, se faltar dado real, fora de "a caminho" ou vencido."""
+    if status_key not in prazo_cep.A_CAMINHO or resultado.get("_demo_status"):
+        return ""
+    try:
+        conn = get_db_connection()
+        try:
+            ligado = prazo_cep.configuracao(conn)["ligado"]
+        finally:
+            conn.close()
+    except Exception:
+        return ""
+    if not ligado:
+        return ""
+    return prazo_cep.prazo_para_cliente(_detalhe_prazo(resultado, codigo), status_key)
 
 
 def _resultado_demo_agy(codigo):

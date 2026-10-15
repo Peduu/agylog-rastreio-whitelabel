@@ -634,6 +634,7 @@ const _pageThemes = {
   const historyList = document.getElementById('historyList');
   const progressFill = document.getElementById('progressFill');
   const lastUpdateLabel = document.getElementById('lastUpdateLabel');
+  const previsaoLabel = document.getElementById('previsaoLabel');
   const novaBuscaBtn = document.getElementById('novaBuscaBtn');
   const thirdPartyCard = document.getElementById('thirdPartyCard');
 
@@ -1194,6 +1195,8 @@ const _pageThemes = {
     statusText.textContent = ccxpTreatment?.label || data.status_label || '-';
     const lastUpdate = resolveLastUpdate(data, ccxpTreatment);
     lastUpdateLabel.textContent = lastUpdate ? "Atualizado em " + lastUpdate : "";
+    // prazo real por faixa de CEP (prazo_cep.py): o servidor so manda quando ligado, a caminho e nao vencido
+    if (previsaoLabel) previsaoLabel.textContent = !ccxpTreatment && data.previsao ? `Previsão de entrega: ${data.previsao}` : '';
     renderVisual(data.status, ccxpTreatment);
     renderTimeline(data.stages || [], data.status, ccxpTreatment);
     renderHistory(data.history || [], ccxpTreatment);
@@ -1281,6 +1284,7 @@ const _pageThemes = {
     historyList.innerHTML = '';
     progressFill.style.transform = 'scaleX(0)';
     lastUpdateLabel.textContent = '';
+    if (previsaoLabel) previsaoLabel.textContent = '';
     statusPill.className = 'status-pill';
     renderThirdPartyTracking(null);
     codigoInput.value = '';
