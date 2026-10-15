@@ -202,6 +202,8 @@ class FuncoesTest(unittest.TestCase):
         self.assertIsNone(P.prazo_tms_registrado(c, ["635"], ["65949995000187", "11111111000111"], cad))   # duas datas: nada
         self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["65949995000187"], date(2026, 10, 26)))   # prazo = cadastro
         self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["65949995000187"], date(2099, 1, 1)))     # pedido novo, numero velho
+        daqui_31 = datetime.now(P.BRASILIA).date() + timedelta(days=31)
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["65949995000187"], cad, hoje=daqui_31))   # carga vencida: calculo
         oc = [{"codigoOcorrencia": "1", "dtOcorrencia": "2026-10-14 19:10:00"}]
         detalhe = P.calcular(c, "", ["633"], oc, cnpjs=["65949995000187"])
         self.assertEqual((detalhe["prazo"], detalhe["fonte"]), (date(2026, 10, 26), "tms"))

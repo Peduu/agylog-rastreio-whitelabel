@@ -39,6 +39,7 @@ SEM_PRAZO_CONFIAVEL = FAIXAS_DF + (FAIXA_SP04,)   # so quando o cliente do pedid
 REGIOES = ("DF", "SP04", "resto")
 # Campo "servico" das ocorrencias da API x "Sigla do Servico" da abrangencia (conferido em 728 pedidos, 15/10/2026).
 SERVICOS_API = {"4": ("ENT_CONV",), "8": ("ENT_EXP", "LEVE")}
+PRAZO_REGISTRADO_DIAS = 30   # validade da carga do prazo registrado do TMS
 _CACHE_CEP = {}            # codigo -> (cep, instante); o mesmo pedido e consultado de 30 em 30 s pela pagina aberta
 _CACHE_SEGUNDOS = 600
 
@@ -195,7 +196,7 @@ def substituir_liberados(conn, linhas):
 def substituir_prazos_tms(conn, linhas):
     """Troca o prazo registrado do TMS por pedido ("Dt. Prazo Atual"). linhas = [(pedido, cnpj, AAAA-MM-DD)]. Mesmo pedido do
     mesmo cliente com datas diferentes = conflito = fica de fora. Devolve quantos entraram."""
-    agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    agora = datetime.now(BRASILIA).strftime("%Y-%m-%d %H:%M:%S")
     validas, conflito = {}, set()
     for pedido, cnpj, prazo in linhas:
         pedido, cnpj = str(pedido or "").strip().upper(), so_digitos(cnpj)
@@ -413,14 +414,16 @@ def cep_do_pedido(caminho_db, codigos, conn_portal=None, cnpjs=()):
     return cep
 
 
-def prazo_tms_registrado(conn, pedidos, cnpjs, cadastro):
+def prazo_tms_registrado(conn, pedidos, cnpjs, cadastro, hoje=None):
     """Prazo do TMS ("Dt. Prazo Atual") registrado para o pedido do mesmo cliente, ou None. So vale com o cadastro do pedido
-    no TMS: cadastro ate o dia da carga (pedido novo que repete o numero nao herda prazo velho) e prazo depois do cadastro
-    (o TMS grava prazo = dia do cadastro em alguns pedidos do DF: nunca mostrar). Mais de uma data = nada."""
+    no TMS: cadastro ate o dia da carga (pedido novo que repete o numero nao herda prazo velho), prazo depois do cadastro
+    (o TMS grava prazo = dia do cadastro em alguns pedidos do DF: nunca mostrar) e carga de ate PRAZO_REGISTRADO_DIAS dias
+    (depois disso o TMS pode ter remarcado: vale o calculo). Mais de uma data = nada."""
     pedidos = [str(p or "").strip().upper() for p in pedidos if str(p or "").strip()]
     cnpjs = _cnpjs(cnpjs)
     if not pedidos or not cnpjs or not cadastro:
         return None
+    limite = (hoje or datetime.now(BRASILIA).date()) - timedelta(days=PRAZO_REGISTRADO_DIAS)
     datas = set()
     for valor, carregado in conn.execute(
             f"SELECT DISTINCT prazo, substr(carregado_em, 1, 10) FROM prazos_tms WHERE pedido IN ({','.join('?' * len(pedidos))}) "
@@ -430,7 +433,7 @@ def prazo_tms_registrado(conn, pedidos, cnpjs, cadastro):
             carregado = datetime.strptime(str(carregado), "%Y-%m-%d").date()
         except ValueError:
             return None
-        if cadastro <= carregado:
+        if cadastro <= carregado and carregado >= limite:
             datas.add(prazo)
     if len(datas) != 1:
         return None
