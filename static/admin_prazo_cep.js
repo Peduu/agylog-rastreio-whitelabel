@@ -36,7 +36,8 @@
     ligado = Boolean(dados.ligado);
     contagem.value = dados.contagem || "corridos";
     const total = Number(dados.total ?? 0);
-    estado.textContent = `${total} faixa${total === 1 ? "" : "s"} na tabela · ${ligado ? "LIGADO no rastreio" : "desligado no rastreio"}`;
+    estado.textContent = `${total} faixa${total === 1 ? "" : "s"} na tabela · ${Number(dados.registrados_tms ?? 0)} prazos registrados do TMS · `
+      + `${Number(dados.observados_cliente ?? 0)} CEPs com prazo próprio do cliente · ${ligado ? "LIGADO no rastreio" : "desligado no rastreio"}`;
     ligar.textContent = ligado ? "Desligar no rastreio" : "Ligar no rastreio";
   }
 
@@ -106,7 +107,7 @@
       const linhas = [
         ["Código", d.codigo], ["Pedido no TMS", d.pedido || "-"], ["Status", d.status || "-"], ["CEP do destinatário", d.cep || "-"],
         ["Dias da faixa", d.dias ?? "-"], ["Contagem", d.contagem === "uteis" ? "dias úteis" : "dias corridos"],
-        ["Cadastro no TMS", d.cadastro || "-"], ["Prazo calculado", d.prazo || "-"],
+        ["Cadastro no TMS", d.cadastro || "-"], ["Prazo", d.prazo || "-"], ["Fonte do prazo", d.fonte || "-"],
         ["O cliente veria", d.cliente_veria || "nada (fora de 'a caminho', vencido ou sem dado)"], ["Motivo", d.motivo || "-"],
       ];
       const tabela = document.createElement("table");

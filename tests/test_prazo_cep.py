@@ -120,6 +120,100 @@ class FuncoesTest(unittest.TestCase):
         self.assertEqual(P.cep_do_pedido(caminho, ["777"]), "")                     # sem CEP: sem prazo
         self.assertEqual(P.cep_do_pedido("/nao/existe.db", ["632"]), "")
 
+    def tabela_bh(self):
+        c = sqlite3.connect(":memory:")
+        P.criar_tabelas(c)
+        P.substituir_faixas(c, [(i, f, d, s) for (i, f, d) in (("30000000", "31999999", 8), ("70000000", "73699999", 8),
+                                                              ("04000000", "04999999", 8), ("01000000", "01999999", 8))
+                                for s in ("ENT_CONV", "ENT_EXP", "LEVE")] + [("30000001", "31999999", 4, "ENT_CONV")])
+        return c
+
+    def test_servico_do_pedido_resolve_divergencia(self):
+        c = self.tabela_bh()
+        self.assertIsNone(P.dias_para_cep(c, "30140071"))                    # servico desconhecido: diverge, nada
+        self.assertEqual(P.dias_para_cep(c, "30140071", servico="4"), 4)     # 4 = Convencional
+        self.assertEqual(P.dias_para_cep(c, "30140071", servico="8"), 8)     # 8 = Expressa/Leve (iguais)
+        self.assertIsNone(P.dias_para_cep(c, "30140071", servico="99"))      # servico que nao conhecemos: todos iguais
+        self.assertIsNone(P.dias_para_cep(c, "99999999", servico="4"))
+
+    def test_prazo_proprio_do_cliente_e_bloqueio(self):
+        c = self.tabela_bh()
+        P.substituir_prazos_cliente(c, [("11.111.111/0001-11", "70040000", 6), ("11111111000111", "70050000", 0),
+                                        ("11111111000111", "123", 5), ("x", "70040000", 2)])
+        P.substituir_bloqueios(c, [("11111111000111", "DF"), ("22222222000122", "SP04"), ("11111111000111", "lua")])
+        cli, outro = ["11111111000111"], ["33333333000133"]
+        self.assertEqual(P.dias_para_cep(c, "70040000", "8", cli), 6)        # observado no TMS vale antes de tudo
+        self.assertIsNone(P.dias_para_cep(c, "70050000", "8", cli))          # 0 dia = vence no cadastro: nunca mostra
+        self.assertIsNone(P.dias_para_cep(c, "70060000", "8", cli))          # DF bloqueado para o cliente
+        self.assertEqual(P.dias_para_cep(c, "01310100", "8", cli), 8)        # fora do DF a tabela geral vale
+        self.assertEqual(P.dias_para_cep(c, "70060000", "8", outro), 8)      # cliente sem erro no DF: tabela geral
+        self.assertIsNone(P.dias_para_cep(c, "04538000", "8", ["22222222000122"]))
+        self.assertIsNone(P.dias_para_cep(c, "70060000", "8"))               # cliente desconhecido: regra antiga (sem DF)
+        self.assertIsNone(P.dias_para_cep(c, "04538000"))
+        self.assertEqual(P.dias_para_cep(c, "70040000", "8", ["", None, "11111111000111"]), 6)
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM prazos_cep_cliente").fetchone()[0], 2)
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM prazos_cep_bloqueio").fetchone()[0], 2)
+        self.assertEqual(P.substituir_prazos_cliente(c, [("1", "70040000", 6), ("1", "70040000", 7), ("1", "01310100", 8)]), 1)
+
+    def test_sem_conferencia_por_cliente_vale_a_regra_antiga(self):
+        c = self.tabela_bh()
+        P.substituir_prazos_cliente(c, [("11111111000111", "70040000", 6)])    # bloqueios nao carregados
+        self.assertIsNone(P.dias_para_cep(c, "70040000", "8", ["11111111000111"]))
+        self.assertIsNone(P.dias_para_cep(c, "70060000", "8", ["33333333000133"]))
+        self.assertEqual(P.dias_para_cep(c, "01310100", "8", ["33333333000133"]), 8)
+
+    def test_cep_em_conflito_ou_de_outro_cliente(self):
+        base = banco_modelos([("AR1", "500", "06000-000", "2026-09-24 13:40:00"), ("AR2", "500", "07000-000", "2026-09-25 13:40:00"),
+                              ("AR3", "600", "08000-000", "2026-09-25 13:40:00")])
+        self.assertEqual(P.cep_do_pedido(base, ["500"]), "")                        # dois CEPs para o mesmo numero: nada
+        portal_db = sqlite3.connect(":memory:")
+        portal_db.execute("CREATE TABLE rastreios (id INTEGER PRIMARY KEY, codigo TEXT, cnpj_cliente TEXT, cep TEXT)")
+        portal_db.executemany("INSERT INTO rastreios (codigo, cnpj_cliente, cep) VALUES (?, ?, ?)", [
+            ("633", "65.949.995/0001-87", "20960-000"), ("700", "11111111000111", "01310100"), ("600", "1", "09000000")])
+        simple = ["65949995000187"]
+        self.assertEqual(P.cep_do_pedido(base, ["633"], portal_db, simple), "20960000")   # so no rastreios do portal
+        self.assertEqual(P.cep_do_pedido(base, ["700"], portal_db, simple), "")           # linha de outro cliente
+        self.assertEqual(P.cep_do_pedido(base, ["633"], portal_db), "")                   # sem cliente do TMS: nao usa
+        self.assertEqual(P.cep_do_pedido(base, ["600"], portal_db, ["1"]), "")            # base e rastreios divergem
+        self.assertEqual(P.cep_do_pedido(base, ["600"], portal_db, simple), "08000000")
+        sem_coluna = sqlite3.connect(":memory:")
+        sem_coluna.execute("CREATE TABLE rastreios (id INTEGER PRIMARY KEY, codigo TEXT)")
+        self.assertEqual(P.cep_do_pedido(base, ["600"], sem_coluna, simple), "08000000")  # banco sem rastreios.cep
+
+    def test_prazo_registrado_do_tms(self):
+        c = sqlite3.connect(":memory:")
+        P.criar_tabelas(c)
+        n = P.substituir_prazos_tms(c, [("633", "65949995000187", "2026-10-26"), ("634", "1", "26/10/2026"), ("", "1", "2026-10-26"),
+                                        ("635", "65949995000187", "2026-10-20"), ("635", "11111111000111", "2026-10-27")])
+        self.assertEqual(n, 3)
+        self.assertEqual(P.prazo_tms_registrado(c, ["633"], ["65949995000187"]), date(2026, 10, 26))
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["11111111000111"]))      # outro cliente: nao vale
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], []))
+        self.assertIsNone(P.prazo_tms_registrado(c, ["635"], ["65949995000187", "11111111000111"]))   # duas datas: nada
+        detalhe = P.calcular(c, "", ["633"], [], cnpjs=["65949995000187"])
+        self.assertEqual((detalhe["prazo"], detalhe["fonte"]), (date(2026, 10, 26), "tms"))
+        detalhe = P.calcular(c, "", ["999"], [], cnpjs=["65949995000187"])
+        self.assertEqual((detalhe["prazo"], detalhe["fonte"]), (None, ""))
+        self.assertEqual(P.substituir_prazos_tms(c, [("633", "1", "2026-10-26"), ("633", "1", "2026-10-27"), ("7", "1", "2026-10-27")]), 1)
+        self.assertIsNone(P.prazo_tms_registrado(c, ["633"], ["1"]))                   # conflito na carga: fica de fora
+
+    def test_calcular_com_servico_e_cliente(self):
+        c = self.tabela_bh()
+        P.gravar_config(c, "prazo_cep_contagem", "uteis")
+        base = banco_modelos([("AR1", "BH1", "30140-071", "2026-10-14 10:00:00")])
+        oc = [{"codigoOcorrencia": "1", "dtOcorrencia": "2026-10-14 19:10:00"}]
+        d = P.calcular(c, base, ["BH1"], oc, cnpjs=["33333333000133"], servico="4")
+        self.assertEqual((d["cep"], d["dias"], d["prazo"], d["fonte"]), ("30140071", 4, date(2026, 10, 20), "tabela"))
+        self.assertIsNone(P.calcular(c, base, ["BH1"], oc)["prazo"])                     # sem servico: diverge, nada
+
+    def test_servico_e_cnpjs_das_ocorrencias(self):
+        oc = [{"servico": "8", "cnpj": "11.111.111/0001-11", "cnpjRemetente": ""},
+              {"servico": 8, "cnpj": "11111111000111", "cnpjRemetente": "22222222000122"}]
+        self.assertEqual(P.servico_tms(oc), "8")
+        self.assertEqual(P.cnpjs_tms(oc), ["11111111000111", "22222222000122"])
+        self.assertEqual(P.servico_tms(oc + [{"servico": "4"}]), "")                    # misturado: desconhecido
+        self.assertEqual((P.servico_tms([]), P.cnpjs_tms(None)), ("", []))
+
     def test_prazo_para_cliente(self):
         hoje = date(2026, 10, 15)
         base = {"ligado": True, "prazo": date(2026, 10, 20)}
@@ -158,7 +252,8 @@ class EndpointsTest(unittest.TestCase):
         conn = portal.get_db_connection()
         P.gravar_config(conn, "prazo_cep_ligado", "0")
         P.gravar_config(conn, "prazo_cep_contagem", "corridos")
-        conn.execute("DELETE FROM prazos_cep")
+        for tabela in ("prazos_cep", "prazos_tms", "prazos_cep_cliente", "prazos_cep_bloqueio"):
+            conn.execute(f"DELETE FROM {tabela}")
         conn.commit()
         conn.close()
 
@@ -209,7 +304,57 @@ class EndpointsTest(unittest.TestCase):
         with patch.object(portal, "buscar_rastreio_publico", return_value=self.resultado()):
             self.assertEqual(self.client.post("/api/rastrear", json={"codigo": "PED9"}).get_json()["previsao"], "")
             sim = self.client.get("/api/admin/prazos-cep/simular?codigo=PED9").get_json()
-        self.assertEqual(sim["motivo"], "CEP fora de todas as faixas da tabela")
+        self.assertEqual(sim["motivo"], "sem prazo confiável para este CEP e cliente")
+
+    def test_prazo_registrado_do_tms_na_pagina_sem_vazar_dado_interno(self):
+        conn = portal.get_db_connection()
+        prazo = datetime.now().date() + timedelta(days=5)
+        P.substituir_prazos_tms(conn, [("PED9", "65949995000187", prazo.isoformat())])
+        conn.commit()
+        conn.close()
+        self.client.post("/api/admin/prazos-cep/config", json={"ligado": True})
+        ao_vivo = dict(self.resultado(), cnpjsTms=["65949995000187"], servicoTms="4")
+        arquivado = dict(self.resultado(), cnpjCliente="65.949.995/0001-87", ocorrencias=[])
+        outro = dict(self.resultado(), cnpjsTms=["11111111000111"])
+        for res, esperado in ((ao_vivo, prazo.strftime("%d/%m/%Y")), (arquivado, prazo.strftime("%d/%m/%Y")), (outro, "")):
+            with patch.object(portal, "buscar_rastreio_publico", return_value=res):
+                d = self.client.post("/api/rastrear", json={"codigo": "PED9"}).get_json()
+            self.assertEqual(d["previsao"], esperado)
+            self.assertNotIn("cnpj", str(d).lower())
+            self.assertNotIn("servicoTms", str(d))
+        with patch.object(portal, "buscar_rastreio_publico", return_value=ao_vivo):
+            sim = self.client.get("/api/admin/prazos-cep/simular?codigo=PED9").get_json()
+        self.assertEqual((sim["prazo"], sim["fonte"], sim["motivo"]), (prazo.strftime("%d/%m/%Y"), "prazo registrado do TMS", ""))
+        estado = self.client.get("/api/admin/prazos-cep").get_json()
+        self.assertEqual(estado["registrados_tms"], 1)
+
+    def test_cep_do_rastreios_do_portal_quando_a_base_nao_tem(self):
+        conn = portal.get_db_connection()
+        conn.execute("CREATE TABLE IF NOT EXISTS rastreios (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT)")
+        colunas = {r[1] for r in conn.execute("PRAGMA table_info(rastreios)").fetchall()}
+        for coluna in ("cnpj_cliente", "cep"):
+            if coluna not in colunas:
+                conn.execute(f"ALTER TABLE rastreios ADD COLUMN {coluna} TEXT")
+        conn.execute("INSERT INTO rastreios (codigo, cnpj_cliente, cep) VALUES ('SIM633', '65949995000187', '30140071')")
+        conn.commit()
+        conn.close()
+        self.addCleanup(self.apagar_rastreio, "SIM633")
+        self.importar("cep_inicial;cep_final;dias\n30000000;39999999;10\n")
+        self.client.post("/api/admin/prazos-cep/config", json={"ligado": True})
+        res = dict(self.resultado(), codigo="SIM633", codigoCliente="SIM633", cnpjsTms=["65949995000187"])
+        with patch.object(portal, "buscar_rastreio_publico", return_value=res):
+            d = self.client.post("/api/rastrear", json={"codigo": "SIM633"}).get_json()
+        self.assertEqual(d["previsao"], (self.cadastro + timedelta(days=10)).strftime("%d/%m/%Y"))
+        P._CACHE_CEP.clear()
+        res["cnpjsTms"] = ["11111111000111"]                                   # o TMS diz outro cliente: CEP nao serve
+        with patch.object(portal, "buscar_rastreio_publico", return_value=res):
+            self.assertEqual(self.client.post("/api/rastrear", json={"codigo": "SIM633"}).get_json()["previsao"], "")
+
+    def apagar_rastreio(self, codigo):
+        conn = portal.get_db_connection()
+        conn.execute("DELETE FROM rastreios WHERE codigo = ?", (codigo,))
+        conn.commit()
+        conn.close()
 
     def test_importa_o_arquivo_do_tms_em_latin1(self):
         cab = "CEP Inicial;CEP Final;Sigla Unidade de Coleta;Sigla do Serviço;Prazo Entrega;Prazo Coleta;Prazo Entrega Ult. Milha;Descrição;"

@@ -294,6 +294,9 @@ def _consultar_tms_api(payload, tipo_consulta, codigo, cnpj_cliente, headers):
             "ocorrencias": ocorrencias_mapeadas,
             # Cidade/UF/unidade de cada leitura (sem latitude/longitude): base do cartao "Onde esta seu pedido".
             "ocorrenciasLocal": ocorrencias_com_local(resultados_ordenados),
+            # So para o prazo de entrega (prazo_cep.py); nunca vao para a resposta publica.
+            "servicoTms": prazo_cep.servico_tms(resultados_ordenados),
+            "cnpjsTms": prazo_cep.cnpjs_tms(resultados_ordenados),
         }
 
         _log_tms_debug(
@@ -2372,9 +2375,13 @@ def admin_prazos_cep():
         total = conn.execute("SELECT COUNT(*) FROM prazos_cep").fetchone()[0]
         faixas = [dict(r) for r in conn.execute(
             "SELECT cep_inicial, cep_final, dias FROM prazos_cep ORDER BY cep_inicial LIMIT 200").fetchall()]
+        extras = {nome: conn.execute(f"SELECT COUNT(*) FROM {nome}").fetchone()[0]
+                  for nome in ("prazos_tms", "prazos_cep_cliente", "prazos_cep_bloqueio")}
     finally:
         conn.close()
-    return jsonify({"success": True, "total": total, "ligado": cfg["ligado"], "contagem": cfg["contagem"], "faixas": faixas})
+    return jsonify({"success": True, "total": total, "ligado": cfg["ligado"], "contagem": cfg["contagem"], "faixas": faixas,
+                    "registrados_tms": extras["prazos_tms"], "observados_cliente": extras["prazos_cep_cliente"],
+                    "bloqueios": extras["prazos_cep_bloqueio"]})
 
 
 @app.route("/api/admin/prazos-cep/modelo", methods=["GET"])
@@ -2451,10 +2458,12 @@ def admin_prazos_cep_simular():
     detalhe = _detalhe_prazo(resultado, codigo) or {}
     prazo = detalhe.get("prazo")
     cadastro = detalhe.get("cadastro")
-    if not detalhe.get("cep"):
-        motivo = "sem CEP do destinatário no banco de arquivos"
+    if detalhe.get("fonte") == "tms":
+        motivo = ""
+    elif not detalhe.get("cep"):
+        motivo = "sem CEP do destinatário (base de endereços e rastreios) ou CEPs em conflito"
     elif detalhe.get("dias") is None:
-        motivo = "CEP fora de todas as faixas da tabela"
+        motivo = "sem prazo confiável para este CEP e cliente"
     elif not cadastro:
         motivo = "sem data de cadastro no TMS"
     else:
@@ -2469,6 +2478,7 @@ def admin_prazos_cep_simular():
         "contagem": detalhe.get("contagem") or "",
         "cadastro": cadastro.strftime("%d/%m/%Y") if cadastro else "",
         "prazo": prazo.strftime("%d/%m/%Y") if prazo else "",
+        "fonte": {"tms": "prazo registrado do TMS", "tabela": "CEP x tabela de prazo"}.get(detalhe.get("fonte"), ""),
         "motivo": motivo,
         "cliente_veria": prazo_cep.prazo_para_cliente(dict(detalhe, ligado=True), status_key) if detalhe else "",
     })
@@ -4204,8 +4214,11 @@ def _detalhe_prazo(resultado, codigo):
     try:
         conn = get_db_connection()
         try:
+            # Cliente do pedido: CNPJs que o TMS devolveu; sem consulta ao TMS (arquivo do portal), o CNPJ do rastreios.
+            cnpjs = resultado.get("cnpjsTms") or [resultado.get("cnpjCliente")]
             return prazo_cep.calcular(conn, resolver_modelos_db_path(), [codigo, resultado.get("codigoCliente")],
-                                      resultado.get("ocorrencias") or [])
+                                      resultado.get("ocorrencias") or [], cnpjs=cnpjs, servico=resultado.get("servicoTms"),
+                                      pedidos_tms=[resultado.get("codigoCliente") or codigo])
         finally:
             conn.close()
     except Exception as e:   # o prazo nunca pode derrubar a pagina de rastreio
