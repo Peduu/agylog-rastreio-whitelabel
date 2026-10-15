@@ -12,6 +12,7 @@ esta a caminho e nunca prazo vencido / "em atraso"; liga e desliga pelo admin (c
 import re
 import sqlite3
 import time
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 BRASILIA = timezone(timedelta(hours=-3))
@@ -22,8 +23,12 @@ _CACHE_SEGUNDOS = 600
 
 
 def normalizar_cep(valor):
-    """8 digitos ou "". Aceita 7 digitos (Excel come o zero da frente: 1310100 -> 01310100)."""
-    d = re.sub(r"\D", "", str(valor or ""))
+    """8 digitos ou "". Aceita 7 digitos (Excel come o zero da frente: 1310100 -> 01310100) e numero com ".0"
+    (coluna REAL ou export do pandas: 1310100.0), sem nunca juntar as casas decimais ao CEP."""
+    if isinstance(valor, float):
+        valor = int(valor) if valor.is_integer() else ""
+    texto = re.sub(r"\.0+$", "", str(valor or "").strip())
+    d = re.sub(r"\D", "", texto)
     if len(d) == 7:
         d = "0" + d
     return d if len(d) == 8 else ""
@@ -135,11 +140,10 @@ def _data(texto):
 
 
 def data_cadastro_tms(ocorrencias):
-    """Data da ocorrencia "1" (Criacao da solicitacao) no TMS; sem ela, a primeira ocorrencia com data."""
-    lista = [o for o in (ocorrencias or []) if _data(o.get("dtOcorrencia"))]
-    cadastro = next((o for o in lista if str(o.get("codigoOcorrencia", "")).strip() == "1"), None)
-    alvo = cadastro or (min(lista, key=lambda o: _data(o["dtOcorrencia"])) if lista else None)
-    return _data(alvo["dtOcorrencia"]).date() if alvo else None
+    """Data da ocorrencia "1" (Criacao da solicitacao) no TMS. Sem ela: None (nada de outra data no lugar)."""
+    cadastro = next((o for o in (ocorrencias or []) if str(o.get("codigoOcorrencia", "")).strip() == "1"
+                     and _data(o.get("dtOcorrencia"))), None)
+    return _data(cadastro["dtOcorrencia"]).date() if cadastro else None
 
 
 def cep_do_pedido(caminho_db, codigos):
@@ -153,7 +157,7 @@ def cep_do_pedido(caminho_db, codigos):
         return guardado[0]
     cep = ""
     try:
-        conn = sqlite3.connect(f"file:{caminho_db}?mode=ro", uri=True)
+        conn = sqlite3.connect(Path(caminho_db).resolve().as_uri() + "?mode=ro", uri=True)
         try:
             for tabela in TABELAS_MODELOS:
                 colunas = {r[1] for r in conn.execute(f"PRAGMA table_info({tabela})").fetchall()}
@@ -163,7 +167,7 @@ def cep_do_pedido(caminho_db, codigos):
                 if not chaves:
                     continue
                 marcas = ",".join("?" * len(codigos))
-                onde = " OR ".join(f"UPPER(TRIM(CAST({c} AS TEXT))) IN ({marcas})" for c in chaves)
+                onde = " OR ".join(f"{c} IN ({marcas})" for c in chaves)
                 ordem = "ORDER BY datetime(criado_em) DESC, rowid DESC" if "criado_em" in colunas else "ORDER BY rowid DESC"
                 for (valor,) in conn.execute(f"SELECT destinatario_cep FROM {tabela} WHERE {onde} {ordem} LIMIT 5",
                                              codigos * len(chaves)).fetchall():

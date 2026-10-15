@@ -32,6 +32,10 @@ class FuncoesTest(unittest.TestCase):
         self.assertEqual(P.normalizar_cep("30140-071"), "30140071")
         self.assertEqual(P.normalizar_cep(1310100), "01310100")          # Excel comeu o zero
         self.assertEqual(P.normalizar_cep("123"), "")
+        self.assertEqual(P.normalizar_cep(1310100.0), "01310100")       # coluna REAL
+        self.assertEqual(P.normalizar_cep("1310100.0"), "01310100")     # export do pandas
+        self.assertEqual(P.normalizar_cep("30140071.0"), "30140071")
+        self.assertEqual(P.normalizar_cep(3014.5), "")
         self.assertEqual(P.normalizar_cep(None), "")
 
     def test_ler_faixas_ignora_linha_ruim(self):
@@ -61,7 +65,7 @@ class FuncoesTest(unittest.TestCase):
         oc = [{"codigoOcorrencia": "28", "dtOcorrencia": "2026-09-25 08:00:00"},
               {"codigoOcorrencia": "1", "dtOcorrencia": "2026-09-24 13:50:00"}]
         self.assertEqual(P.data_cadastro_tms(oc), date(2026, 9, 24))
-        self.assertEqual(P.data_cadastro_tms([{"codigoOcorrencia": "28", "dtOcorrencia": "2026-09-25 08:00:00"}]), date(2026, 9, 25))
+        self.assertIsNone(P.data_cadastro_tms([{"codigoOcorrencia": "28", "dtOcorrencia": "2026-09-25 08:00:00"}]))   # sem o "1": sem prazo
         self.assertIsNone(P.data_cadastro_tms([]))
 
     def test_cep_do_pedido_so_leitura(self):
