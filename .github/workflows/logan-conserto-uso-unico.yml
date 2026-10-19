@@ -1,0 +1,100 @@
+# USO UNICO: conserto da rotina Logan->TMS (/home/projetos/atualizar_logan): (1) pedido sem cadastro no rastreio nao derruba
+# mais a execucao inteira; (2) segunda opcao: lista da recuperacao por pedido montada com os pedidos enviados a Logan.
+# Sem "APLICAR" so relata. Backup do main.py e do .env antes; se aparecer erro novo depois, restaura sozinho.
+# Apagar este arquivo depois do uso.
+name: "Uso unico - Conserto da rotina Logan para TMS"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: "Vazio = so relata. Digite APLICAR para gravar (com backup antes)"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Conserto na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CONFIRMAR
+          command_timeout: 12m
+          script: |
+            set -euo pipefail
+            D=/home/projetos/atualizar_logan
+            P="$D/ocoren_logan_tms"
+            mask() { sed -E 's/[0-9]{5,}/99999/g; s/\b[A-Z0-9]{9,}\b/***/g'; }
+            test -f "$P/main.py" && test -f "$D/.env" || { echo "ERRO: rotina nao encontrada. Nada foi alterado."; exit 1; }
+            T=$(mktemp -d)
+            echo "IiIiU2VndW5kYSBvcGNhbyBMb2dhbiAtPiBUTVMgKENsYXVkZSwgMTkvMTAvMjAyNikuCgpNb250YSBhIGxpc3RhIGRhIHJlY3VwZXJhY2FvIHBvciBwZWRpZG8gKERDRV9SRUNPVkVSWV9PUkRFUlNfRklMRSwgbGlkYSBwb3IgcHJvY2Vzc19kY2VfcmVjb3ZlcnkpIGNvbToKLSBvcyBwZWRpZG9zIGVudmlhZG9zIGEgTG9nYW4gKHJlZ2lzdHJvIGRvIHNpbWV4cHJlc3MtaW5ib3gpIGUgYSBsaXN0YSBmaXhhIGFudGlnYSAoZGNlX3JlY292ZXJ5X29yZGVycy50eHQpOwotIG1lbm9zIG9zIHF1ZSBqYSB0aXZlcmFtIEVOVFJFR0EgZW52aWFkYSBhbyBUTVMgKGNvbXByb3ZhbnRlIG91IG9jb3JyZW5jaWEgMTQgbm8gZXN0YWRvIGRlc3RhIHJvdGluYSk7Ci0gbWVub3Mgb3MgcXVlIG5hbyB0ZW0gQ05QSiBubyBiYW5jbyBkbyByYXN0cmVpbyAoc2VtIGlzc28gbyBUTVMgbmFvIGxvY2FsaXphIG8gcGVkaWRvKS4KQXNzaW0sIHNlIGEgbGVpdHVyYSBkb3MgYXJxdWl2b3MgT0NPUkVOIHRyYXZhciwgYSByZWN1cGVyYWNhbyBjb250aW51YSBjb25zdWx0YW5kbyBhIExvZ2FuIHBlZGlkbyBhIHBlZGlkbyBlIGxhbmNhbmRvIG8KdWx0aW1vIGV2ZW50byBubyBUTVMuIFJlZmF6IGEgbGlzdGEgbm8gbWF4aW1vIGEgY2FkYSBMT0dBTl9SRUNVUEVSQUNBT19JTlRFUlZBTE9fUyAocGFkcmFvIDYwMCBzKS4KIiIiCmZyb20gX19mdXR1cmVfXyBpbXBvcnQgYW5ub3RhdGlvbnMKCmltcG9ydCBqc29uCmltcG9ydCBvcwppbXBvcnQgc3FsaXRlMwppbXBvcnQgdGltZQpmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKCkJBU0UgPSBQYXRoKF9fZmlsZV9fKS5yZXNvbHZlKCkucGFyZW50LnBhcmVudApFTlZJT1MgPSBQYXRoKG9zLmdldGVudigiTE9HQU5fRU5WSU9TX1NUQVRFIiwgIi9ob21lL3Byb2pldG9zL3RvdGFsZXhwcmVzcy1zaGlwbWVudC1hcGkvcnVudGltZS9zaW1leHByZXNzLWluYm94LXN0YXRlLmpzb24iKSkKTElTVEFfRklYQSA9IFBhdGgob3MuZ2V0ZW52KCJMT0dBTl9MSVNUQV9GSVhBIiwgc3RyKEJBU0UgLyAiZGNlX3JlY292ZXJ5X29yZGVycy50eHQiKSkpClNBSURBID0gUGF0aChvcy5nZXRlbnYoIkxPR0FOX0xJU1RBX1NBSURBIiwgc3RyKEJBU0UgLyAicGVkaWRvc19yZWN1cGVyYWNhby50eHQiKSkpCkVTVEFETyA9IFBhdGgob3MuZ2V0ZW52KCJMT0dBTl9FU1RBRE9fREIiLCBzdHIoQkFTRSAvICJvY29yZW5fbG9nYW5fdG1zIiAvICJydW50aW1lIiAvICJzdGF0ZSIgLyAicHJvY2Vzc29yX3N0YXRlLnNxbGl0ZTMiKSkpClJBU1RSRUlPID0gUGF0aChvcy5nZXRlbnYoIlJBU1RSRUFNRU5UT19EQiIsICIvaG9tZS9yYXN0cmVhbWVudG8vZGF0YWJhc2UuZGIiKSkKSU5URVJWQUxPID0gaW50KG9zLmdldGVudigiTE9HQU5fUkVDVVBFUkFDQU9fSU5URVJWQUxPX1MiLCAiNjAwIikpCkxJTUlURSA9IGludChvcy5nZXRlbnYoIkxPR0FOX1JFQ1VQRVJBQ0FPX01BWF9QRURJRE9TIiwgIjMwMDAiKSkKQ09ESUdPX1RNU19FTlRSRUdBID0gIjE0IgoKCmRlZiBfbGVyX2RiKGNhbWluaG86IFBhdGgpIC0+IHNxbGl0ZTMuQ29ubmVjdGlvbjoKICAgIHJldHVybiBzcWxpdGUzLmNvbm5lY3QoZiJmaWxlOntjYW1pbmhvfT9tb2RlPXJvIiwgdXJpPVRydWUpCgoKZGVmIHBlZGlkb3NfZW52aWFkb3MoKSAtPiBsaXN0W3N0cl06CiAgICBlc3RhZG8gPSBqc29uLmxvYWRzKEVOVklPUy5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikpCiAgICB2aXN0b3M6IGRpY3Rbc3RyLCBOb25lXSA9IHt9CiAgICBmb3IgZW50cmFkYSBpbiBlc3RhZG8udmFsdWVzKCk6CiAgICAgICAgaWYgbm90IGlzaW5zdGFuY2UoZW50cmFkYSwgZGljdCk6CiAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgZm9yIGNvZGlnbyBpbiBlbnRyYWRhLmdldCgiZW52aWFkb3MiKSBvciBbXToKICAgICAgICAgICAgaWYgaXNpbnN0YW5jZShjb2RpZ28sIHN0cikgYW5kIGNvZGlnby5zdHJpcCgpOgogICAgICAgICAgICAgICAgdmlzdG9zW2NvZGlnby5zdHJpcCgpLnVwcGVyKCldID0gTm9uZQogICAgcmV0dXJuIGxpc3QodmlzdG9zKQoKCmRlZiBwZWRpZG9zX2xpc3RhX2ZpeGEoKSAtPiBsaXN0W3N0cl06CiAgICBpZiBub3QgTElTVEFfRklYQS5leGlzdHMoKToKICAgICAgICByZXR1cm4gW10KICAgIHJldHVybiBbbGluaGEuc3RyaXAoKS51cHBlcigpIGZvciBsaW5oYSBpbiBMSVNUQV9GSVhBLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKS5zcGxpdGxpbmVzKCkgaWYgbGluaGEuc3RyaXAoKV0KCgpkZWYgcGVkaWRvc19lbnRyZWd1ZXMoKSAtPiBzZXRbc3RyXToKICAgIGlmIG5vdCBFU1RBRE8uZXhpc3RzKCk6CiAgICAgICAgcmV0dXJuIHNldCgpCiAgICB3aXRoIF9sZXJfZGIoRVNUQURPKSBhcyBjb25uOgogICAgICAgIGVudHJlZ3VlcyA9IHtyWzBdLnN0cmlwKCkudXBwZXIoKSBmb3IgciBpbiBjb25uLmV4ZWN1dGUoCiAgICAgICAgICAgICJTRUxFQ1QgRElTVElOQ1QgZGVsaXZlcnlfY29kZSBGUk9NIHByb2Nlc3NlZF9ldmVudHMgV0hFUkUgSUZOVUxMKHByb29mX3VybCwgJycpIDw+ICcnIil9CiAgICAgICAgZm9yIGNoYXZlLCBwZWRpZG8gaW4gY29ubi5leGVjdXRlKCJTRUxFQ1QgZXZlbnRfa2V5LCBkZWxpdmVyeV9jb2RlIEZST00gcHJvY2Vzc2VkX2V2ZW50cyIpOgogICAgICAgICAgICBpZiBzdHIoY2hhdmUpLnJzcGxpdCgifCIsIDEpWy0xXS5zdHJpcCgpID09IENPRElHT19UTVNfRU5UUkVHQToKICAgICAgICAgICAgICAgIGVudHJlZ3Vlcy5hZGQoc3RyKHBlZGlkbykuc3RyaXAoKS51cHBlcigpKQogICAgcmV0dXJuIGVudHJlZ3VlcwoKCmRlZiBjb21fY25waihwZWRpZG9zOiBsaXN0W3N0cl0pIC0+IGxpc3Rbc3RyXToKICAgIGlmIG5vdCBSQVNUUkVJTy5leGlzdHMoKToKICAgICAgICByZXR1cm4gW10KICAgIG9rID0gW10KICAgIHdpdGggX2xlcl9kYihSQVNUUkVJTykgYXMgY29ubjoKICAgICAgICBmb3IgcGVkaWRvIGluIHBlZGlkb3M6CiAgICAgICAgICAgIHJvdyA9IGNvbm4uZXhlY3V0ZSgiU0VMRUNUIDEgRlJPTSByYXN0cmVpb3MgV0hFUkUgY29kaWdvID0gPyBBTkQgVFJJTShJRk5VTEwoY25wal9jbGllbnRlLCAnJykpIDw+ICcnIExJTUlUIDEiLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKHBlZGlkbywpKS5mZXRjaG9uZSgpCiAgICAgICAgICAgIGlmIHJvdzoKICAgICAgICAgICAgICAgIG9rLmFwcGVuZChwZWRpZG8pCiAgICByZXR1cm4gb2sKCgpkZWYgbW9udGFyX2xpc3RhKCkgLT4gbGlzdFtzdHJdOgogICAgZW50cmVndWVzID0gcGVkaWRvc19lbnRyZWd1ZXMoKQogICAgY2FuZGlkYXRvczogZGljdFtzdHIsIE5vbmVdID0ge30KICAgIGZvciBwZWRpZG8gaW4gcGVkaWRvc19saXN0YV9maXhhKCkgKyBwZWRpZG9zX2VudmlhZG9zKCk6CiAgICAgICAgaWYgcGVkaWRvIG5vdCBpbiBlbnRyZWd1ZXM6CiAgICAgICAgICAgIGNhbmRpZGF0b3NbcGVkaWRvXSA9IE5vbmUKICAgIGxpc3RhID0gY29tX2NucGoobGlzdChjYW5kaWRhdG9zKSkKICAgIHJldHVybiBsaXN0YVstTElNSVRFOl0KCgpkZWYgZ2VyYXJfc2VfcHJlY2lzbygpIC0+IGludCB8IE5vbmU6CiAgICAiIiJSZWZheiBvIGFycXVpdm8gc2UgZWxlIG5hbyBleGlzdGUgb3UgcGFzc291IGRvIGludGVydmFsby4gRGV2b2x2ZSBxdWFudG9zIHBlZGlkb3MgZ3Jhdm91IChOb25lID0gbmFvIHByZWNpc291KS4iIiIKICAgIGlmIFNBSURBLmV4aXN0cygpIGFuZCB0aW1lLnRpbWUoKSAtIFNBSURBLnN0YXQoKS5zdF9tdGltZSA8IElOVEVSVkFMTzoKICAgICAgICByZXR1cm4gTm9uZQogICAgbGlzdGEgPSBtb250YXJfbGlzdGEoKQogICAgdGVtcG9yYXJpbyA9IFNBSURBLndpdGhfbmFtZShTQUlEQS5uYW1lICsgIi50bXAiKQogICAgdGVtcG9yYXJpby53cml0ZV90ZXh0KCJcbiIuam9pbihsaXN0YSkgKyAoIlxuIiBpZiBsaXN0YSBlbHNlICIiKSwgZW5jb2Rpbmc9InV0Zi04IikKICAgIG9zLnJlcGxhY2UodGVtcG9yYXJpbywgU0FJREEpCiAgICByZXR1cm4gbGVuKGxpc3RhKQoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBwcmludChnZXJhcl9zZV9wcmVjaXNvKCkpCg==" | base64 -d > "$T/gerar_lista_recuperacao.py"
+            echo "IiIiQXBsaWNhIG8gY29uc2VydG8gZGEgcm90aW5hIExvZ2FuLT5UTVMgbm8gbWFpbi5weSAoc28gdHJvY2EgdHJlY2hvcyBleGF0b3M7IGFib3J0YSBzZSBvIGFycXVpdm8gbmFvIGZvciBvIGVzcGVyYWRvKS4iIiIKaW1wb3J0IHB5X2NvbXBpbGUsIHN5cwpmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKCmFsdm8gPSBQYXRoKHN5cy5hcmd2WzFdKQp0ZXh0byA9IGFsdm8ucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCgpUUk9DQVMgPSBbCiAgICAoCiAgICAgICAgIiAgICAgICAgICAgICAgICBjb250aW51ZVxuIgogICAgICAgICIgICAgICAgICAgICBjbnBqX2VtYmFyY2Fkb3IgPSBsb29rdXBfZW1iYXJjYWRvcl9jbnBqKHNldHRpbmdzLCBvcmRlcilcbiIKICAgICAgICAiXG4iCiAgICAgICAgIiAgICAgICAgICAgIHZhbGlkX2xpbmVzICs9IDFcbiIsCiAgICAgICAgIiAgICAgICAgICAgICAgICBjb250aW51ZVxuIgogICAgICAgICIgICAgICAgICAgICB0cnk6XG4iCiAgICAgICAgIiAgICAgICAgICAgICAgICBjbnBqX2VtYmFyY2Fkb3IgPSBsb29rdXBfZW1iYXJjYWRvcl9jbnBqKHNldHRpbmdzLCBvcmRlcilcbiIKICAgICAgICAiICAgICAgICAgICAgZXhjZXB0IFJ1bnRpbWVFcnJvciBhcyBleGM6XG4iCiAgICAgICAgIiAgICAgICAgICAgICAgICAjIFBlZGlkbyBzZW0gY2FkYXN0cm8gbm8gcmFzdHJlaW86IHB1bGEgc28gZXN0YSBsaW5oYSAoYW50ZXMgZGVycnViYXZhIGEgZXhlY3VjYW8gaW50ZWlyYSkuIENsYXVkZSAxOS8xMC8yMDI2LlxuIgogICAgICAgICIgICAgICAgICAgICAgICAgZXJyb3JfbGluZXMgKz0gMVxuIgogICAgICAgICIgICAgICAgICAgICAgICAgTE9HR0VSLmVycm9yKFxuIgogICAgICAgICIgICAgICAgICAgICAgICAgICAgIFwiQ05QSiBkbyBlbWJhcmNhZG9yIG5hbyBlbmNvbnRyYWRvOyBsaW5oYSBtYW50aWRhIHBlbmRlbnRlIHwgYXJxdWl2bz0lcyB8IGxpbmhhPSVzIHwgcGVkaWRvPSVzIHwgZXJybz0lc1wiLFxuIgogICAgICAgICIgICAgICAgICAgICAgICAgICAgIGRvd25sb2FkZWRfZmlsZS5yZW1vdGVfbmFtZSxcbiIKICAgICAgICAiICAgICAgICAgICAgICAgICAgICBsaW5lX251bWJlcixcbiIKICAgICAgICAiICAgICAgICAgICAgICAgICAgICBvcmRlcixcbiIKICAgICAgICAiICAgICAgICAgICAgICAgICAgICBleGMsXG4iCiAgICAgICAgIiAgICAgICAgICAgICAgICApXG4iCiAgICAgICAgIiAgICAgICAgICAgICAgICBjb250aW51ZVxuIgogICAgICAgICJcbiIKICAgICAgICAiICAgICAgICAgICAgdmFsaWRfbGluZXMgKz0gMVxuIiwKICAgICksCiAgICAoCiAgICAgICAgIiAgICBwcm9jZXNzX2RjZV9yZWNvdmVyeShzZXR0aW5ncywgc3RhdGVfc3RvcmUpXG4iCiAgICAgICAgIiAgICBpZiBvcy5nZXRlbnYoXCJEQ0VfUkVDT1ZFUllfT05MWVwiIiwKICAgICAgICAiICAgICMgU2VndW5kYSBvcGNhbyAoQ2xhdWRlIDE5LzEwLzIwMjYpOiBsaXN0YSBkYSByZWN1cGVyYWNhbyBwb3IgcGVkaWRvIG1vbnRhZGEgY29tIG9zIHBlZGlkb3MgZW52aWFkb3MgYSBMb2dhbi5cbiIKICAgICAgICAiICAgIHRyeTpcbiIKICAgICAgICAiICAgICAgICBmcm9tIC5nZXJhcl9saXN0YV9yZWN1cGVyYWNhbyBpbXBvcnQgZ2VyYXJfc2VfcHJlY2lzb1xuIgogICAgICAgICIgICAgICAgIHRvdGFsX2xpc3RhID0gZ2VyYXJfc2VfcHJlY2lzbygpXG4iCiAgICAgICAgIiAgICAgICAgaWYgdG90YWxfbGlzdGEgaXMgbm90IE5vbmU6XG4iCiAgICAgICAgIiAgICAgICAgICAgIExPR0dFUi5pbmZvKFwiTGlzdGEgZGEgcmVjdXBlcmFjYW8gcG9yIHBlZGlkbyBhdHVhbGl6YWRhIHwgcGVkaWRvcz0lc1wiLCB0b3RhbF9saXN0YSlcbiIKICAgICAgICAiICAgIGV4Y2VwdCBFeGNlcHRpb246XG4iCiAgICAgICAgIiAgICAgICAgTE9HR0VSLmV4Y2VwdGlvbihcIkZhbGhhIGFvIG1vbnRhciBhIGxpc3RhIGRhIHJlY3VwZXJhY2FvIHBvciBwZWRpZG87IHNlZ3VlIGNvbSBhIGxpc3RhIGFudGVyaW9yXCIpXG4iCiAgICAgICAgIiAgICBwcm9jZXNzX2RjZV9yZWNvdmVyeShzZXR0aW5ncywgc3RhdGVfc3RvcmUpXG4iCiAgICAgICAgIiAgICBpZiBvcy5nZXRlbnYoXCJEQ0VfUkVDT1ZFUllfT05MWVwiIiwKICAgICksCl0KCmlmICJDbGF1ZGUgMTkvMTAvMjAyNiIgaW4gdGV4dG86CiAgICBzeXMuZXhpdCgiSkEgQVBMSUNBRE86IG5hZGEgYSBmYXplci4iKQpmb3IgYW50ZXMsIGRlcG9pcyBpbiBUUk9DQVM6CiAgICBpZiB0ZXh0by5jb3VudChhbnRlcykgIT0gMToKICAgICAgICBzeXMuZXhpdChmIkVSUk86IHRyZWNobyBlc3BlcmFkbyBhcGFyZWNlIHt0ZXh0by5jb3VudChhbnRlcyl9IHZleihlcykgKHByZWNpc2EgMSkuIE5hZGEgZm9pIGFsdGVyYWRvLiIpCmZvciBhbnRlcywgZGVwb2lzIGluIFRST0NBUzoKICAgIHRleHRvID0gdGV4dG8ucmVwbGFjZShhbnRlcywgZGVwb2lzLCAxKQp0ZW1wb3JhcmlvID0gYWx2by53aXRoX25hbWUoYWx2by5uYW1lICsgIi5ub3ZvIikKdGVtcG9yYXJpby53cml0ZV90ZXh0KHRleHRvLCBlbmNvZGluZz0idXRmLTgiKQpweV9jb21waWxlLmNvbXBpbGUoc3RyKHRlbXBvcmFyaW8pLCBkb3JhaXNlPVRydWUpCnByaW50KCJwYXRjaCBwcm9udG8gZW0iLCB0ZW1wb3JhcmlvKQo=" | base64 -d > "$T/aplicar_patch.py"
+            python3 -m py_compile "$T/gerar_lista_recuperacao.py"
+            cp -p "$P/main.py" "$T/main.py"
+            if ! python3 "$T/aplicar_patch.py" "$T/main.py"; then rm -rf "$T"; exit 1; fi
+            echo "== .env hoje (so as variaveis que mudam)"
+            grep -E "^(DCE_RECOVERY_ORDERS_FILE|DCE_RECOVERY_BATCH_SIZE)=" "$D/.env" | sed 's/^/   /'
+            if [ "${CONFIRMAR:-}" != "APLICAR" ]; then
+              echo "SO RELATO: o patch encaixa no main.py do servidor e compila. Nada foi alterado. Rode com confirmar = APLICAR."
+              rm -rf "$T"; exit 0
+            fi
+            B="$D/backups-claude-$(date +%Y%m%d-%H%M%S)"
+            mkdir -p "$B"
+            cp -p "$P/main.py" "$D/.env" "$B/"
+            echo "backup: $B"
+            DONO=$(stat -c '%u:%g' "$P/main.py")
+            install -m 0644 "$T/gerar_lista_recuperacao.py" "$P/gerar_lista_recuperacao.py" && chown "$DONO" "$P/gerar_lista_recuperacao.py"
+            cp -p "$T/main.py.novo" "$P/main.py.novo" && chown "$DONO" "$P/main.py.novo" && chmod --reference="$B/main.py" "$P/main.py.novo"
+            mv -f "$P/main.py.novo" "$P/main.py"
+            python3 - "$D/.env" <<'PY'
+            import sys
+            from pathlib import Path
+            p = Path(sys.argv[1])
+            linhas = p.read_text(encoding="utf-8").splitlines()
+            novos = {"DCE_RECOVERY_ORDERS_FILE": "/home/projetos/atualizar_logan/pedidos_recuperacao.txt", "DCE_RECOVERY_BATCH_SIZE": "20"}
+            feitos = set()
+            for i, l in enumerate(linhas):
+                k = l.split("=", 1)[0].strip()
+                if k in novos:
+                    linhas[i] = f"{k}={novos[k]}"
+                    feitos.add(k)
+            linhas += [f"{k}={v}" for k, v in novos.items() if k not in feitos]
+            p.write_text("\n".join(linhas) + "\n", encoding="utf-8")
+            PY
+            echo "== .env depois"
+            grep -E "^(DCE_RECOVERY_ORDERS_FILE|DCE_RECOVERY_BATCH_SIZE)=" "$D/.env" | sed 's/^/   /'
+            cd "$D" && echo "lista gerada agora (pedidos): $(python3 -c 'from ocoren_logan_tms.gerar_lista_recuperacao import gerar_se_preciso; print(gerar_se_preciso())')"
+            INICIO=$(date '+%Y-%m-%d %H:%M:%S')
+            echo "== esperando 2 execucoes do timer (ate 6 min)"
+            for i in $(seq 1 36); do
+              sleep 10
+              n=$(journalctl -u ocoren-logan-tms.service --since "$INICIO" --no-pager 2>/dev/null | grep -c "Finished Processador\|Deactivated successfully\|Failed with result" || true)
+              [ "$n" -ge 2 ] && break
+            done
+            ERROS=$(journalctl -u ocoren-logan-tms.service --since "$INICIO" --no-pager 2>/dev/null | grep -c "Traceback" || true)
+            echo "execucoes concluidas: $n | tracebacks depois da mudanca: $ERROS"
+            if [ "$ERROS" -gt 0 ]; then
+              echo "ERRO NOVO: restaurando o backup"
+              journalctl -u ocoren-logan-tms.service --since "$INICIO" --no-pager | grep -A2 "Error\|error" | tail -12 | mask
+              cp -p "$B/main.py" "$P/main.py"; cp -p "$B/.env" "$D/.env"; rm -f "$P/gerar_lista_recuperacao.py" "$D/pedidos_recuperacao.txt"
+              rm -rf "$T"; exit 1
+            fi
+            echo "== processor.log depois da mudanca (resumo, mascarado)"
+            L="$P/runtime/logs/processor.log"
+            awk -v t="$INICIO" '$0 >= t' "$L" > "$T/novo.log" || true
+            echo "   linhas novas: $(wc -l < "$T/novo.log")"
+            for padrao in "Lista da recuperacao por pedido atualizada" "Recuperação enviada ao TMS" "Recuperação já enviada" "Arquivo finalizado" "CNPJ do embarcador nao encontrado" "Linha enviada" "Erro no envio ao TMS" "cooldown" "Codigo SimExpress sem DeXPara"; do
+              echo "   $(grep -c "$padrao" "$T/novo.log" || true) x $padrao"
+            done
+            grep "Arquivo finalizado" "$T/novo.log" | tail -3 | mask | cut -c1-200 | sed 's/^/   /'
+            rm -rf "$T"
+            echo "APLICADO."
