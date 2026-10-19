@@ -1,0 +1,66 @@
+# USO UNICO (so leitura): estrutura do registro de envios para a Logan (simexpress-inbox-state.json; so formatos e contagens)
+# e se 4 pedidos do CCXP (segredo temporario SONDA_CODIGOS4) estao nele. Nao grava nada. Apagar este arquivo e o segredo depois.
+name: "Uso unico - Sonda da Logan 8 (registro de envios)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CODIGOS: ${{ secrets.SONDA_CODIGOS4 }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CODIGOS
+          script: |
+            set -euo pipefail
+            CODIGOS="$CODIGOS" python3 - <<'PY'
+            import json, os, re
+            from collections import Counter
+
+            P = "/home/projetos/totalexpress-shipment-api/runtime/simexpress-inbox-state.json"
+            codigos = [c for c in os.environ.get("CODIGOS", "").split(",") if c]
+
+
+            def forma(v):
+                return re.sub(r"\d", "9", re.sub(r"[A-Za-z]", "A", str(v)))[:32]
+
+
+            d = json.load(open(P, encoding="utf-8"))
+            print("tipo topo:", type(d).__name__, "| chaves topo:", list(d.keys())[:12] if isinstance(d, dict) else len(d))
+
+
+            def descrever(obj, prefixo="", nivel=0):
+                if nivel > 3:
+                    return
+                if isinstance(obj, dict):
+                    ks = list(obj.keys())
+                    print(f"{'  ' * nivel}{prefixo} dict com {len(ks)} chaves; formato das chaves: {Counter(forma(k) for k in ks).most_common(3)}")
+                    amostra = obj[ks[0]] if ks else None
+                    if ks and all(isinstance(obj[k], (dict, list)) for k in ks[:5]):
+                        descrever(amostra, prefixo + "[*]", nivel + 1)
+                    else:
+                        for k in ks[:25]:
+                            v = obj[k]
+                            print(f"{'  ' * (nivel + 1)}{k}: {type(v).__name__} {forma(v) if not isinstance(v, (dict, list)) else ''}")
+                            if isinstance(v, (dict, list)):
+                                descrever(v, prefixo + "." + k, nivel + 2)
+                elif isinstance(obj, list):
+                    print(f"{'  ' * nivel}{prefixo} lista com {len(obj)} itens")
+                    if obj:
+                        descrever(obj[0], prefixo + "[0]", nivel + 1)
+
+
+            descrever(d, "state")
+            texto = json.dumps(d, ensure_ascii=False)
+            print("ocorrencias de codigos no padrao do CCXP (OMLTCO...):", len(set(re.findall(r"OMLTCO[A-Z0-9]{6,10}", texto))))
+            print("os 4 pedidos estao no registro:", [c in texto for c in codigos])
+            PY
