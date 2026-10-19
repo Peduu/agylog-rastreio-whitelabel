@@ -1,0 +1,103 @@
+# USO UNICO: segunda opcao Logan->TMS com timer proprio (ocoren-logan-recuperacao, a cada 2 min): so a recuperacao por pedido,
+# sem FTP, independente da leitura dos arquivos OCOREN. Sem "APLICAR" so relata. Se o servico novo der erro, desliga sozinho.
+# Apagar este arquivo depois do uso.
+name: "Uso unico - Timer da segunda opcao Logan"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: "Vazio = so relata. Digite APLICAR para instalar o timer"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Timer na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CONFIRMAR
+          command_timeout: 12m
+          script: |
+            set -uo pipefail
+            D=/home/projetos/atualizar_logan
+            P="$D/ocoren_logan_tms"
+            U=/etc/systemd/system
+            mask() { sed -E 's/[0-9]{5,}/99999/g; s/[A-Z0-9]{9,}/***/g'; }
+            T=$(mktemp -d)
+            echo "IiIiU2VndW5kYSBvcGNhbyBMb2dhbiAtPiBUTVMgKENsYXVkZSwgMTkvMTAvMjAyNikuCgpNb250YSBhIGxpc3RhIGRhIHJlY3VwZXJhY2FvIHBvciBwZWRpZG8gKERDRV9SRUNPVkVSWV9PUkRFUlNfRklMRSwgbGlkYSBwb3IgcHJvY2Vzc19kY2VfcmVjb3ZlcnkpIGNvbToKLSBvcyBwZWRpZG9zIGVudmlhZG9zIGEgTG9nYW4gKHJlZ2lzdHJvIGRvIHNpbWV4cHJlc3MtaW5ib3gpIGUgYSBsaXN0YSBmaXhhIGFudGlnYSAoZGNlX3JlY292ZXJ5X29yZGVycy50eHQpOwotIG1lbm9zIG9zIHF1ZSBqYSB0aXZlcmFtIEVOVFJFR0EgZW52aWFkYSBhbyBUTVMgKGNvbXByb3ZhbnRlIG91IG9jb3JyZW5jaWEgMTQgbm8gZXN0YWRvIGRlc3RhIHJvdGluYSk7Ci0gbWVub3Mgb3MgcXVlIG5hbyB0ZW0gQ05QSiBubyBiYW5jbyBkbyByYXN0cmVpbyAoc2VtIGlzc28gbyBUTVMgbmFvIGxvY2FsaXphIG8gcGVkaWRvKS4KQXNzaW0sIHNlIGEgbGVpdHVyYSBkb3MgYXJxdWl2b3MgT0NPUkVOIHRyYXZhciwgYSByZWN1cGVyYWNhbyBjb250aW51YSBjb25zdWx0YW5kbyBhIExvZ2FuIHBlZGlkbyBhIHBlZGlkbyBlIGxhbmNhbmRvIG8KdWx0aW1vIGV2ZW50byBubyBUTVMuIFJlZmF6IGEgbGlzdGEgbm8gbWF4aW1vIGEgY2FkYSBMT0dBTl9SRUNVUEVSQUNBT19JTlRFUlZBTE9fUyAocGFkcmFvIDYwMCBzKS4KIiIiCmZyb20gX19mdXR1cmVfXyBpbXBvcnQgYW5ub3RhdGlvbnMKCmltcG9ydCBqc29uCmltcG9ydCBvcwppbXBvcnQgc3FsaXRlMwppbXBvcnQgdGltZQpmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKCkJBU0UgPSBQYXRoKF9fZmlsZV9fKS5yZXNvbHZlKCkucGFyZW50LnBhcmVudApFTlZJT1MgPSBQYXRoKG9zLmdldGVudigiTE9HQU5fRU5WSU9TX1NUQVRFIiwgIi9ob21lL3Byb2pldG9zL3RvdGFsZXhwcmVzcy1zaGlwbWVudC1hcGkvcnVudGltZS9zaW1leHByZXNzLWluYm94LXN0YXRlLmpzb24iKSkKTElTVEFfRklYQSA9IFBhdGgob3MuZ2V0ZW52KCJMT0dBTl9MSVNUQV9GSVhBIiwgc3RyKEJBU0UgLyAiZGNlX3JlY292ZXJ5X29yZGVycy50eHQiKSkpClNBSURBID0gUGF0aChvcy5nZXRlbnYoIkxPR0FOX0xJU1RBX1NBSURBIiwgc3RyKEJBU0UgLyAicGVkaWRvc19yZWN1cGVyYWNhby50eHQiKSkpCkVTVEFETyA9IFBhdGgob3MuZ2V0ZW52KCJMT0dBTl9FU1RBRE9fREIiLCBzdHIoQkFTRSAvICJvY29yZW5fbG9nYW5fdG1zIiAvICJydW50aW1lIiAvICJzdGF0ZSIgLyAicHJvY2Vzc29yX3N0YXRlLnNxbGl0ZTMiKSkpClJBU1RSRUlPID0gUGF0aChvcy5nZXRlbnYoIlJBU1RSRUFNRU5UT19EQiIsICIvaG9tZS9yYXN0cmVhbWVudG8vZGF0YWJhc2UuZGIiKSkKSU5URVJWQUxPID0gaW50KG9zLmdldGVudigiTE9HQU5fUkVDVVBFUkFDQU9fSU5URVJWQUxPX1MiLCAiNjAwIikpCkxJTUlURSA9IGludChvcy5nZXRlbnYoIkxPR0FOX1JFQ1VQRVJBQ0FPX01BWF9QRURJRE9TIiwgIjMwMDAiKSkKQ09ESUdPX1RNU19FTlRSRUdBID0gIjE0IgoKCmRlZiBfbGVyX2RiKGNhbWluaG86IFBhdGgpIC0+IHNxbGl0ZTMuQ29ubmVjdGlvbjoKICAgIHJldHVybiBzcWxpdGUzLmNvbm5lY3QoZiJmaWxlOntjYW1pbmhvfT9tb2RlPXJvIiwgdXJpPVRydWUpCgoKZGVmIHBlZGlkb3NfZW52aWFkb3MoKSAtPiBsaXN0W3N0cl06CiAgICBlc3RhZG8gPSBqc29uLmxvYWRzKEVOVklPUy5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikpCiAgICB2aXN0b3M6IGRpY3Rbc3RyLCBOb25lXSA9IHt9CiAgICBmb3IgZW50cmFkYSBpbiBlc3RhZG8udmFsdWVzKCk6CiAgICAgICAgaWYgbm90IGlzaW5zdGFuY2UoZW50cmFkYSwgZGljdCk6CiAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgZm9yIGNvZGlnbyBpbiBlbnRyYWRhLmdldCgiZW52aWFkb3MiKSBvciBbXToKICAgICAgICAgICAgaWYgaXNpbnN0YW5jZShjb2RpZ28sIHN0cikgYW5kIGNvZGlnby5zdHJpcCgpOgogICAgICAgICAgICAgICAgdmlzdG9zW2NvZGlnby5zdHJpcCgpLnVwcGVyKCldID0gTm9uZQogICAgcmV0dXJuIGxpc3QodmlzdG9zKQoKCmRlZiBwZWRpZG9zX2xpc3RhX2ZpeGEoKSAtPiBsaXN0W3N0cl06CiAgICBpZiBub3QgTElTVEFfRklYQS5leGlzdHMoKToKICAgICAgICByZXR1cm4gW10KICAgIHJldHVybiBbbGluaGEuc3RyaXAoKS51cHBlcigpIGZvciBsaW5oYSBpbiBMSVNUQV9GSVhBLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKS5zcGxpdGxpbmVzKCkgaWYgbGluaGEuc3RyaXAoKV0KCgpkZWYgcGVkaWRvc19lbnRyZWd1ZXMoKSAtPiBzZXRbc3RyXToKICAgIGlmIG5vdCBFU1RBRE8uZXhpc3RzKCk6CiAgICAgICAgcmV0dXJuIHNldCgpCiAgICB3aXRoIF9sZXJfZGIoRVNUQURPKSBhcyBjb25uOgogICAgICAgIGVudHJlZ3VlcyA9IHtyWzBdLnN0cmlwKCkudXBwZXIoKSBmb3IgciBpbiBjb25uLmV4ZWN1dGUoCiAgICAgICAgICAgICJTRUxFQ1QgRElTVElOQ1QgZGVsaXZlcnlfY29kZSBGUk9NIHByb2Nlc3NlZF9ldmVudHMgV0hFUkUgSUZOVUxMKHByb29mX3VybCwgJycpIDw+ICcnIil9CiAgICAgICAgZm9yIGNoYXZlLCBwZWRpZG8gaW4gY29ubi5leGVjdXRlKCJTRUxFQ1QgZXZlbnRfa2V5LCBkZWxpdmVyeV9jb2RlIEZST00gcHJvY2Vzc2VkX2V2ZW50cyIpOgogICAgICAgICAgICBpZiBzdHIoY2hhdmUpLnJzcGxpdCgifCIsIDEpWy0xXS5zdHJpcCgpID09IENPRElHT19UTVNfRU5UUkVHQToKICAgICAgICAgICAgICAgIGVudHJlZ3Vlcy5hZGQoc3RyKHBlZGlkbykuc3RyaXAoKS51cHBlcigpKQogICAgcmV0dXJuIGVudHJlZ3VlcwoKCmRlZiBjb21fY25waihwZWRpZG9zOiBsaXN0W3N0cl0pIC0+IGxpc3Rbc3RyXToKICAgIGlmIG5vdCBSQVNUUkVJTy5leGlzdHMoKToKICAgICAgICByZXR1cm4gW10KICAgIG9rID0gW10KICAgIHdpdGggX2xlcl9kYihSQVNUUkVJTykgYXMgY29ubjoKICAgICAgICBmb3IgcGVkaWRvIGluIHBlZGlkb3M6CiAgICAgICAgICAgIHJvdyA9IGNvbm4uZXhlY3V0ZSgiU0VMRUNUIDEgRlJPTSByYXN0cmVpb3MgV0hFUkUgY29kaWdvID0gPyBBTkQgVFJJTShJRk5VTEwoY25wal9jbGllbnRlLCAnJykpIDw+ICcnIExJTUlUIDEiLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKHBlZGlkbywpKS5mZXRjaG9uZSgpCiAgICAgICAgICAgIGlmIHJvdzoKICAgICAgICAgICAgICAgIG9rLmFwcGVuZChwZWRpZG8pCiAgICByZXR1cm4gb2sKCgpkZWYgbW9udGFyX2xpc3RhKCkgLT4gbGlzdFtzdHJdOgogICAgIiIiTWFpcyBub3ZvcyBwcmltZWlybyAob3MgdWx0aW1vcyBlbnZpYWRvcyBhIExvZ2FuKSwgZGVwb2lzIGEgbGlzdGEgZml4YSBhbnRpZ2EuIiIiCiAgICBlbnRyZWd1ZXMgPSBwZWRpZG9zX2VudHJlZ3VlcygpCiAgICBjYW5kaWRhdG9zOiBkaWN0W3N0ciwgTm9uZV0gPSB7fQogICAgZm9yIHBlZGlkbyBpbiBsaXN0KHJldmVyc2VkKHBlZGlkb3NfZW52aWFkb3MoKSkpICsgcGVkaWRvc19saXN0YV9maXhhKCk6CiAgICAgICAgaWYgcGVkaWRvIG5vdCBpbiBlbnRyZWd1ZXM6CiAgICAgICAgICAgIGNhbmRpZGF0b3NbcGVkaWRvXSA9IE5vbmUKICAgIGxpc3RhID0gY29tX2NucGoobGlzdChjYW5kaWRhdG9zKSkKICAgIHJldHVybiBsaXN0YVs6TElNSVRFXQoKCmRlZiBnZXJhcl9zZV9wcmVjaXNvKCkgLT4gaW50IHwgTm9uZToKICAgICIiIlJlZmF6IG8gYXJxdWl2byBzZSBlbGUgbmFvIGV4aXN0ZSBvdSBwYXNzb3UgZG8gaW50ZXJ2YWxvLiBEZXZvbHZlIHF1YW50b3MgcGVkaWRvcyBncmF2b3UgKE5vbmUgPSBuYW8gcHJlY2lzb3UpLiIiIgogICAgaWYgU0FJREEuZXhpc3RzKCkgYW5kIHRpbWUudGltZSgpIC0gU0FJREEuc3RhdCgpLnN0X210aW1lIDwgSU5URVJWQUxPOgogICAgICAgIHJldHVybiBOb25lCiAgICBsaXN0YSA9IG1vbnRhcl9saXN0YSgpCiAgICB0ZW1wb3JhcmlvID0gU0FJREEud2l0aF9uYW1lKFNBSURBLm5hbWUgKyAiLnRtcCIpCiAgICB0ZW1wb3JhcmlvLndyaXRlX3RleHQoIlxuIi5qb2luKGxpc3RhKSArICgiXG4iIGlmIGxpc3RhIGVsc2UgIiIpLCBlbmNvZGluZz0idXRmLTgiKQogICAgb3MucmVwbGFjZSh0ZW1wb3JhcmlvLCBTQUlEQSkKICAgIHJldHVybiBsZW4obGlzdGEpCgoKaWYgX19uYW1lX18gPT0gIl9fbWFpbl9fIjoKICAgIHByaW50KGdlcmFyX3NlX3ByZWNpc28oKSkK" | base64 -d > "$T/gerar_lista_recuperacao.py"
+            echo "IiIiU2VndW5kYSBvcGNhbyBMb2dhbiAtPiBUTVMgKENsYXVkZSwgMTkvMTAvMjAyNikuCgpSb2RhIFNPIGEgcmVjdXBlcmFjYW8gcG9yIHBlZGlkbyAocHJvY2Vzc19kY2VfcmVjb3ZlcnkpLCBlbSB0aW1lciBwcm9wcmlvIChvY29yZW4tbG9nYW4tcmVjdXBlcmFjYW8udGltZXIpLCBzZW0gRlRQIGUgc2VtCmVzcGVyYXIgYSBsZWl0dXJhIGRvcyBhcnF1aXZvcyBPQ09SRU4gZG8gdGltZXIgcHJpbmNpcGFsLiBBc3NpbSwgc2UgYSBsZWl0dXJhIGRvcyBhcnF1aXZvcyB0cmF2YXIgb3UgZGVtb3JhciAoYWN1bXVsYWRvKSwgb3MKcGVkaWRvcyBlbnZpYWRvcyBhIExvZ2FuIGNvbnRpbnVhbSB0ZW5kbyBvIHVsdGltbyBldmVudG8gbGFuY2FkbyBubyBUTVMuIExvZyBwcm9wcmlvOiBydW50aW1lL2xvZ3MvcmVjdXBlcmFjYW8ubG9nLgoiIiIKZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKaW1wb3J0IGxvZ2dpbmcKZnJvbSBsb2dnaW5nLmhhbmRsZXJzIGltcG9ydCBSb3RhdGluZ0ZpbGVIYW5kbGVyCgpmcm9tIC5nZXJhcl9saXN0YV9yZWN1cGVyYWNhbyBpbXBvcnQgZ2VyYXJfc2VfcHJlY2lzbwpmcm9tIC5tYWluIGltcG9ydCBMT0dHRVIsIHByb2Nlc3NfZGNlX3JlY292ZXJ5CmZyb20gLnNldHRpbmdzIGltcG9ydCBsb2FkX3NldHRpbmdzCmZyb20gLnN0YXRlX3N0b3JlIGltcG9ydCBTdGF0ZVN0b3JlCgoKZGVmIG1haW4oKSAtPiBOb25lOgogICAgc2V0dGluZ3MgPSBsb2FkX3NldHRpbmdzKCkKICAgIGxvZ19maWxlID0gc2V0dGluZ3MuYXBwX2xvZ19maWxlLndpdGhfbmFtZSgicmVjdXBlcmFjYW8ubG9nIikKICAgIGxvZ19maWxlLnBhcmVudC5ta2RpcihwYXJlbnRzPVRydWUsIGV4aXN0X29rPVRydWUpCiAgICBsb2dnaW5nLmJhc2ljQ29uZmlnKAogICAgICAgIGxldmVsPWxvZ2dpbmcuSU5GTywKICAgICAgICBmb3JtYXQ9IiUoYXNjdGltZSlzIHwgJShsZXZlbG5hbWUpcyB8ICUobWVzc2FnZSlzIiwKICAgICAgICBoYW5kbGVycz1bUm90YXRpbmdGaWxlSGFuZGxlcihsb2dfZmlsZSwgbWF4Qnl0ZXM9MjAgKiAxMDI0ICogMTAyNCwgYmFja3VwQ291bnQ9MywgZW5jb2Rpbmc9InV0Zi04IildLAogICAgICAgIGZvcmNlPVRydWUsCiAgICApCiAgICBzdGF0ZV9zdG9yZSA9IFN0YXRlU3RvcmUoc2V0dGluZ3MuYXBwX3N0YXRlX2RiKQogICAgdHJ5OgogICAgICAgIHRvdGFsID0gZ2VyYXJfc2VfcHJlY2lzbygpCiAgICAgICAgaWYgdG90YWwgaXMgbm90IE5vbmU6CiAgICAgICAgICAgIExPR0dFUi5pbmZvKCJMaXN0YSBkYSByZWN1cGVyYWNhbyBwb3IgcGVkaWRvIGF0dWFsaXphZGEgfCBwZWRpZG9zPSVzIiwgdG90YWwpCiAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgIExPR0dFUi5leGNlcHRpb24oIkZhbGhhIGFvIG1vbnRhciBhIGxpc3RhIGRhIHJlY3VwZXJhY2FvIHBvciBwZWRpZG87IHNlZ3VlIGNvbSBhIGxpc3RhIGFudGVyaW9yIikKICAgIHByb2Nlc3NfZGNlX3JlY292ZXJ5KHNldHRpbmdzLCBzdGF0ZV9zdG9yZSkKICAgIExPR0dFUi5pbmZvKCJSZWN1cGVyYWNhbyBwb3IgcGVkaWRvIGNvbmNsdWlkYSIpCgoKaWYgX19uYW1lX18gPT0gIl9fbWFpbl9fIjoKICAgIG1haW4oKQo=" | base64 -d > "$T/recuperacao_pedidos.py"
+            python3 -m py_compile "$T/gerar_lista_recuperacao.py" "$T/recuperacao_pedidos.py" || { echo "ERRO: nao compila. Nada foi alterado."; exit 1; }
+            grep -q "Claude 19/10/2026" "$P/main.py" || { echo "ERRO: main.py sem o conserto de hoje. Nada foi alterado."; exit 1; }
+            echo "arquivos novos compilam; main.py ja tem o conserto; timer existente: $(systemctl list-unit-files ocoren-logan-recuperacao.timer --no-legend 2>/dev/null | wc -l)"
+            if [ "${CONFIRMAR:-}" != "APLICAR" ]; then echo "SO RELATO: nada foi alterado. Rode com confirmar = APLICAR."; rm -rf "$T"; exit 0; fi
+            B="$D/backups-claude-$(date +%Y%m%d-%H%M%S)-timer"
+            mkdir -p "$B"
+            cp -p "$P/gerar_lista_recuperacao.py" "$B/" 2>/dev/null || true
+            echo "backup: $B"
+            DONO=$(stat -c '%u:%g' "$P/main.py")
+            for f in gerar_lista_recuperacao.py recuperacao_pedidos.py; do
+              install -m 0644 "$T/$f" "$P/$f" && chown "$DONO" "$P/$f"
+            done
+            cat > "$U/ocoren-logan-recuperacao.service" <<'UNIT'
+            [Unit]
+            Description=Segunda opcao Logan TMS - recuperacao por pedido (Claude 19/10/2026)
+
+            [Service]
+            Type=oneshot
+            WorkingDirectory=/home/projetos/atualizar_logan
+            Environment=DCE_RECOVERY_BATCH_SIZE=30
+            ExecStart=/usr/bin/python3 -m ocoren_logan_tms.recuperacao_pedidos
+            UNIT
+            cat > "$U/ocoren-logan-recuperacao.timer" <<'UNIT'
+            [Unit]
+            Description=Executa a recuperacao por pedido da Logan a cada 2 minutos
+
+            [Timer]
+            OnBootSec=90s
+            OnUnitActiveSec=2min
+
+            [Install]
+            WantedBy=timers.target
+            UNIT
+            systemctl daemon-reload
+            systemctl enable --now ocoren-logan-recuperacao.timer
+            INICIO=$(date '+%Y-%m-%d %H:%M:%S')
+            systemctl start ocoren-logan-recuperacao.service || true
+            echo "== esperando 2 execucoes do timer novo (ate 7 min)"
+            n=0
+            for i in $(seq 1 42); do
+              sleep 10
+              n=$(journalctl -u ocoren-logan-recuperacao.service --since "$INICIO" --no-pager 2>/dev/null | grep -c "Deactivated successfully\|Failed with result\|Finished Segunda" || true)
+              [ "$n" -ge 2 ] && break
+            done
+            J=$(journalctl -u ocoren-logan-recuperacao.service --since "$INICIO" --no-pager 2>/dev/null || true)
+            TB=$(printf '%s\n' "$J" | grep -c "Traceback" || true)
+            FAIL=$(printf '%s\n' "$J" | grep -c "Failed with result" || true)
+            echo "execucoes: $n | tracebacks: $TB | falhas: $FAIL"
+            if [ "$TB" -gt 0 ] || [ "$FAIL" -gt 0 ]; then
+              echo "ERRO: desligando o timer novo"
+              printf '%s\n' "$J" | grep -B1 -A3 "Error" | tail -12 | mask
+              systemctl disable --now ocoren-logan-recuperacao.timer || true
+              rm -f "$U/ocoren-logan-recuperacao.service" "$U/ocoren-logan-recuperacao.timer"; systemctl daemon-reload
+              rm -rf "$T"; exit 1
+            fi
+            LR="$P/runtime/logs/recuperacao.log"
+            echo "== recuperacao.log ($(wc -l < "$LR" 2>/dev/null || echo 0) linhas)"
+            for padrao in "Lista da recuperacao por pedido atualizada" "Iniciando recuperação" "Recuperação enviada ao TMS" "Recuperação já enviada" "Nenhum rastreamento" "cooldown" "sem DeXPara" "Erro na recuperação"; do
+              echo "   $(grep -c "$padrao" "$LR" 2>/dev/null || true) x $padrao"
+            done
+            grep -E "Lista da recuperacao|Iniciando recuperação" "$LR" | tail -3 | mask | cut -c1-170 | sed 's/^/   /'
+            systemctl list-timers ocoren-logan-recuperacao.timer --no-pager | head -3 | sed 's/^/   /'
+            rm -rf "$T"
+            echo "APLICADO."
