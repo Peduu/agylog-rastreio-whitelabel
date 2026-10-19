@@ -1,0 +1,39 @@
+# USO UNICO (so leitura): procura no servidor quem usa a API/usuario da Total Express (so caminhos de arquivo e nomes de
+# servicos/timers no log; nenhum conteudo). Nao grava nada. Apagar este arquivo depois do uso.
+name: "Uso unico - Sonda 5 da Total Express (quem usa a Total no servidor)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          command_timeout: 12m
+          script: |
+            set -uo pipefail
+            echo "== arquivos que citam a API ou o usuario da Total (so caminho e quantas linhas; sem conteudo)"
+            for base in /home /opt /etc /root /srv /var/www; do
+              [ -d "$base" ] || continue
+              timeout 120 grep -rIl --exclude-dir=node_modules --exclude-dir=venv --exclude-dir=.venv --exclude-dir=.git \
+                --exclude-dir=backups --exclude-dir=__pycache__ --exclude-dir=proc \
+                -E "totalexpress|ics-tracking|tracking-encomenda|jaquelin88032" "$base" 2>/dev/null \
+                | grep -v "/home/rastreamento/" | head -40 | while read -r f; do
+                  n=$(grep -cE "totalexpress|ics-tracking|tracking-encomenda|jaquelin88032" "$f" 2>/dev/null)
+                  echo "  $f ($n linhas; alterado $(date -r "$f" '+%Y-%m-%d %H:%M'))"
+                done
+            done
+            echo "== crontabs (so linhas que citam total/ocorr/tracking)"
+            for u in $(cut -d: -f1 /etc/passwd); do crontab -l -u "$u" 2>/dev/null | grep -iE "total|ocorr|track|rastre" | sed "s/^/  [$u] /"; done
+            grep -rhiE "total|ocorr|track" /etc/cron.d /etc/crontab 2>/dev/null | sed 's/^/  [cron.d] /'
+            echo "== timers e servicos do systemd (nomes)"
+            systemctl list-timers --all --no-pager 2>/dev/null | awk 'NR>1 {print "  " $(NF-1), $NF}' | head -40
+            systemctl list-units --type=service --state=running --no-pager 2>/dev/null | awk '{print "  " $1}' | grep -vE "systemd|dbus|getty|polkit|chronyd|crond|sshd|NetworkManager|firewalld|auditd|rsyslog|tuned|irqbalance|gssproxy|kdump|lvm|user@" | head -40
