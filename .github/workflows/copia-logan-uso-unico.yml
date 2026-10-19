@@ -37,9 +37,9 @@ jobs:
             mkdir -p "$T/b"
             cd "$D"
             tar -czf "$T/b/codigo.tgz" main.py DEPLOY_VPS_OCOREN.md .env.example ocoren_logan_tms/*.py ocoren_logan_tms/README.md 2>/dev/null || true
-            sed -E 's/^((FTP_PASSWORD|TMS_API_TOKEN|SIMEXPRESS_AUTHORIZATION_CODE|[A-Z_]*(PASSWORD|TOKEN|SECRET|KEY|AUTHORIZATION)[A-Z_]*)=).*/<oculto>/' .env > "$T/b/env_sem_segredos.txt"
+            sed -E 's/^([A-Z_]*(PASSWORD|TOKEN|SECRET|KEY|AUTHORIZATION)[A-Z_]*=).*/\1<oculto>/' .env > "$T/b/env_sem_segredos.txt"
             ls -la ocoren_logan_tms/runtime > "$T/b/runtime_ls.txt" 2>&1 || true
-            journalctl -u ocoren-logan-tms.service --since "2026-10-17" --no-pager | grep -v "^--" | grep -vE "runpy|_run_code|exec\(code|run_globals|Starting Processador|Consumed|Failed to start|Main process exited|Failed with result" | tail -300 > "$T/b/journal.txt" || true
+            journalctl -u ocoren-logan-tms.service --since "2026-10-17" --no-pager | grep -v "^--" | grep -vE "runpy|_run_code|exec[(]code|run_globals|Starting Processador|Consumed|Failed to start|Main process exited|Failed with result" | tail -300 > "$T/b/journal.txt" || true
             journalctl -u ocoren-logan-tms.service --since "2026-10-14" --until "2026-10-18 12:00" --no-pager | tail -150 > "$T/b/journal_antes.txt" || true
             tar -czf "$T/pacote.tgz" -C "$T/b" .
             KEY=$(openssl rand -hex 32)
