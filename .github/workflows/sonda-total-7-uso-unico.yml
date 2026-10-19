@@ -1,0 +1,59 @@
+# USO UNICO (so leitura): le o fim do cron.log da rotina Total->TMS (atualizar_total_08) depois da troca da senha
+# (numeros mascarados). Nao grava nada. Apagar este arquivo depois do uso.
+name: "Uso unico - Sonda 7 da Total Express (rotina depois da senha nova)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+            python3 - <<'PY'
+            import os, re
+            from datetime import datetime
+
+            PASTA = "/home/projetos/atualizar_total_08"
+            LOG = os.path.join(PASTA, "cron.log")
+            REGRAS = os.path.join(PASTA, "regras.json")
+
+
+            def mascara(t):
+                t = re.sub(r"\d{5,}", lambda m: "9" * len(m.group(0)), t)
+                return re.sub(r"\b[A-Z0-9]{10,}\b", lambda m: m.group(0)[:3] + "***", t)
+
+
+            troca = os.path.getmtime(REGRAS)
+            print("regras.json alterado em:", datetime.fromtimestamp(troca).strftime("%Y-%m-%d %H:%M:%S"), "| agora:", datetime.now().strftime("%H:%M:%S"))
+            print("log alterado em:", datetime.fromtimestamp(os.path.getmtime(LOG)).strftime("%H:%M:%S"))
+            with open(LOG, "rb") as f:
+                f.seek(0, 2)
+                tam = f.tell()
+                f.seek(max(0, tam - 400_000))
+                cauda = f.read().decode("utf-8", "replace").splitlines()
+            # rodadas: blocos que comecam em "Total Express | periodo"
+            inicios = [i for i, l in enumerate(cauda) if l.startswith("Total Express | periodo") and "pagina 1 de" in l]
+            print("rodadas no fim do log:", len(inicios))
+            for i in inicios[-3:]:
+                bloco = cauda[i:]
+                fim = next((j for j, l in enumerate(bloco) if l.startswith("Processamento finalizado")), None)
+                bloco = bloco[: (fim + 1) if fim is not None else 400]
+                auth = sum(1 for l in bloco if "Autentica" in l and "inv" in l)
+                paginas = [l for l in bloco if l.startswith("Total Express | periodo")]
+                print(f"-- rodada: {mascara(bloco[0])[:110]} | paginas lidas: {len(paginas)} | 'Autenticacao invalida': {auth} | terminou: {fim is not None}")
+                for l in [l for l in bloco if re.search(r"Eventos elegiveis|Envio TMS|Processamento finalizado|HTTP \d{3} ao chamar|Erro|erro ", l)][-8:]:
+                    print("     " + mascara(l)[:170])
+            print("ultimas 6 linhas do log:")
+            for l in cauda[-6:]:
+                print("   " + mascara(l)[:170])
+            PY
