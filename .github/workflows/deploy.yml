@@ -177,12 +177,14 @@ jobs:
             path = Path('/etc/rastreamento.env')
             keys = ('TOTAL_EXPRESS_API_USER', 'TOTAL_EXPRESS_API_PASSWORD')
             values = {key: os.environ[key] for key in keys}
-            if any(not re.fullmatch(r'[A-Za-z0-9._@+-]+', value) for value in values.values()):
+            # "#" (senha da Total de 19/10) vai entre aspas duplas: o systemd tira as aspas e nunca le como comentario.
+            if any(not re.fullmatch(r'[A-Za-z0-9._@+#-]+', value) for value in values.values()):
                 raise SystemExit('Credencial com formato inesperado; ambiente preservado.')
             original = path.read_text(encoding='utf-8')
             kept = [line for line in original.splitlines()
                     if not any(line.startswith(key + '=') for key in keys)]
-            updated = '\n'.join(kept + [f'{key}={values[key]}' for key in keys]) + '\n'
+            linhas = [f'{key}="{values[key]}"' if '#' in values[key] else f'{key}={values[key]}' for key in keys]
+            updated = '\n'.join(kept + linhas) + '\n'
             stat = path.stat()
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
                                              dir=path.parent, prefix='.rastreamento-env-',
@@ -210,10 +212,20 @@ jobs:
             sleep 2
             systemctl is-active --quiet rastreamento.service
             MAINPID="$(systemctl show -p MainPID --value rastreamento.service)"
-            for required_env in TOTAL_EXPRESS_API_USER TOTAL_EXPRESS_API_PASSWORD; do
-              grep -qz "^${required_env}=..*" "/proc/$MAINPID/environ"
-              echo "OK ${required_env} carregada pelo servico (valor nao exibido)"
-            done
+            # O servico tem que ter carregado EXATAMENTE o valor do segredo (senao: ERRO -> rollback do ambiente).
+            MAINPID="$MAINPID" python3 - <<'PY'
+            import os
+            from pathlib import Path
+
+            carregado = {}
+            for item in Path(f"/proc/{os.environ['MAINPID']}/environ").read_bytes().split(b"\0"):
+                chave, _, valor = item.decode("utf-8", "replace").partition("=")
+                carregado[chave] = valor
+            for chave in ("TOTAL_EXPRESS_API_USER", "TOTAL_EXPRESS_API_PASSWORD"):
+                if carregado.get(chave) != os.environ[chave]:
+                    raise SystemExit(f"ERRO {chave}: o servico nao carregou o valor do segredo")
+                print(f"OK {chave} carregada pelo servico igual ao segredo (valor nao exibido)")
+            PY
 
             for route in /tracking/tricard/ /tracking/BRB/ /tracking/panini/; do
               code="$(curl -k -s -o /dev/null -w '%{http_code}' "https://rastreamento.agylog.com.br${route}")"
