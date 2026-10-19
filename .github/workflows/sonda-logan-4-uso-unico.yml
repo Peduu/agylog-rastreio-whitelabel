@@ -1,0 +1,58 @@
+# USO UNICO (so leitura): contagem por dia das linhas NF-e / DC-e nos arquivos OCOREN da Logan baixados (sem pedido, NF ou
+# nome no log). Nao grava nada. Apagar este arquivo depois do uso.
+name: "Uso unico - Sonda da Logan 4 (OCOREN por dia)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+            python3 - <<'PY'
+            import glob, os
+            from collections import Counter, defaultdict
+            from datetime import datetime
+
+            DL = "/home/projetos/atualizar_logan/ocoren_logan_tms/runtime/downloads"
+            por_dia_ocorr = defaultdict(Counter)
+            por_dia_arquivo = defaultdict(Counter)
+            codigos_nfe = Counter()
+            for a in glob.glob(os.path.join(DL, "*")):
+                mt = os.path.getmtime(a)
+                if mt < datetime(2026, 10, 5).timestamp():
+                    continue
+                dia_arq = datetime.fromtimestamp(mt).strftime("%m-%d")
+                try:
+                    for l in open(a, encoding="utf-8", errors="replace"):
+                        if not l.startswith("342") or len(l) < 44:
+                            continue
+                        tipo = "NF-e" if l[17:20].strip() else "DC-e"
+                        d = l[30:38]
+                        por_dia_ocorr[f"{d[4:8]}-{d[2:4]}-{d[0:2]}"][tipo] += 1
+                        por_dia_arquivo[dia_arq][tipo] += 1
+                        if tipo == "NF-e":
+                            codigos_nfe[(l[28:30], l[44:80].strip()[:30])] += 1
+                except Exception:
+                    pass
+            print("linhas por DIA DA OCORRENCIA (desde 05/10):")
+            for d in sorted(por_dia_ocorr):
+                if d >= "2026-10-05":
+                    print("  ", d, dict(por_dia_ocorr[d]))
+            print("linhas por DIA DO ARQUIVO baixado:")
+            for d in sorted(por_dia_arquivo):
+                print("  ", d, dict(por_dia_arquivo[d]))
+            print("ocorrencias NF-e (codigo, texto) mais comuns:", codigos_nfe.most_common(12))
+            print("nomes de arquivo (formato) recentes:", sorted({os.path.basename(a)[:6] + "..." for a in glob.glob(os.path.join(DL, "*"))
+                                                                if os.path.getmtime(a) >= datetime(2026, 10, 15).timestamp()})[:10])
+            PY
