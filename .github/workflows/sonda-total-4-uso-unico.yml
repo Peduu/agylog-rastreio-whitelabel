@@ -1,0 +1,102 @@
+# USO UNICO (so leitura): Sonda 4 da Total Express (TMS x Total). Pedidos vem do segredo temporario SONDA_AMOSTRA9 (repositorio publico: log so com totais
+# e datas). Nao grava nada. Apagar este arquivo e o segredo depois do uso.
+name: "Uso unico - Sonda 4 da Total Express (TMS x Total)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AMOSTRA: ${{ secrets.SONDA_AMOSTRA9 }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: AMOSTRA
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            AMOSTRA="$AMOSTRA" python3 - <<'PY'
+            import base64, gzip, json, os, re, sqlite3, urllib.request
+            from collections import Counter
+            from datetime import datetime
+            from pathlib import Path
+
+            env = {}
+            for linha in open("/etc/rastreamento.env", encoding="utf-8", errors="replace"):
+                linha = linha.strip()
+                if linha and not linha.startswith("#") and "=" in linha:
+                    k, v = linha.split("=", 1)
+                    env[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
+            TMS_TOKEN = env.get("TMS_API_TOKEN", "")
+            TMS_URL = env.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
+            TOTAL_URL = "https://apis.totalexpress.com.br/ics-tracking-encomenda-lv/v1/tracking"
+            AUTH = base64.b64encode(f"{env.get('TOTAL_EXPRESS_API_USER', '')}:{env.get('TOTAL_EXPRESS_API_PASSWORD', '')}".encode()).decode()
+            amostra = [l.split(";") for l in gzip.decompress(base64.b64decode(os.environ["AMOSTRA"])).decode().splitlines() if l.strip()]
+            print("amostra:", len(amostra))
+
+
+            def post(url, corpo, headers):
+                req = urllib.request.Request(url, data=json.dumps(corpo).encode(), headers=dict({"Content-Type": "application/json",
+                                                                                              "Accept": "application/json"}, **headers))
+                try:
+                    with urllib.request.urlopen(req, timeout=30) as r:
+                        return json.loads(r.read().decode("utf-8"))
+                except Exception:
+                    return None
+
+
+            def quando(v):
+                t = str(v or "").strip().replace("T", " ")
+                for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+                    try:
+                        return datetime.strptime(t[:19] if fmt.endswith("%S") else t[:16], fmt)
+                    except ValueError:
+                        pass
+                return None
+
+
+            p = sqlite3.connect(Path("/home/rastreamento/database.db").resolve().as_uri() + "?mode=ro", uri=True)
+            ult_tms_dia, ult_total_dia = Counter(), Counter()
+            comparacao = Counter()
+            tms_desc_apos = Counter()
+            total_desc = Counter()
+            for (pedido,) in [a[:1] for a in amostra]:
+                row = p.execute("SELECT cnpj_cliente FROM rastreios WHERE codigo = ?", (pedido.upper(),)).fetchone()
+                tms = None
+                if row:
+                    d = post(TMS_URL, {"cnpjEmbarcador": row[0], "listaNotasFiscais": [pedido.upper()]}, {"Authorization": f"Bearer {TMS_TOKEN}"})
+                    if not (d and not d.get("flagErro") and d.get("listaResultados")):
+                        d = post(TMS_URL, {"cnpjEmbarcador": row[0], "listaPedidos": [pedido.upper()]}, {"Authorization": f"Bearer {TMS_TOKEN}"})
+                    if d and not d.get("flagErro") and isinstance(d.get("listaResultados"), list) and d["listaResultados"]:
+                        tms = sorted(d["listaResultados"], key=lambda o: quando(o.get("dtOcorrencia")) or datetime.min)
+                t = post(TOTAL_URL, {"pedidos": [pedido.upper()], "comprovanteEntrega": False}, {"Authorization": "Basic " + AUTH,
+                                                                                                   "User-Agent": "AgyLog-Rastreamento/1.0"})
+                encs = [e for e in (t or {}).get("data") or [] if isinstance(e, dict) and str(e.get("pedido") or "").upper() == pedido.upper()]
+                evs = sorted([ev for e in encs for ev in e.get("tracking") or [] if isinstance(ev, dict)],
+                             key=lambda ev: quando(ev.get("data")) or datetime.min)
+                ut = quando(tms[-1].get("dtOcorrencia")) if tms else None
+                ux = quando(evs[-1].get("data")) if evs else None
+                ult_tms_dia[ut.date().isoformat() if ut else "sem TMS"] += 1
+                ult_total_dia[ux.date().isoformat() if ux else "sem Total"] += 1
+                if ut and ux:
+                    comparacao["Total andou depois do ultimo evento do TMS" if ux > ut else "TMS em dia com a Total"] += 1
+                    entregue_total = "ENTREGA REALIZADA" in str(evs[-1].get("descricao") or "").upper()
+                    entregue_tms = any(str(o.get("codigoOcorrencia")) in ("13", "01", "38") or "ENTREG" in str(o.get("descricaoOcorrencia") or "").upper()
+                                       for o in tms)
+                    comparacao[f"entregue na Total={entregue_total} | entregue no TMS={entregue_tms}"] += 1
+                    tms_desc_apos[str(tms[-1].get("descricaoOcorrencia") or "")[:40]] += 1
+                    total_desc[" ".join(str(evs[-1].get("descricao") or "").upper().split()[:4])] += 1
+            print("ultimo evento no TMS por dia:", sorted(ult_tms_dia.items()))
+            print("ultimo evento na Total por dia:", sorted(ult_total_dia.items()))
+            print("comparacao:", dict(comparacao))
+            print("ultima ocorrencia no TMS:", tms_desc_apos.most_common(10))
+            print("ultimo evento na Total:", [x for x in total_desc.most_common(12) if x[1] >= 2])
+            PY
