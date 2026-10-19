@@ -20,6 +20,10 @@ jobs:
           script: |
             set -uo pipefail
             D=/home/projetos/atualizar_logan
+            echo "agora no servidor: $(date '+%Y-%m-%d %H:%M:%S %z')"
+            systemctl show ocoren-logan-tms.service -p ActiveState -p SubState -p ExecMainStartTimestamp -p ExecMainPID | sed 's/^/  /'
+            systemctl list-timers ocoren-logan-tms.timer --no-pager | head -3 | sed 's/^/  /'
+            journalctl -u ocoren-logan-tms.service -n 12 --no-pager -o short-iso | sed -E 's/[0-9]{5,}/99999/g; s/[A-Z0-9]{9,}/***/g' | cut -c1-170 | sed 's/^/  j /'
             P="$D/ocoren_logan_tms"
             mask() { sed -E 's/[0-9]{5,}/99999/g; s/\b[A-Z0-9]{9,}\b/***/g'; }
             echo "patch no main.py: $(grep -c 'Claude 19/10/2026' "$P/main.py") marcas | gerador: $(test -f "$P/gerar_lista_recuperacao.py" && echo sim || echo nao)"
