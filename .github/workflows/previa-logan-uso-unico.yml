@@ -1,0 +1,120 @@
+# USO UNICO (so leitura): previa da segunda opcao Logan->TMS por pedido para o CCXP (de-para, contagens e o que seria lancado
+# para uma amostra; codigos de teste no segredo temporario SONDA_CODIGOS5). NAO envia nada ao TMS e nao toca no estado da rotina.
+# Apagar este arquivo e o segredo depois do uso.
+name: "Uso unico - Previa da Logan por pedido (CCXP)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Previa so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CODIGOS: ${{ secrets.SONDA_CODIGOS5 }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CODIGOS
+          script: |
+            set -euo pipefail
+            CODIGOS="$CODIGOS" python3 - <<'PY'
+            import csv, json, os, random, re, sqlite3, urllib.request
+            from collections import Counter
+            from datetime import datetime, timedelta
+            from pathlib import Path
+
+            BASE = Path("/home/projetos/atualizar_logan")
+            STATE = BASE / "ocoren_logan_tms/runtime/state/processor_state.sqlite3"
+            MAPA = BASE / "ocoren_logan_tms/lista_ocorrencias_simexpress.csv"
+            ENVIOS = Path("/home/projetos/totalexpress-shipment-api/runtime/simexpress-inbox-state.json")
+            RAST = Path("/home/rastreamento/database.db")
+            codigos_teste = [c for c in os.environ.get("CODIGOS", "").split(",") if c]
+
+            env = {}
+            for linha in open(BASE / ".env", encoding="utf-8", errors="replace"):
+                linha = linha.strip()
+                if linha and not linha.startswith("#") and "=" in linha:
+                    k, v = linha.split("=", 1)
+                    env[k.strip()] = v.strip().strip('"').strip("'")
+
+            print("== de-para SimExpress -> TMS (codigo Logan; codigo TMS; descricao)")
+            mapa = {}
+            for row in csv.DictReader(MAPA.read_bytes().decode("utf-8-sig").splitlines(), delimiter=";"):
+                src = (row.get("Codigo Embarcador") or "").strip()
+                dst = (row.get("Codigo Sistema") or "").strip()
+                if src and dst:
+                    mapa[src.zfill(6)] = dst
+                print("  ", {k: (v or "")[:40] for k, v in row.items() if k})
+            print("codigos mapeados:", len(mapa))
+
+            print("== registro de envios a Logan")
+            estado = json.load(open(ENVIOS, encoding="utf-8"))
+            por_pedido = {}
+            for chave, ent in estado.items():
+                if not isinstance(ent, dict):
+                    continue
+                m = re.match(r"(\d{10})", str(ent.get("arquivo") or ""))
+                quando = datetime.fromtimestamp(int(m.group(1))) if m else None
+                for item in ent.get("enviados") or []:
+                    cod = (item if isinstance(item, str) else (item.get("pedido") or item.get("nroPedido") or item.get("codigo") or "")) if item else ""
+                    cod = str(cod).strip().upper()
+                    if cod:
+                        por_pedido[cod] = max(por_pedido.get(cod) or datetime.min, quando or datetime.min)
+            print("formato dos itens de 'enviados':", Counter(type(i).__name__ for e in estado.values() if isinstance(e, dict) for i in (e.get("enviados") or [])[:3]))
+            print("pedidos enviados:", len(por_pedido), "| CCXP (OMLTCO):", sum(1 for c in por_pedido if c.startswith("OMLTCO")))
+            datas = Counter((d.strftime("%Y-%m") if d and d != datetime.min else "?") for d in por_pedido.values())
+            print("por mes do arquivo:", sorted(datas.items()))
+            limite = datetime.now() - timedelta(days=30)
+            recentes = [c for c, d in por_pedido.items() if d and d >= limite]
+            print("enviados nos ultimos 30 dias:", len(recentes), "| CCXP:", sum(1 for c in recentes if c.startswith("OMLTCO")))
+
+            st = sqlite3.connect(f"file:{STATE}?mode=ro", uri=True)
+            entregues = {r[0] for r in st.execute("SELECT DISTINCT delivery_code FROM processed_events WHERE IFNULL(proof_url,'') <> ''")}
+            com_evento = {r[0] for r in st.execute("SELECT DISTINCT delivery_code FROM processed_events")}
+            print("estado da rotina: pedidos com evento enviado:", len(com_evento), "| com comprovante (entregues):", len(entregues))
+            rast = sqlite3.connect(f"file:{RAST}?mode=ro", uri=True)
+            no_rast = sum(1 for c in recentes if rast.execute("SELECT 1 FROM rastreios WHERE codigo = ? AND IFNULL(cnpj_cliente,'') <> ''", (c,)).fetchone())
+            print("dos ultimos 30 dias: no rastreio com CNPJ:", no_rast, "| ja entregues no estado:", sum(1 for c in recentes if c in entregues),
+                  "| ja com algum evento:", sum(1 for c in recentes if c in com_evento))
+            dce = (BASE / "dce_recovery_orders.txt")
+            print("lista DCE atual:", len([l for l in dce.read_text().splitlines() if l.strip()]) if dce.exists() else "sem arquivo")
+
+
+            def logan(cod):
+                req = urllib.request.Request(env["LOGAN_API_URL"], data=json.dumps({"Nr_Pedido": cod, "Danfe": ""}).encode(),
+                                             headers={"Content-Type": "application/json", "Accept": "application/json",
+                                                      "Authorization": env.get("SIMEXPRESS_AUTHORIZATION_CODE", "")})
+                try:
+                    with urllib.request.urlopen(req, timeout=40) as r:
+                        return json.loads(r.read().decode("utf-8"))
+                except urllib.error.HTTPError as e:
+                    return {"_erro": e.code}
+                except Exception as e:
+                    return {"_erro": type(e).__name__}
+
+
+            print("== previa: o que a segunda opcao lancaria (os 4 pedidos + 12 CCXP recentes ao acaso)")
+            random.seed(19)
+            amostra = [("teste", c) for c in codigos_teste] + [("acaso", c) for c in random.sample([c for c in recentes if c.startswith("OMLTCO")], 12)]
+            resumo = Counter()
+            for tipo, cod in amostra:
+                d = logan(cod)
+                trk = d.get("tracking") if isinstance(d, dict) else None
+                if not isinstance(trk, list) or not trk:
+                    resumo["sem rastreio na Logan"] += 1
+                    print(f"  {tipo}: sem rastreio na Logan ({d.get('_erro', d.get('Mensagem', ''))})")
+                    continue
+                ult = trk[-1] if isinstance(trk[-1], dict) else {}
+                cod_logan = str(ult.get("codigoInterno") or "").strip().zfill(6)
+                tms = mapa.get(cod_logan, "")
+                resumo["mapeado" if tms else "SEM de-para"] += 1
+                print(f"  {tipo}: ultimo Logan {str(ult.get('data'))[:16]} | {cod_logan} {str(ult.get('situacao'))[:28]} -> TMS {tms or 'SEM DE-PARA'}"
+                      f" | ja enviado antes: {cod in com_evento}")
+            print("resumo:", dict(resumo))
+            PY
