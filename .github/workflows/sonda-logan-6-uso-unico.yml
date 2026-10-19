@@ -1,0 +1,101 @@
+# USO UNICO (so leitura): NF do TMS x NF da Logan x arquivos OCOREN para 4 pedidos do CCXP (codigos no segredo temporario
+# SONDA_CODIGOS3; log so com formatos e sim/nao). Nao grava nada. Apagar este arquivo e o segredo depois do uso.
+name: "Uso unico - Sonda da Logan 6 (NF dos 4 pedidos do CCXP)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CODIGOS: ${{ secrets.SONDA_CODIGOS3 }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CODIGOS
+          script: |
+            set -euo pipefail
+            CODIGOS="$CODIGOS" python3 - <<'PY'
+            import glob, json, os, re, sqlite3, urllib.request
+            from datetime import datetime
+            from pathlib import Path
+
+
+            def ler_env(caminho):
+                env = {}
+                for linha in open(caminho, encoding="utf-8", errors="replace"):
+                    linha = linha.strip()
+                    if linha and not linha.startswith("#") and "=" in linha:
+                        k, v = linha.split("=", 1)
+                        env[k.strip()] = v.strip().strip('"').strip("'")
+                return env
+
+
+            r_env = ler_env("/etc/rastreamento.env")
+            l_env = ler_env("/home/projetos/atualizar_logan/.env")
+            TMS_URL = r_env.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
+            codigos = [c for c in os.environ["CODIGOS"].split(",") if c]
+            DL = "/home/projetos/atualizar_logan/ocoren_logan_tms/runtime/downloads"
+            texto = []
+            for a in glob.glob(os.path.join(DL, "*")):
+                if os.path.getmtime(a) >= datetime(2026, 10, 14).timestamp():
+                    try:
+                        texto.append(open(a, encoding="utf-8", errors="replace").read())
+                    except Exception:
+                        pass
+            tudo = "\n".join(texto)
+            nfe_linhas = [l for l in tudo.splitlines() if l.startswith("342") and l[17:20].strip()]
+            print("arquivos lidos:", len(texto), "| linhas NF-e:", len(nfe_linhas),
+                  "| tamanho do campo NF (8) com 8 digitos:", sum(1 for l in nfe_linhas if len(l[20:28].strip()) == 8))
+
+
+            def forma(v):
+                return re.sub(r"\d", "9", re.sub(r"[A-Za-z]", "A", str(v)))[:40]
+
+
+            def post(url, corpo, headers):
+                req = urllib.request.Request(url, data=json.dumps(corpo).encode(), headers=dict({"Content-Type": "application/json",
+                                                                                              "Accept": "application/json"}, **headers))
+                try:
+                    with urllib.request.urlopen(req, timeout=40) as r:
+                        return r.status, json.loads(r.read().decode("utf-8"))
+                except urllib.error.HTTPError as e:
+                    return e.code, None
+                except Exception as e:
+                    return type(e).__name__, None
+
+
+            p = sqlite3.connect(Path("/home/rastreamento/database.db").resolve().as_uri() + "?mode=ro", uri=True)
+            for i, cod in enumerate(codigos, 1):
+                print(f"===== pedido {i}")
+                row = p.execute("SELECT cnpj_cliente FROM rastreios WHERE codigo = ?", (cod,)).fetchone()
+                oc = []
+                for chave in ("listaNotasFiscais", "listaPedidos"):
+                    st, d = post(TMS_URL, {"cnpjEmbarcador": row[0] if row else "", chave: [cod]}, {"Authorization": f"Bearer {r_env.get('TMS_API_TOKEN', '')}"})
+                    if d and not d.get("flagErro") and d.get("listaResultados"):
+                        oc = d["listaResultados"]
+                        break
+                nf_tms = {str(o.get("nroNotaFiscal") or "") for o in oc}
+                serie_tms = {str(o.get("serieNotaFiscal") or "") for o in oc}
+                print("NF no TMS (formato):", [forma(x) for x in nf_tms], "| serie:", [forma(x) for x in serie_tms])
+                st, d = post(l_env.get("LOGAN_API_URL", ""), {"Nr_Pedido": cod, "Danfe": ""}, {"Authorization": l_env.get("SIMEXPRESS_AUTHORIZATION_CODE", "")})
+                if isinstance(d, dict):
+                    campos = {k: forma(v) for k, v in d.items() if not isinstance(v, (list, dict))}
+                    print("API Logan - campos (formato):", campos)
+                    nfs_logan = {str(v) for k, v in d.items() if re.search(r"nota|nf|danfe|chave", k, re.I) and not isinstance(v, (list, dict)) and str(v)}
+                else:
+                    nfs_logan = set()
+                nums_tms = {re.sub(r"\D", "", x.split("/")[0]).lstrip("0") for x in nf_tms} - {""}
+                nums_logan = {re.sub(r"\D", "", x).lstrip("0") for x in nfs_logan} - {""}
+                print("NF do TMS == alguma NF/chave da Logan:", bool(nums_tms & nums_logan) or any(t in l for t in nums_tms for l in nums_logan))
+                print("NF do TMS aparece em algum lugar dos arquivos:", any(t and t in tudo for t in nums_tms),
+                      "| no campo NF de linha NF-e:", any(l[20:28].strip().lstrip("0") in nums_tms for l in nfe_linhas))
+                print("NF/chave da Logan aparece nos arquivos:", any(x and x in tudo for x in nums_logan), "| codigo do pedido aparece:", cod in tudo)
+            PY
