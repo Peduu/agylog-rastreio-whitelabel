@@ -1,0 +1,50 @@
+# USO UNICO (so leitura): copia CIFRADA do codigo e do journal da rotina Logan->TMS (chave publica RSA; so o PC do Pedro tem a
+# chave privada). O log mostra apenas texto cifrado. .env vai sem segredos. Nao grava nada. Apagar este arquivo depois do uso.
+name: "Uso unico - Copia cifrada da rotina Logan"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copia cifrada (VPS)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+            T=$(mktemp -d)
+            cat > "$T/pub.pem" <<'CHAVE'
+            -----BEGIN PUBLIC KEY-----
+            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA44/Svz3VcwX50yl9mqGz
+            yWxPv0ZbeHOvTbVs/1RBDwLnyJbkWVpMe9bU5VufTJaFy4oQ5ysUD1z8OBxRE+ku
+            BiNX1CJT6aVvpECp8WIQ4MXTatPlUL+FhJcbBe3nhgQo5fjRC4D/1uC7D0LP6lb1
+            VVTTujV0yXN+hVoXjq49s/ZWNr9GdBE72KPrP1j0JfaMJpQKovh3bVWFtPfwDzRs
+            wjPFWtVOG3AzXIQG/ZUnuwYNDjH3ENrBl77s1g8VnO1cpmBX5sUyyKO6EAw5dU0Q
+            XfS3SZb0NaMMC/Ca4M5ZNVlrkrS6Ur5TWbCsJBdPYBcvTclw19sj7s0fgfpWsI34
+            HT33MXt8Y9V2Ct70kkC2yJ/Upu9XizwD6j4ZDcL3fJ59tbtMJyO+ymacg27wRncQ
+            jYEzA/O4JIyJGlhc5fXY4aW7ouAaaaHjJocKRYExztrx7xxyt/SMkfiPTr8V2+kF
+            /WQ9y7/Ti8UZ2YDdcfb2cuSfQO1RqikTGFZaUG4t4+vfAgMBAAE=
+            -----END PUBLIC KEY-----
+            CHAVE
+            D=/home/projetos/atualizar_logan
+            mkdir -p "$T/b"
+            cd "$D"
+            tar -czf "$T/b/codigo.tgz" main.py DEPLOY_VPS_OCOREN.md .env.example ocoren_logan_tms/*.py ocoren_logan_tms/README.md 2>/dev/null || true
+            sed -E 's/^((FTP_PASSWORD|TMS_API_TOKEN|SIMEXPRESS_AUTHORIZATION_CODE|[A-Z_]*(PASSWORD|TOKEN|SECRET|KEY|AUTHORIZATION)[A-Z_]*)=).*/<oculto>/' .env > "$T/b/env_sem_segredos.txt"
+            ls -la ocoren_logan_tms/runtime > "$T/b/runtime_ls.txt" 2>&1 || true
+            journalctl -u ocoren-logan-tms.service --since "2026-10-17" --no-pager | grep -v "^--" | grep -vE "runpy|_run_code|exec\(code|run_globals|Starting Processador|Consumed|Failed to start|Main process exited|Failed with result" | tail -300 > "$T/b/journal.txt" || true
+            journalctl -u ocoren-logan-tms.service --since "2026-10-14" --until "2026-10-18 12:00" --no-pager | tail -150 > "$T/b/journal_antes.txt" || true
+            tar -czf "$T/pacote.tgz" -C "$T/b" .
+            KEY=$(openssl rand -hex 32)
+            openssl enc -aes-256-cbc -pbkdf2 -salt -in "$T/pacote.tgz" -out "$T/pacote.enc" -pass "pass:$KEY"
+            printf '%s' "$KEY" | openssl pkeyutl -encrypt -pubin -inkey "$T/pub.pem" -out "$T/chave.enc"
+            echo "CHAVE_INICIO"; base64 -w0 "$T/chave.enc"; echo; echo "CHAVE_FIM"
+            echo "DADOS_INICIO"; base64 -w 900 "$T/pacote.enc"; echo "DADOS_FIM"
+            rm -rf "$T"
