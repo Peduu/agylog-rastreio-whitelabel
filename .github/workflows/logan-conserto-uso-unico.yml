@@ -16,7 +16,7 @@ on:
 jobs:
   aplicar:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Conserto na VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -28,7 +28,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           envs: CONFIRMAR
-          command_timeout: 12m
+          command_timeout: 15m
           script: |
             set -euo pipefail
             D=/home/projetos/atualizar_logan
@@ -74,17 +74,22 @@ jobs:
             grep -E "^(DCE_RECOVERY_ORDERS_FILE|DCE_RECOVERY_BATCH_SIZE)=" "$D/.env" | sed 's/^/   /'
             cd "$D" && echo "lista gerada agora (pedidos): $(python3 -c 'from ocoren_logan_tms.gerar_lista_recuperacao import gerar_se_preciso; print(gerar_se_preciso())')"
             INICIO=$(date '+%Y-%m-%d %H:%M:%S')
-            echo "== esperando 2 execucoes do timer (ate 6 min)"
-            for i in $(seq 1 36); do
+            echo "== esperando 2 execucoes do timer que COMECARAM depois da mudanca (a que ja rodava usa o codigo antigo; ate 8 min)"
+            n=0; DEPOIS=""
+            for i in $(seq 1 48); do
               sleep 10
-              n=$(journalctl -u ocoren-logan-tms.service --since "$INICIO" --no-pager 2>/dev/null | grep -c "Finished Processador\|Deactivated successfully\|Failed with result" || true)
+              J=$(journalctl -u ocoren-logan-tms.service --since "$INICIO" --no-pager -o short-iso 2>/dev/null || true)
+              PRIMEIRO=$(printf '%s\n' "$J" | grep -m1 "Starting Processador" | awk '{print $1}')
+              [ -n "$PRIMEIRO" ] || continue
+              DEPOIS=$(printf '%s\n' "$J" | awk -v t="$PRIMEIRO" '$1 >= t')
+              n=$(printf '%s\n' "$DEPOIS" | grep -c "Deactivated successfully\|Failed with result" || true)
               [ "$n" -ge 2 ] && break
             done
-            ERROS=$(journalctl -u ocoren-logan-tms.service --since "$INICIO" --no-pager 2>/dev/null | grep -c "Traceback" || true)
-            echo "execucoes concluidas: $n | tracebacks depois da mudanca: $ERROS"
+            ERROS=$(printf '%s\n' "$DEPOIS" | grep -c "Traceback" || true)
+            echo "execucoes novas concluidas: $n | tracebacks nelas: $ERROS"
             if [ "$ERROS" -gt 0 ]; then
               echo "ERRO NOVO: restaurando o backup"
-              journalctl -u ocoren-logan-tms.service --since "$INICIO" --no-pager | grep -A2 "Error\|error" | tail -12 | mask
+              printf '%s\n' "$DEPOIS" | grep -A2 "Error\|error" | tail -12 | mask
               cp -p "$B/main.py" "$P/main.py"; cp -p "$B/.env" "$D/.env"; rm -f "$P/gerar_lista_recuperacao.py" "$D/pedidos_recuperacao.txt"
               rm -rf "$T"; exit 1
             fi
