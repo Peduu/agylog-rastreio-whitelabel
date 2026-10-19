@@ -1,0 +1,102 @@
+# USO UNICO (so leitura): para 4 pedidos do CCXP repassados a Logan (codigos no segredo temporario SONDA_CODIGOS2): NF no TMS,
+# linhas da Logan nos arquivos OCOREN baixados e resposta da API da Logan (so codigos de ocorrencia, datas e situacao). Nao grava
+# nada. Apagar este arquivo e o segredo depois do uso.
+name: "Uso unico - Sonda da Logan 2 (4 pedidos do CCXP)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CODIGOS: ${{ secrets.SONDA_CODIGOS2 }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CODIGOS
+          script: |
+            set -euo pipefail
+            CODIGOS="$CODIGOS" python3 - <<'PY'
+            import glob, json, os, sqlite3, urllib.request
+            from datetime import datetime
+            from pathlib import Path
+
+
+            def ler_env(caminho):
+                env = {}
+                for linha in open(caminho, encoding="utf-8", errors="replace"):
+                    linha = linha.strip()
+                    if linha and not linha.startswith("#") and "=" in linha:
+                        k, v = linha.split("=", 1)
+                        env[k.strip()] = v.strip().strip('"').strip("'")
+                return env
+
+
+            r_env = ler_env("/etc/rastreamento.env")
+            l_env = ler_env("/home/projetos/atualizar_logan/.env")
+            TMS_URL = r_env.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
+            codigos = [c for c in os.environ["CODIGOS"].split(",") if c]
+            DL = "/home/projetos/atualizar_logan/ocoren_logan_tms/runtime/downloads"
+
+            arquivos = sorted(glob.glob(os.path.join(DL, "*")), key=os.path.getmtime)
+            recentes = [a for a in arquivos if os.path.getmtime(a) >= datetime(2026, 10, 15).timestamp()]
+            print("arquivos OCOREN baixados:", len(arquivos), "| desde 15/10:", len(recentes),
+                  "| mais novo:", datetime.fromtimestamp(os.path.getmtime(arquivos[-1])).strftime("%Y-%m-%d %H:%M") if arquivos else "-")
+            linhas_recentes = []
+            for a in recentes:
+                try:
+                    for l in open(a, encoding="utf-8", errors="replace"):
+                        if l.startswith("342") and len(l) >= 44:
+                            linhas_recentes.append((os.path.basename(a), l.rstrip("\r\n")))
+                except Exception:
+                    pass
+            print("linhas de ocorrencia (342) nos arquivos desde 15/10:", len(linhas_recentes),
+                  "| com serie (NF-e):", sum(1 for _, l in linhas_recentes if l[17:20].strip()), "| sem serie (DC-e):",
+                  sum(1 for _, l in linhas_recentes if not l[17:20].strip()))
+
+
+            def post(url, corpo, headers):
+                req = urllib.request.Request(url, data=json.dumps(corpo).encode(), headers=dict({"Content-Type": "application/json",
+                                                                                              "Accept": "application/json"}, **headers))
+                try:
+                    with urllib.request.urlopen(req, timeout=40) as r:
+                        return r.status, json.loads(r.read().decode("utf-8"))
+                except urllib.error.HTTPError as e:
+                    try:
+                        return e.code, json.loads(e.read().decode("utf-8"))
+                    except Exception:
+                        return e.code, None
+                except Exception as e:
+                    return type(e).__name__, None
+
+
+            p = sqlite3.connect(Path("/home/rastreamento/database.db").resolve().as_uri() + "?mode=ro", uri=True)
+            for i, cod in enumerate(codigos, 1):
+                print(f"===== pedido {i}")
+                row = p.execute("SELECT cnpj_cliente FROM rastreios WHERE codigo = ?", (cod,)).fetchone()
+                nfs = set()
+                for chave in ("listaNotasFiscais", "listaPedidos"):
+                    st, d = post(TMS_URL, {"cnpjEmbarcador": row[0] if row else "", chave: [cod]}, {"Authorization": f"Bearer {r_env.get('TMS_API_TOKEN', '')}"})
+                    if d and not d.get("flagErro") and d.get("listaResultados"):
+                        nfs = {str(o.get("nroNotaFiscal") or "").split("/")[0].strip().lstrip("0") for o in d["listaResultados"]} - {""}
+                        break
+                print("NF no TMS:", "sim" if nfs else "nao", "| quantidade:", len(nfs))
+                achadas = [(arq, l) for arq, l in linhas_recentes if (l[20:28].strip().lstrip("0") or "0") in nfs]
+                print("linhas da Logan para a NF desde 15/10:", len(achadas))
+                for arq, l in achadas[-6:]:
+                    print(f"    ocorrencia {l[28:30]} em {l[30:38]} {l[38:42]} | {l[44:90].strip()}")
+                st, d = post(l_env.get("LOGAN_API_URL", ""), {"Nr_Pedido": cod, "Danfe": ""}, {"Authorization": l_env.get("SIMEXPRESS_AUTHORIZATION_CODE", "")})
+                trk = (d or {}).get("tracking") if isinstance(d, dict) else None
+                print("API Logan:", f"HTTP {st}", "| eventos:", len(trk) if isinstance(trk, list) else "-",
+                      "| mensagem:", str((d or {}).get("Mensagem", ""))[:60] if isinstance(d, dict) else "-")
+                for ev in (trk or [])[-4:]:
+                    if isinstance(ev, dict):
+                        print("    ", str(ev.get("data") or ev.get("dataHora") or "")[:16], "|", str(ev.get("situacao") or "")[:50], "| cod", ev.get("codigoInterno"))
+            PY
