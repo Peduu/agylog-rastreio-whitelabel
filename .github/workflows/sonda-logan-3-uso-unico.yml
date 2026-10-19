@@ -1,0 +1,33 @@
+# USO UNICO (so leitura): estado dos servicos simexpress-inbox / simexpress-admin / totalexpress-inbox (unidades e journal
+# mascarado). Nao grava nada. Apagar este arquivo depois do uso.
+name: "Uso unico - Sonda da Logan 3 (servicos simexpress)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sonda so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -uo pipefail
+            mask() { sed -E 's/[0-9]{6,}/999999/g; s/\b[A-Z0-9]{10,}\b/***/g; s/((senha|password|pass|token|secret|chave|key|authorization)[^A-Za-z0-9]{1,3})[^ ,;"]+/\1<oculto>/Ig'; }
+            for u in simexpress-inbox.service simexpress-inbox.timer simexpress-admin.service totalexpress-inbox.service totalexpress-inbox.timer; do
+              echo "== $u"
+              systemctl cat "$u" 2>/dev/null | grep -E "Description|ExecStart|WorkingDirectory|EnvironmentFile|OnCalendar|OnUnitActiveSec" | mask | sed 's/^/  /'
+              systemctl show "$u" -p ActiveState -p SubState -p Result -p ExecMainExitTimestamp 2>/dev/null | sed 's/^/  /'
+            done
+            for u in simexpress-inbox.service totalexpress-inbox.service simexpress-admin.service; do
+              echo "== journal de $u: linhas com erro por dia desde 12/10"
+              journalctl -u "$u" --since "2026-10-12" --no-pager -o short-iso 2>/dev/null | grep -iE "erro|error|fail|falh|exception|traceback|refused|denied|invalid|401|403|500" | cut -c1-10 | sort | uniq -c | sed 's/^/  /'
+              echo "== journal de $u: ultimas 25 linhas (mascaradas)"
+              journalctl -u "$u" --since "2026-10-18" --no-pager 2>/dev/null | grep -v "^--" | tail -25 | sed -E 's/^.{0,70}(python3?|bash|sh)\[[0-9]+\]: //' | mask | cut -c1-190 | sed 's/^/  /'
+            done
