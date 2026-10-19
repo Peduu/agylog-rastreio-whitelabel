@@ -1,0 +1,40 @@
+# USO UNICO (so leitura): confere a rotina Logan->TMS depois do conserto (journal e processor.log mascarados). Nao grava nada.
+# Apagar este arquivo depois do uso.
+name: "Uso unico - Conferencia da rotina Logan"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Conferencia so leitura na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -uo pipefail
+            D=/home/projetos/atualizar_logan
+            P="$D/ocoren_logan_tms"
+            mask() { sed -E 's/[0-9]{5,}/99999/g; s/\b[A-Z0-9]{9,}\b/***/g'; }
+            echo "patch no main.py: $(grep -c 'Claude 19/10/2026' "$P/main.py") marcas | gerador: $(test -f "$P/gerar_lista_recuperacao.py" && echo sim || echo nao)"
+            grep -E "^(DCE_RECOVERY_ORDERS_FILE|DCE_RECOVERY_BATCH_SIZE)=" "$D/.env" | sed 's/^/  /'
+            echo "lista: $(wc -l < "$D/pedidos_recuperacao.txt" 2>/dev/null || echo 0) pedidos | alterada $(date -r "$D/pedidos_recuperacao.txt" '+%H:%M' 2>/dev/null)"
+            J=$(journalctl -u ocoren-logan-tms.service --since "2026-10-19 10:24:44" --no-pager -o short-iso 2>/dev/null || true)
+            echo "execucoes iniciadas desde a troca: $(printf '%s\n' "$J" | grep -c 'Starting Processador' || true)"
+            echo "concluidas ok: $(printf '%s\n' "$J" | grep -c 'Deactivated successfully' || true) | falharam: $(printf '%s\n' "$J" | grep -c 'Failed with result' || true) | tracebacks: $(printf '%s\n' "$J" | grep -c 'Traceback' || true)"
+            printf '%s\n' "$J" | grep -E "Starting Processador|Deactivated|Failed with|Error" | tail -8 | mask | cut -c1-170 | sed 's/^/  /'
+            L="$P/runtime/logs/processor.log"
+            awk '$0 >= "2026-10-19 10:24:44"' "$L" > /tmp/novo_logan.log 2>/dev/null || true
+            echo "== processor.log desde a troca: $(wc -l < /tmp/novo_logan.log) linhas"
+            for padrao in "Lista da recuperacao por pedido atualizada" "Recuperação enviada ao TMS" "Recuperação já enviada" "Arquivo finalizado" "CNPJ do embarcador nao encontrado" "Linha enviada" "Erro no envio ao TMS" "cooldown" "Codigo SimExpress sem DeXPara" "Processando arquivo"; do
+              echo "   $(grep -c "$padrao" /tmp/novo_logan.log || true) x $padrao"
+            done
+            grep "Arquivo finalizado" /tmp/novo_logan.log | tail -3 | mask | cut -c1-200 | sed 's/^/   /'
+            tail -4 /tmp/novo_logan.log | mask | cut -c1-200 | sed 's/^/   /'
+            rm -f /tmp/novo_logan.log
