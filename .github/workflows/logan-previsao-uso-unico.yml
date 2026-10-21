@@ -1,0 +1,92 @@
+# USO UNICO: a recuperacao por pedido da rotina Logan->TMS passa a guardar a previsao de entrega da Logan
+# (consumidor.PrevisaoEntrega, mesma consulta, nenhuma a mais) em previsoes_logan.json para a pagina de rastreio.
+# Sem "APLICAR" so confere (compila, importa, main.py como esperado). Backup antes; rodada de teste; restaura sozinho se falhar.
+# Apagar este arquivo depois do uso.
+name: "Uso unico - Previsao da Logan para o rastreio"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: "Vazio = so confere. Digite APLICAR para gravar"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Previsao da Logan (VPS)
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CONFIRMAR
+          command_timeout: 12m
+          script: |
+            set -uo pipefail
+            D=/home/projetos/atualizar_logan
+            P="$D/ocoren_logan_tms"
+            ARQ="$D/previsoes_logan.json"
+            LR="$P/runtime/logs/recuperacao.log"
+            mask() { sed -E 's/[0-9]{5,}/99999/g; s/[A-Z0-9]{9,}/***/g'; }
+            T=$(mktemp -d)
+            mkdir -p "$T/pkg/ocoren_logan_tms"
+            cp "$P"/*.py "$T/pkg/ocoren_logan_tms/"
+            echo "IiIiUHJldmlzYW8gZGUgZW50cmVnYSBkYSBMb2dhbiBwYXJhIGEgcGFnaW5hIGRlIHJhc3RyZWlvIChDbGF1ZGUsIDIxLzEwLzIwMjYpLgoKQSByZWN1cGVyYWNhbyBwb3IgcGVkaWRvIChyZWN1cGVyYWNhb19wZWRpZG9zLnB5KSBqYSBjb25zdWx0YSBhIExvZ2FuIHBlZGlkbyBhIHBlZGlkby4gQXF1aSBzbyBndWFyZGFtb3MgbyBjYW1wbwpjb25zdW1pZG9yLlByZXZpc2FvRW50cmVnYSAoQUFBQU1NREQpIHF1ZSB2ZW0gbmVzc2EgbWVzbWEgcmVzcG9zdGEsIG51bSBKU09OIHF1ZSBvIHBvcnRhbCBkZSByYXN0cmVpbyBsZQoocHJhem9fdHJhbnNwb3J0YWRvcmEucHkgZG8gcmVwb3NpdG9yaW8gYWd5bG9nLXJhc3RyZWlvLXdoaXRlbGFiZWwpLiBOZW5odW1hIGNvbnN1bHRhIGEgbWFpcyBuYSBMb2dhbjogZWxhIGxpbWl0YQpjb25zdWx0YXMgcG9yIHBlZGlkbywgZSBhIHJvdGluYSBxdWUgbGFuY2Egb3MgZXZlbnRvcyBubyBUTVMgcHJlY2lzYSBkZXNzYXMgY29uc3VsdGFzLgoiIiIKZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKaW1wb3J0IGpzb24KaW1wb3J0IG9zCmltcG9ydCByZQpmcm9tIGRhdGV0aW1lIGltcG9ydCBkYXRldGltZSwgdGltZWRlbHRhCmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKQVJRVUlWTyA9IFBhdGgob3MuZ2V0ZW52KCJMT0dBTl9QUkVWSVNPRVNfRklMRSIsICIvaG9tZS9wcm9qZXRvcy9hdHVhbGl6YXJfbG9nYW4vcHJldmlzb2VzX2xvZ2FuLmpzb24iKSkKR1VBUkRBX0RJQVMgPSAyMCAgICMgcGVkaWRvIHNlbSBjb25zdWx0YSBub3ZhIGhhIG1haXMgdGVtcG8gc2FpIGRvIGFycXVpdm8KCgpkZWYgZXh0cmFpcihyZXNwb3N0YSkgLT4gc3RyOgogICAgIiIiJ0FBQUEtTU0tREQnIGRhIFByZXZpc2FvRW50cmVnYSBkYSBMb2dhbiwgb3UgJycgKHNlbSBjYW1wbywgdmF6aW8gb3UgZm9yYSBkbyBmb3JtYXRvKS4iIiIKICAgIGlmIG5vdCBpc2luc3RhbmNlKHJlc3Bvc3RhLCBkaWN0KToKICAgICAgICByZXR1cm4gIiIKICAgIGNvbnN1bWlkb3IgPSByZXNwb3N0YS5nZXQoImNvbnN1bWlkb3IiKQogICAgdGV4dG8gPSBzdHIoKGNvbnN1bWlkb3Igb3Ige30pLmdldCgiUHJldmlzYW9FbnRyZWdhIikgb3IgIiIpLnN0cmlwKCkgaWYgaXNpbnN0YW5jZShjb25zdW1pZG9yLCBkaWN0KSBlbHNlICIiCiAgICBpZiBub3QgcmUuZnVsbG1hdGNoKHIiXGR7OH0iLCB0ZXh0byk6CiAgICAgICAgcmV0dXJuICIiCiAgICB0cnk6CiAgICAgICAgcmV0dXJuIGRhdGV0aW1lLnN0cnB0aW1lKHRleHRvLCAiJVklbSVkIikuc3RyZnRpbWUoIiVZLSVtLSVkIikKICAgIGV4Y2VwdCBWYWx1ZUVycm9yOgogICAgICAgIHJldHVybiAiIgoKCmNsYXNzIENvbGV0b3I6CiAgICAiIiJKdW50YSBhcyBwcmV2aXNvZXMgdmlzdGFzIG51bWEgcm9kYWRhIGUgZ3JhdmEgdHVkbyBkZSB1bWEgdmV6IG5vIGZpbSAoYXJxdWl2byB0cm9jYWRvIGludGVpcm8sIG51bmNhIHBlbGEgbWV0YWRlKS4iIiIKCiAgICBkZWYgX19pbml0X18oc2VsZiwgYXJxdWl2bzogUGF0aCB8IE5vbmUgPSBOb25lKToKICAgICAgICBzZWxmLmFycXVpdm8gPSBQYXRoKGFycXVpdm8pIGlmIGFycXVpdm8gZWxzZSBBUlFVSVZPCiAgICAgICAgc2VsZi5ub3ZhczogZGljdFtzdHIsIHN0cl0gPSB7fQoKICAgIGRlZiByZWdpc3RyYXIoc2VsZiwgcGVkaWRvLCByZXNwb3N0YSkgLT4gTm9uZToKICAgICAgICBwcmV2aXNhbyA9IGV4dHJhaXIocmVzcG9zdGEpCiAgICAgICAgcGVkaWRvID0gc3RyKHBlZGlkbyBvciAiIikuc3RyaXAoKS51cHBlcigpCiAgICAgICAgaWYgcGVkaWRvIGFuZCBwcmV2aXNhbzoKICAgICAgICAgICAgc2VsZi5ub3Zhc1twZWRpZG9dID0gcHJldmlzYW8KCiAgICBkZWYgZ3JhdmFyKHNlbGYsIGFnb3JhOiBkYXRldGltZSB8IE5vbmUgPSBOb25lKSAtPiBpbnQ6CiAgICAgICAgaWYgbm90IHNlbGYubm92YXM6CiAgICAgICAgICAgIHJldHVybiAwCiAgICAgICAgYWdvcmEgPSBhZ29yYSBvciBkYXRldGltZS5ub3coKQogICAgICAgIHRyeToKICAgICAgICAgICAgZGFkb3MgPSBqc29uLmxvYWRzKHNlbGYuYXJxdWl2by5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikpCiAgICAgICAgZXhjZXB0IChPU0Vycm9yLCBWYWx1ZUVycm9yKToKICAgICAgICAgICAgZGFkb3MgPSB7fQogICAgICAgIHBlZGlkb3MgPSBkYWRvcy5nZXQoInBlZGlkb3MiKSBpZiBpc2luc3RhbmNlKGRhZG9zLCBkaWN0KSBhbmQgaXNpbnN0YW5jZShkYWRvcy5nZXQoInBlZGlkb3MiKSwgZGljdCkgZWxzZSB7fQogICAgICAgIHZpc3RvID0gYWdvcmEuc3RyZnRpbWUoIiVZLSVtLSVkICVIOiVNOiVTIikKICAgICAgICBmb3IgcGVkaWRvLCBwcmV2aXNhbyBpbiBzZWxmLm5vdmFzLml0ZW1zKCk6CiAgICAgICAgICAgIHBlZGlkb3NbcGVkaWRvXSA9IHsicHJldmlzYW8iOiBwcmV2aXNhbywgInZpc3RvX2VtIjogdmlzdG99CiAgICAgICAgY29ydGUgPSAoYWdvcmEgLSB0aW1lZGVsdGEoZGF5cz1HVUFSREFfRElBUykpLnN0cmZ0aW1lKCIlWS0lbS0lZCIpCiAgICAgICAgcGVkaWRvcyA9IHtrOiB2IGZvciBrLCB2IGluIHBlZGlkb3MuaXRlbXMoKSBpZiBpc2luc3RhbmNlKHYsIGRpY3QpIGFuZCBzdHIodi5nZXQoInZpc3RvX2VtIiwgIiIpKVs6MTBdID49IGNvcnRlfQogICAgICAgIHRlbXBvcmFyaW8gPSBzZWxmLmFycXVpdm8ud2l0aF9uYW1lKHNlbGYuYXJxdWl2by5uYW1lICsgIi50bXAiKQogICAgICAgIHRlbXBvcmFyaW8ud3JpdGVfdGV4dChqc29uLmR1bXBzKHsiYXR1YWxpemFkb19lbSI6IHZpc3RvLCAicGVkaWRvcyI6IHBlZGlkb3N9LCBlbnN1cmVfYXNjaWk9RmFsc2UpLCBlbmNvZGluZz0idXRmLTgiKQogICAgICAgIG9zLmNobW9kKHRlbXBvcmFyaW8sIDBvNjQ0KSAgICMgbyBzZXJ2aWNvIGRvIHJhc3RyZWlvIHJvZGEgY29tIG91dHJvIHVzdWFyaW8gZSBzbyBwcmVjaXNhIGxlcgogICAgICAgIG9zLnJlcGxhY2UodGVtcG9yYXJpbywgc2VsZi5hcnF1aXZvKQogICAgICAgIHJldHVybiBsZW4oc2VsZi5ub3ZhcykK" | base64 -d > "$T/previsoes_logan.py"
+            echo "IiIiU2VndW5kYSBvcGNhbyBMb2dhbiAtPiBUTVMgKENsYXVkZSwgMTkvMTAvMjAyNikuCgpSb2RhIFNPIGEgcmVjdXBlcmFjYW8gcG9yIHBlZGlkbyAocHJvY2Vzc19kY2VfcmVjb3ZlcnkpLCBlbSB0aW1lciBwcm9wcmlvIChvY29yZW4tbG9nYW4tcmVjdXBlcmFjYW8udGltZXIpLCBzZW0gRlRQIGUgc2VtCmVzcGVyYXIgYSBsZWl0dXJhIGRvcyBhcnF1aXZvcyBPQ09SRU4gZG8gdGltZXIgcHJpbmNpcGFsLiBBc3NpbSwgc2UgYSBsZWl0dXJhIGRvcyBhcnF1aXZvcyB0cmF2YXIgb3UgZGVtb3JhciAoYWN1bXVsYWRvKSwgb3MKcGVkaWRvcyBlbnZpYWRvcyBhIExvZ2FuIGNvbnRpbnVhbSB0ZW5kbyBvIHVsdGltbyBldmVudG8gbGFuY2FkbyBubyBUTVMuIExvZyBwcm9wcmlvOiBydW50aW1lL2xvZ3MvcmVjdXBlcmFjYW8ubG9nLgoKMjEvMTAvMjAyNjogYXByb3ZlaXRhIGEgbWVzbWEgY29uc3VsdGEgYSBMb2dhbiBwYXJhIGd1YXJkYXIgYSBwcmV2aXNhbyBkZSBlbnRyZWdhIChwcmV2aXNvZXNfbG9nYW4ucHkpIHF1ZSBhIHBhZ2luYSBkZQpyYXN0cmVpbyBtb3N0cmEuIE5hZGEgbXVkYSBubyBlbnZpbyBhbyBUTVM7IHNlIGd1YXJkYXIgYSBwcmV2aXNhbyBmYWxoYXIsIGEgcmVjdXBlcmFjYW8gc2VndWUgaWd1YWwuCiIiIgpmcm9tIF9fZnV0dXJlX18gaW1wb3J0IGFubm90YXRpb25zCgppbXBvcnQgaW1wb3J0bGliCmltcG9ydCBsb2dnaW5nCmZyb20gbG9nZ2luZy5oYW5kbGVycyBpbXBvcnQgUm90YXRpbmdGaWxlSGFuZGxlcgoKZnJvbSAuZ2VyYXJfbGlzdGFfcmVjdXBlcmFjYW8gaW1wb3J0IGdlcmFyX3NlX3ByZWNpc28KZnJvbSAubWFpbiBpbXBvcnQgTE9HR0VSLCBwcm9jZXNzX2RjZV9yZWNvdmVyeQpmcm9tIC5wcmV2aXNvZXNfbG9nYW4gaW1wb3J0IENvbGV0b3IKZnJvbSAuc2V0dGluZ3MgaW1wb3J0IGxvYWRfc2V0dGluZ3MKZnJvbSAuc3RhdGVfc3RvcmUgaW1wb3J0IFN0YXRlU3RvcmUKCgpkZWYgX2NvbV9wcmV2aXNhbyhvcmlnaW5hbCwgY29sZXRvcik6CiAgICAiIiJNZXNtYSBjb25zdWx0YSBhIExvZ2FuIGRlIHNlbXByZTsgc28gYW5vdGEgYSBwcmV2aXNhbyBxdWUgdmVpbyBuYSByZXNwb3N0YS4iIiIKICAgIGRlZiBjb25zdWx0YSgqYXJncywgKiprd2FyZ3MpOgogICAgICAgIHJlc3VsdGFkbyA9IG9yaWdpbmFsKCphcmdzLCAqKmt3YXJncykKICAgICAgICB0cnk6CiAgICAgICAgICAgIHBlZGlkbyA9IGFyZ3NbMl0gaWYgbGVuKGFyZ3MpID4gMiBlbHNlIGt3YXJncy5nZXQoIm9yZGVyIiwgIiIpCiAgICAgICAgICAgIGNvbGV0b3IucmVnaXN0cmFyKHBlZGlkbywgZ2V0YXR0cihyZXN1bHRhZG8sICJyYXdfcmVzcG9uc2UiLCBOb25lKSkKICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICBMT0dHRVIuZXhjZXB0aW9uKCJGYWxoYSBhbyBhbm90YXIgYSBwcmV2aXNhbyBkYSBMb2dhbjsgc2VndWUgYSByZWN1cGVyYWNhbyIpCiAgICAgICAgcmV0dXJuIHJlc3VsdGFkbwogICAgcmV0dXJuIGNvbnN1bHRhCgoKZGVmIG1haW4oKSAtPiBOb25lOgogICAgc2V0dGluZ3MgPSBsb2FkX3NldHRpbmdzKCkKICAgIGxvZ19maWxlID0gc2V0dGluZ3MuYXBwX2xvZ19maWxlLndpdGhfbmFtZSgicmVjdXBlcmFjYW8ubG9nIikKICAgIGxvZ19maWxlLnBhcmVudC5ta2RpcihwYXJlbnRzPVRydWUsIGV4aXN0X29rPVRydWUpCiAgICBsb2dnaW5nLmJhc2ljQ29uZmlnKAogICAgICAgIGxldmVsPWxvZ2dpbmcuSU5GTywKICAgICAgICBmb3JtYXQ9IiUoYXNjdGltZSlzIHwgJShsZXZlbG5hbWUpcyB8ICUobWVzc2FnZSlzIiwKICAgICAgICBoYW5kbGVycz1bUm90YXRpbmdGaWxlSGFuZGxlcihsb2dfZmlsZSwgbWF4Qnl0ZXM9MjAgKiAxMDI0ICogMTAyNCwgYmFja3VwQ291bnQ9MywgZW5jb2Rpbmc9InV0Zi04IildLAogICAgICAgIGZvcmNlPVRydWUsCiAgICApCiAgICBzdGF0ZV9zdG9yZSA9IFN0YXRlU3RvcmUoc2V0dGluZ3MuYXBwX3N0YXRlX2RiKQogICAgdHJ5OgogICAgICAgIHRvdGFsID0gZ2VyYXJfc2VfcHJlY2lzbygpCiAgICAgICAgaWYgdG90YWwgaXMgbm90IE5vbmU6CiAgICAgICAgICAgIExPR0dFUi5pbmZvKCJMaXN0YSBkYSByZWN1cGVyYWNhbyBwb3IgcGVkaWRvIGF0dWFsaXphZGEgfCBwZWRpZG9zPSVzIiwgdG90YWwpCiAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgIExPR0dFUi5leGNlcHRpb24oIkZhbGhhIGFvIG1vbnRhciBhIGxpc3RhIGRhIHJlY3VwZXJhY2FvIHBvciBwZWRpZG87IHNlZ3VlIGNvbSBhIGxpc3RhIGFudGVyaW9yIikKICAgIGNvbGV0b3IgPSBDb2xldG9yKCkKICAgIHJvdGluYSA9IGltcG9ydGxpYi5pbXBvcnRfbW9kdWxlKHByb2Nlc3NfZGNlX3JlY292ZXJ5Ll9fbW9kdWxlX18pICAgIyBvIG1vZHVsbyBvbmRlIGEgcmVjdXBlcmFjYW8gcHJvY3VyYSBhIGNvbnN1bHRhCiAgICBvcmlnaW5hbCA9IHJvdGluYS5mZXRjaF9sb2dhbl9kZWxpdmVyeV9wcm9vZgogICAgcm90aW5hLmZldGNoX2xvZ2FuX2RlbGl2ZXJ5X3Byb29mID0gX2NvbV9wcmV2aXNhbyhvcmlnaW5hbCwgY29sZXRvcikKICAgIHRyeToKICAgICAgICBwcm9jZXNzX2RjZV9yZWNvdmVyeShzZXR0aW5ncywgc3RhdGVfc3RvcmUpCiAgICBmaW5hbGx5OgogICAgICAgIHJvdGluYS5mZXRjaF9sb2dhbl9kZWxpdmVyeV9wcm9vZiA9IG9yaWdpbmFsCiAgICAgICAgdHJ5OgogICAgICAgICAgICBndWFyZGFkYXMgPSBjb2xldG9yLmdyYXZhcigpCiAgICAgICAgICAgIGlmIGd1YXJkYWRhczoKICAgICAgICAgICAgICAgIExPR0dFUi5pbmZvKCJQcmV2aXNvZXMgZGEgTG9nYW4gZ3VhcmRhZGFzIHBhcmEgbyByYXN0cmVpbyB8IHBlZGlkb3M9JXMiLCBndWFyZGFkYXMpCiAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAgICAgICAgTE9HR0VSLmV4Y2VwdGlvbigiRmFsaGEgYW8gZ3VhcmRhciBhcyBwcmV2aXNvZXMgZGEgTG9nYW47IG8gcmFzdHJlaW8gc2VndWUgY29tIGFzIGFudGVyaW9yZXMiKQogICAgTE9HR0VSLmluZm8oIlJlY3VwZXJhY2FvIHBvciBwZWRpZG8gY29uY2x1aWRhIikKCgppZiBfX25hbWVfXyA9PSAiX19tYWluX18iOgogICAgbWFpbigpCg==" | base64 -d > "$T/recuperacao_pedidos.py"
+            cp "$T/previsoes_logan.py" "$T/recuperacao_pedidos.py" "$T/pkg/ocoren_logan_tms/"
+            python3 -m py_compile "$T/previsoes_logan.py" "$T/recuperacao_pedidos.py" || { echo "ERRO: nao compila. Nada foi alterado."; rm -rf "$T"; exit 1; }
+            ( cd "$T/pkg" && python3 -c "import importlib, ocoren_logan_tms.recuperacao_pedidos as r; m = importlib.import_module(r.process_dce_recovery.__module__); assert callable(m.fetch_logan_delivery_proof); print('   import ok; a recuperacao procura a consulta em', m.__name__)" ) || { echo "ERRO: import falhou. Nada foi alterado."; rm -rf "$T"; exit 1; }
+            grep -q "fetch_logan_delivery_proof(settings, None, order)" "$P/main.py" && echo "   main.py chama a consulta da Logan como esperado" || { echo "ERRO: main.py diferente do esperado. Nada foi alterado."; rm -rf "$T"; exit 1; }
+            echo "   timer: $(systemctl is-active ocoren-logan-recuperacao.timer) | servico do rastreio roda como: $(systemctl show rastreamento.service -p User --value)"
+            if [ "${CONFIRMAR:-}" != "APLICAR" ]; then echo "SO RELATO: nada foi alterado. Rode com confirmar = APLICAR."; rm -rf "$T"; exit 0; fi
+
+            B="$D/backups-claude-$(date +%Y%m%d-%H%M%S)-previsao"
+            mkdir -p "$B" && cp -p "$P/recuperacao_pedidos.py" "$B/" || { echo "ERRO no backup; nada foi alterado"; rm -rf "$T"; exit 1; }
+            echo "backup: $B"
+            restaura() {
+              echo "RESTAURANDO o backup"
+              cp -p "$B/recuperacao_pedidos.py" "$P/recuperacao_pedidos.py"
+              rm -f "$P/previsoes_logan.py"
+            }
+            DONO=$(stat -c '%u:%g' "$P/main.py")
+            for f in previsoes_logan.py recuperacao_pedidos.py; do
+              install -m 0644 "$T/$f" "$P/$f" && chown "$DONO" "$P/$f" || { restaura; rm -rf "$T"; exit 1; }
+            done
+            rm -rf "$T"
+            INICIO=$(date '+%Y-%m-%d %H:%M:%S')
+            echo "== rodada de teste ($INICIO)"
+            systemctl start ocoren-logan-recuperacao.service
+            R=$(systemctl show ocoren-logan-recuperacao.service -p Result --value)
+            TB=$(journalctl -u ocoren-logan-recuperacao.service --since "$INICIO" --no-pager 2>/dev/null | grep -c "Traceback" || true)
+            awk -v t="$INICIO" '$0 >= t' "$LR" > /tmp/rec_prev.log
+            FIM=$(grep -c "Recuperacao por pedido concluida" /tmp/rec_prev.log || true)
+            echo "resultado: $R | tracebacks: $TB | rodadas concluidas: $FIM"
+            if [ "$R" != "success" ] || [ "$TB" -gt 0 ] || [ "$FIM" -lt 1 ]; then restaura; rm -f /tmp/rec_prev.log; exit 1; fi
+            for padrao in "Iniciando recupera" "Recuperação enviada ao TMS" "Recuperação já enviada" "cooldown" "Previsoes da Logan guardadas" "Falha ao anotar" "Falha ao guardar"; do
+              echo "   $(grep -c "$padrao" /tmp/rec_prev.log || true) x $padrao"
+            done
+            grep -E "Previsoes da Logan|Iniciando recupera" /tmp/rec_prev.log | tail -3 | mask | cut -c1-150 | sed 's/^/   /'
+            rm -f /tmp/rec_prev.log
+            U=$(systemctl show rastreamento.service -p User --value); [ -z "$U" ] && U=root
+            if [ -f "$ARQ" ]; then
+              ls -l "$ARQ" | awk '{print "   arquivo:", $1, $NF}'
+              runuser -u "$U" -- test -r "$ARQ" && echo "   o servico do rastreio consegue ler o arquivo" || echo "   ATENCAO: o servico do rastreio NAO consegue ler o arquivo"
+              python3 -c "import json,datetime; d=json.load(open('$ARQ')); p=d['pedidos']; h=datetime.date.today().isoformat(); print('   pedidos com previsao:', len(p), '| de hoje em diante:', sum(1 for v in p.values() if v['previsao']>=h), '| atualizado em', d['atualizado_em'])"
+            else
+              echo "   arquivo ainda nao existe (nenhuma previsao nesta rodada; a proxima rodada em 2 min tenta de novo)"
+            fi
+            {
+              echo "21/10/2026 (Claude): previsao de entrega da Logan para a pagina de rastreio."
+              echo "Novo: ocoren_logan_tms/previsoes_logan.py; alterado: recuperacao_pedidos.py (anota consumidor.PrevisaoEntrega da mesma consulta)."
+              echo "Saida: $ARQ (lido pelo rastreio, prazo_transportadora.py)."
+              echo "Desfazer: copiar recuperacao_pedidos.py deste backup de volta e apagar ocoren_logan_tms/previsoes_logan.py."
+            } > "$B/LEIA-ME.txt"
+            echo "APLICADO."
