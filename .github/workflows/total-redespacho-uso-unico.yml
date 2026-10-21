@@ -1,135 +1,43 @@
-# USO UNICO: status 38 da Total (REDESPACHADO CORREIO) ia ao TMS com o codigo 112, que o TMS recusa sempre ("nao encontrado na
-# tabela de De/Para"; 0 aceitos desde 16/09). Passa a ir com o 66 (em transferencia, aceito pelo TMS).
-#   modo TESTE (padrao): manda o evento de UM pedido do CCXP ainda nao entregue com o 66, pelas funcoes da propria rotina e com
-#                        a trava da rotina; grava o resultado no banco de estado; mostra o que o TMS e a pagina passam a mostrar.
-#   modo APLICAR: backup do regras.json, de/para 38 -> 66 e devolve para a fila ("pendente") os eventos 38 recusados por De/Para.
-# Log sem pedidos. Apagar este arquivo depois do uso.
+# USO UNICO (so leitura): espera a proxima rodada da rotina Total->TMS (atualizar_total_08) terminar e mostra o resultado dos
+# eventos 38 (REDESPACHADO CORREIO) devolvidos para a fila em 21/10 16:29. Log so com contagens. Apagar depois do uso.
 name: "Uso unico - Redespacho Correios da Total no TMS"
 
 on:
   workflow_dispatch:
-    inputs:
-      modo:
-        description: "TESTE (1 pedido) ou APLICAR (todos)"
-        required: false
-        default: "TESTE"
-        type: string
 
 jobs:
-  aplicar:
+  sonda:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Redespacho Correios (VPS)
+      - name: Conferencia (VPS)
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          MODO: ${{ inputs.modo }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          envs: MODO
           command_timeout: 18m
           script: |
-            set -uo pipefail
             cd /home/projetos/atualizar_total_08 || exit 1
-            if [ "${MODO:-TESTE}" = "APLICAR" ]; then
-              B="regras.json.bak-$(date +%Y%m%d-%H%M%S)-status38-66"
-              cp -p regras.json "$B" || { echo "ERRO no backup. Nada foi alterado."; exit 1; }
-              echo "backup: /home/projetos/atualizar_total_08/$B"
-            fi
+            echo "inicio: $(date '+%H:%M:%S')"
+            for i in $(seq 1 96); do
+              PEND=$(python3 -c "import sqlite3; c=sqlite3.connect('file:/home/projetos/atualizar_total/operacoes_total_tms.db?mode=ro', uri=True); print(c.execute(\"SELECT COUNT(*) FROM ocorrencias WHERE status_total = 38 AND status_envio = 'pendente'\").fetchone()[0])")
+              [ "$PEND" -eq 0 ] && break
+              sleep 10
+            done
+            echo "fim da espera: $(date '+%H:%M:%S') | eventos 38 ainda na fila: $PEND"
+            tail -n 300 cron.log | grep -E "Processamento finalizado|ocorrencias preparadas|Eventos elegiveis" | tail -n 4 | sed 's/^/   /'
             python3 - <<'PY'
-            import datetime as dt, fcntl, json, os, sqlite3, sys, time, urllib.request
-            sys.path.insert(0, ".")
-            import integracao_total_tms as m
-            modo = os.environ.get("MODO", "TESTE").strip().upper()
-            trava = open(".integracao_total_tms.lock", "w")
-            inicio = time.time()
-            while True:
-                try:
-                    fcntl.flock(trava.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    if time.time() - inicio > 600:
-                        sys.exit("rotina ocupada ha 10 min; nada foi alterado")
-                    time.sleep(5)
-            print("trava da rotina obtida")
-            config = m.load_rules()
-            db = m.operations_database_path(config)
-            con = sqlite3.connect(db, timeout=30)
-            con.row_factory = sqlite3.Row
-            recusados = "status_total = 38 AND status_envio = 'erro' AND resposta_api LIKE 'API do TMS rejeitou%De/Para%'"
-            print("eventos 38 recusados por De/Para no banco:", con.execute("SELECT COUNT(*) FROM ocorrencias WHERE " + recusados).fetchone()[0])
-            if modo == "APLICAR":
-                caminho = "regras.json"
-                d = json.load(open(caminho, encoding="utf-8"))
-                antes = d["tms"]["mapa_status_total_para_tms"].get("38")
-                d["tms"]["mapa_status_total_para_tms"]["38"] = "66"
-                tmp = caminho + ".tmp"
-                with open(tmp, "w", encoding="utf-8") as f:
-                    json.dump(d, f, ensure_ascii=False, indent=2)
-                os.chmod(tmp, 0o600)
-                os.replace(tmp, caminho)
-                m.validate_config(m.load_rules())
-                n = con.execute("UPDATE ocorrencias SET status_envio = 'pendente', atualizado_em = ? WHERE " + recusados,
-                                (dt.datetime.now().isoformat(timespec="seconds"),)).rowcount
-                con.commit()
-                print("de/para 38:", antes, "-> 66 | eventos devolvidos para a fila:", n)
-                sys.exit(0)
-            # TESTE: um pedido do CCXP, ainda nao entregue no TMS
-            env = {}
-            for l in open("/etc/rastreamento.env", encoding="utf-8", errors="replace"):
-                l = l.strip()
-                if l and not l.startswith("#") and "=" in l:
-                    k, v = l.split("=", 1)
-                    env[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
-            url_consulta = env.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
-            def tms_eventos(pedido, cnpj):
-                corpo = {"cnpjEmbarcador": cnpj, "listaPedidos": [pedido]}
-                req = urllib.request.Request(url_consulta, data=json.dumps(corpo).encode(), headers={
-                    "Content-Type": "application/json", "Accept": "application/json", "Authorization": "Bearer " + env.get("TMS_API_TOKEN", "")})
-                d = json.loads(urllib.request.urlopen(req, timeout=40).read().decode("utf-8"))
-                return sorted(d.get("listaResultados") or [], key=lambda o: str(o.get("dtOcorrencia")))
-            escolhido = None
-            for r in con.execute("SELECT * FROM ocorrencias WHERE " + recusados + " AND cnpj_cliente LIKE '15871195%' ORDER BY data_ocorrencia_total DESC LIMIT 15"):
-                evs = tms_eventos(r["pedido"], r["cnpj_cliente"])
-                if evs and str(evs[-1].get("codigoOcorrencia")) not in ("31",):
-                    escolhido = dict(r)
-                    print("pedido de teste: CCXP, evento 38 de", r["data_ocorrencia_total"][:16], "| ultimo no TMS antes:",
-                          evs[-1].get("codigoOcorrencia"), evs[-1].get("dtOcorrencia"))
-                    break
-            if not escolhido:
-                sys.exit("nenhum pedido do CCXP em transito com 38 recusado; nada foi enviado")
-            config["tms"]["mapa_status_total_para_tms"]["38"] = "66"   # so na memoria, so para o teste
-            row = {k: escolhido.get(k, "") for k in ("chave_unica", "nota_fiscal", "serie_nota_fiscal", "pedido", "codigo_rastreio",
-                                                    "status_total", "descricao_total", "data_ocorrencia_total")}
-            row.update(comprovante_entrega_url="", nome_recebedor="", documento_recebedor="", grau_parente_recebedor="")
-            item = m.prepare_event(config, row)
-            print("ocorrencia montada: codigo", item["occurrence"].get("codigoOcorrencia"), "| servico", item["occurrence"].get("servico"),
-                  "| por pedido:", "nroPedido" in item["occurrence"], "| data", item["occurrence"].get("dtOcorrencia"))
-            try:
-                resposta = m.send_to_tms(config, [item["occurrence"]])
-                itens = m.classify_itemized_batch_response(resposta, [item])
-                resultado = itens[0] if itens else {"success": True, "response": resposta, "items": [item]}
-            except Exception as exc:
-                resultado = {"success": False, "status": "erro", "error": str(exc), "items": [item]}
-            linhas = []
-            m.process_batch_result(resultado, linhas)
-            m.append_log_rows(__import__("pathlib").Path(config["saida"]["arquivo_log_envios"]), linhas)
-            m.persist_operation_rows(db, linhas)
-            print("TMS aceitou:", resultado.get("success"), "|", str(resultado.get("error") or "")[:160])
-            time.sleep(3)
-            evs = tms_eventos(escolhido["pedido"], escolhido["cnpj_cliente"])
-            print("ultimo no TMS depois:", evs[-1].get("codigoOcorrencia") if evs else "-", evs[-1].get("dtOcorrencia") if evs else "")
-            req = urllib.request.Request("http://127.0.0.1:8000/api/rastrear", data=json.dumps({"codigo": escolhido["pedido"], "cliente": "ccxp"}).encode(),
-                                         headers={"Content-Type": "application/json"})
-            try:
-                p = json.loads(urllib.request.urlopen(req, timeout=60).read().decode("utf-8"))
-                h = p.get("history") or []
-                print("pagina do CCXP:", p.get("status"), "|", h[0].get("title") if h else "-", "|", h[0].get("when") if h else "-",
-                      "| cartao Correios:", bool(p.get("rastreioTerceiro")))
-            except Exception as exc:
-                print("pagina: erro", type(exc).__name__)
+            import sqlite3
+            c = sqlite3.connect("file:/home/projetos/atualizar_total/operacoes_total_tms.db?mode=ro", uri=True)
+            print("eventos 38 por resultado (codigo TMS | envio | motivo):")
+            for row in c.execute("""SELECT codigo_ocorrencia_tms, status_envio,
+                                           CASE WHEN resposta_api LIKE '%Entregue%' THEN 'pedido ja entregue'
+                                                WHEN resposta_api LIKE '%De/Para%' THEN 'De/Para'
+                                                WHEN status_envio = 'enviado' THEN 'aceito'
+                                                ELSE substr(resposta_api, 1, 60) END, COUNT(*)
+                                    FROM ocorrencias WHERE status_total = 38 AND atualizado_em >= '2026-10-21T16:2'
+                                    GROUP BY 1, 2, 3 ORDER BY 4 DESC"""):
+                print("   %-4s | %-8s | %-30s | %d" % row)
             PY
-            echo "fim: $(date '+%H:%M:%S')"
