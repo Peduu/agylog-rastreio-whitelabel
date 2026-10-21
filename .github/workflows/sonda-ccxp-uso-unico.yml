@@ -114,10 +114,10 @@ jobs:
 
             # ---- Total ----
             recentes = []
-            for codigo, cnpj in p.execute("SELECT codigo, cnpj_cliente FROM rastreios ORDER BY id DESC LIMIT 8000"):
+            for codigo, cnpj in p.execute("SELECT codigo, cnpj_cliente FROM rastreios ORDER BY id DESC LIMIT 40000"):
                 if re.sub(r"\D", "", str(cnpj or "")).startswith(CCXP) and codigo:
                     recentes.append(codigo.strip().upper())
-                if len(recentes) >= 500:
+                if len(recentes) >= 3000:
                     break
             achados, erros_total = {}, Counter()
             for i in range(0, len(recentes), 30):
@@ -128,7 +128,7 @@ jobs:
                 for e in (d or {}).get("data") or []:
                     if isinstance(e, dict) and e.get("tracking"):
                         achados[str(e.get("pedido") or "").upper()] = e
-                time.sleep(0.8)
+                time.sleep(0.3)
             saida["total_consultados"], saida["total_achados"], saida["total_erros"] = len(recentes), len(achados), dict(erros_total)
 
 
@@ -150,6 +150,7 @@ jobs:
                 tratado08 = Path("/home/projetos/atualizar_total_08/resultado_total_tratado_08.json").read_text(encoding="utf-8", errors="replace")
             except OSError:
                 pass
+            ordem = [kv for kv in ordem if ult_total(kv[1])[0] and ult_total(kv[1])[0] >= agora - timedelta(days=5)][:180]
             for pedido, e in ordem:
                 quando, ev = ult_total(e)
                 t, erro = tms(pedido, cnpj_de(pedido))
@@ -183,7 +184,7 @@ jobs:
                     break
             saida["logan_registro_campos"] = sorted({k for v in list(envios.values())[-5:] if isinstance(v, dict) for k in v})
             saida["logan_ultima_entrada"] = {k: (v if not isinstance(v, list) else len(v)) for k, v in list(envios.values())[-1].items()} if envios else {}
-            for pedido in vistos[:40]:
+            for pedido in vistos[:0]:
                 lg, erro = post(L.get("LOGAN_API_URL") or "https://endpoint.simexpress.com.br/logan/endpoint/consultar/",
                                 {"Nr_Pedido": pedido, "Danfe": ""}, {"Authorization": L.get("SIMEXPRESS_AUTHORIZATION_CODE", "")})
                 evs = [(dt(x.get("data")), x.get("situacao")) for x in ((lg or {}).get("tracking") or []) if isinstance(x, dict)]
@@ -221,7 +222,7 @@ jobs:
             echo "== servicos: rastreio $(systemctl is-active rastreamento.service) | logan $(systemctl show ocoren-logan-tms.service -p ActiveState --value)/$(systemctl show ocoren-logan-tms.service -p Result --value) | recuperacao $(systemctl show ocoren-logan-recuperacao.service -p Result --value)"
             echo "== cron Total _08: alterado $(date -r /home/projetos/atualizar_total_08/cron.log '+%F %T' 2>/dev/null) | linhas com invalida/erro nas ultimas 300: $(tail -n 300 /home/projetos/atualizar_total_08/cron.log 2>/dev/null | grep -ciE 'invalid|erro|falha|traceback' || true)"
             for d in atualizar_total atualizar_total_08 atualizar_total_MQF; do f=/home/projetos/$d/cron.log; [ -f "$f" ] && tail -n 120 "$f" | grep -viE 'senha|password|token|bearer|authorization' > "$T/b/cron_$d.txt"; done
-            { crontab -l 2>/dev/null | grep -i total; python3 -c "import json; d=json.load(open(\"/home/projetos/atualizar_total_08/regras.json\")); [d.get(k, {}).pop(c, None) for k in d if isinstance(d.get(k), dict) for c in list(d[k]) if any(x in c.lower() for x in (\"senha\", \"token\", \"password\", \"bearer\", \"auth\"))]; print(json.dumps(d, ensure_ascii=False, indent=1)[:6000])"; } | sed -E 's#/home/projetos/#…/#g' > "$T/b/crontab_total.txt" || true
+            crontab -l 2>/dev/null | grep -i total | sed -E 's#/home/projetos/#…/#g' > "$T/b/crontab_total.txt" || true
             tail -n 60 /home/projetos/atualizar_logan/ocoren_logan_tms/runtime/logs/recuperacao.log > "$T/b/recuperacao.txt" 2>&1 || true
             tail -n 60 /home/projetos/atualizar_logan/ocoren_logan_tms/runtime/logs/processor.log > "$T/b/processor.txt" 2>&1 || true
             journalctl -u rastreamento.service --since '2 hours ago' --no-pager 2>/dev/null | grep -iE 'error|traceback|exception|PRAZO' | tail -n 40 > "$T/b/rastreio_erros.txt" || true
