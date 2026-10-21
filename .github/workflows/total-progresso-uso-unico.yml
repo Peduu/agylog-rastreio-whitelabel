@@ -1,0 +1,25 @@
+# USO UNICO (so leitura): andamento da rodada da rotina Total->TMS (atualizar_total_08). Log so com contagens. Apagar depois.
+name: "Uso unico - Andamento rotina Total"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Andamento (VPS)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            echo "agora: $(date '+%H:%M:%S')"
+            ps -eo pid,etime,args | grep "integracao_total_tms" | grep -v grep | awk '{print "   processo", $1, "rodando ha", $2, $NF}'
+            for d in atualizar_total_08; do
+              echo "== $d (cron.log alterado $(date -r /home/projetos/$d/cron.log '+%H:%M:%S'))"
+              tail -n 400 /home/projetos/$d/cron.log | grep -vE "pagina [0-9]+ de" | grep -vE "OMLTCO|[0-9]{8,}" | tail -n 8 | cut -c1-160 | sed 's/^/   /'
+            done
