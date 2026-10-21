@@ -49,8 +49,6 @@ jobs:
                     achados["sem evento no horario (" + str(len(evs)) + " eventos)"] += 1
                 for o in perto:
                     achados["interno %s | %s" % (o.get("codigoOcorrencia"), str(o.get("descricaoOcorrencia") or "")[:50])] += 1
-                cod_resp = [x.get("codigoOcorrencia") for x in (json.loads(resp).get("info") or {}).get("listaOcorrencias", [])] if resp.startswith("{") else []
-                achados["codigo devolvido no envio: " + ",".join(sorted(set(map(str, cod_resp))))] += 1
             print("pedidos com 78 aceito:", len(linhas))
             for k, n in achados.most_common():
                 print("   %3d x %s" % (n, k))
