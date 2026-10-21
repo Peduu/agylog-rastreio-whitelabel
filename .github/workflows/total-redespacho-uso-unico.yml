@@ -38,7 +38,7 @@ jobs:
             print("na fila antes:", c.execute("SELECT COUNT(*) FROM ocorrencias WHERE " + filtro).fetchone()[0],
                   "| mais nova:", c.execute("SELECT MAX(substr(data_ocorrencia_total, 1, 10)) FROM ocorrencias WHERE " + filtro).fetchone()[0])
             n = c.execute("UPDATE ocorrencias SET status_envio = 'erro', atualizado_em = ? WHERE " + filtro + " AND data_ocorrencia_total < ?",
-                          (dt.datetime.now().isoformat(timespec="seconds"), (dt.date.today() - dt.timedelta(days=30)).isoformat())).rowcount
+                          (dt.datetime.now().isoformat(timespec="seconds"), "2026-10-21")).rowcount
             c.commit()
             print("voltaram para erro:", n, "| ainda na fila:", c.execute("SELECT COUNT(*) FROM ocorrencias WHERE " + filtro).fetchone()[0])
             print("pendentes no banco (todos):", c.execute("SELECT COUNT(*) FROM ocorrencias WHERE status_envio = 'pendente'").fetchone()[0])
