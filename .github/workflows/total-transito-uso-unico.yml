@@ -1,0 +1,96 @@
+# USO UNICO: rotina Total->TMS (atualizar_total_08) passa a repassar ao TMS os eventos de transito da Total que eram ignorados
+# (pedidos ficavam em "Coletado" com a carga ja embarcada na Total). Mexe SO no regras.json: status permitidos + de/para.
+#   78 EMBARCADO PARA -> 66 (em transferencia, igual ao 102 TRANSFERENCIA PARA)
+#   159 EM TRANSFERENCIA SECUNDARIA -> 66
+#   101 RECEBIDA E PROCESSADA NO CD -> 13 (recebido na base, igual ao 68 COLETA RECEBIDA NO CD)
+#   103 RECEBIDO CD DE -> 13
+#   160 RECEBIDO/TRANSFERENCIA SECUNDARIA -> 13
+# Sem "APLICAR" so relata. Backup antes; espera a rodada do cron e restaura sozinho se a rodada falhar. Log sem pedidos.
+# Apagar este arquivo depois do uso.
+name: "Uso unico - Total transito no TMS"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: "Vazio = so relata. Digite APLICAR para gravar"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Regras da rotina Total _08 (VPS)
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: CONFIRMAR
+          command_timeout: 35m
+          script: |
+            set -uo pipefail
+            D=/home/projetos/atualizar_total_08
+            R="$D/regras.json"
+            LOG="$D/cron.log"
+            cd "$D" || exit 1
+            python3 - "$R" <<'PY'
+            import json, sys
+            d = json.load(open(sys.argv[1], encoding="utf-8"))
+            perm = d["filtros"]["status_total_permitidos"]
+            mapa = d["tms"]["mapa_status_total_para_tms"]
+            novos = {"78": "66", "159": "66", "101": "13", "103": "13", "160": "13"}
+            print("permitidos hoje:", perm)
+            print("de/para dos novos hoje:", {k: mapa.get(k) for k in novos})
+            print("codigos TMS ja usados no de/para:", sorted(set(mapa.values())))
+            assert all(v in set(mapa.values()) for v in novos.values()), "codigo TMS novo nao usado antes"
+            PY
+            [ $? -eq 0 ] || { echo "ERRO na leitura das regras. Nada foi alterado."; exit 1; }
+            if [ "${CONFIRMAR:-}" != "APLICAR" ]; then echo "SO RELATO: nada foi alterado. Rode com confirmar = APLICAR."; exit 0; fi
+
+            B="$R.bak-$(date +%Y%m%d-%H%M%S)-status-transito"
+            cp -p "$R" "$B" || { echo "ERRO no backup. Nada foi alterado."; exit 1; }
+            echo "backup: $B"
+            restaura() { echo "RESTAURANDO o regras.json"; cp -p "$B" "$R"; }
+            python3 - "$R" <<'PY' || { restaura; exit 1; }
+            import json, os, sys
+            caminho = sys.argv[1]
+            d = json.load(open(caminho, encoding="utf-8"))
+            novos = {"78": "66", "159": "66", "101": "13", "103": "13", "160": "13"}
+            perm = d["filtros"]["status_total_permitidos"]
+            d["filtros"]["status_total_permitidos"] = sorted(set(int(x) for x in perm) | {int(k) for k in novos})
+            mapa = d["tms"]["mapa_status_total_para_tms"]
+            for k, v in novos.items():
+                mapa.setdefault(k, v)
+            temporario = caminho + ".tmp"
+            with open(temporario, "w", encoding="utf-8") as f:
+                json.dump(d, f, ensure_ascii=False, indent=2)
+            os.chmod(temporario, 0o600)
+            os.replace(temporario, caminho)
+            confere = json.load(open(caminho, encoding="utf-8"))
+            assert all(int(k) in confere["filtros"]["status_total_permitidos"] for k in novos)
+            assert all(confere["tms"]["mapa_status_total_para_tms"][k] == v for k, v in novos.items())
+            print("regras gravadas; permitidos:", confere["filtros"]["status_total_permitidos"])
+            PY
+            python3 -c "import integracao_total_tms as m; c = m.load_rules(); m.validate_config(c); print('validate_config ok')" || { restaura; exit 1; }
+            ls -l "$R" | awk '{print "   ", $1, $3, $4}'
+            TAM=$(stat -c %s "$LOG")
+            echo "== esperando a proxima rodada do cron da _08 terminar (ate 30 min) $(date '+%H:%M:%S')"
+            FIM=0
+            for i in $(seq 1 180); do
+              sleep 10
+              NOVO=$(tail -c +$((TAM + 1)) "$LOG" 2>/dev/null)
+              if printf '%s' "$NOVO" | grep -q "Processamento finalizado"; then FIM=1; break; fi
+              if printf '%s' "$NOVO" | grep -qE "Traceback|sem de/para|Configuracao ausente|nao pode"; then break; fi
+            done
+            NOVO=$(tail -c +$((TAM + 1)) "$LOG" 2>/dev/null)
+            echo "   $(date '+%H:%M:%S') rodada terminou: $FIM"
+            printf '%s\n' "$NOVO" | grep -vE "pagina [0-9]+ de" | grep -vE "OMLTCO|[0-9]{8,}" | tail -n 8 | cut -c1-200 | sed 's/^/   /'
+            if [ "$FIM" -ne 1 ] || printf '%s' "$NOVO" | grep -qE "Traceback|sem de/para|Configuracao ausente"; then restaura; echo "FALHOU: regras restauradas"; exit 1; fi
+            echo "APLICADO."
