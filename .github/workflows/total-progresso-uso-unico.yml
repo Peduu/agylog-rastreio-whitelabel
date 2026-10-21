@@ -1,4 +1,5 @@
-# USO UNICO (so leitura): andamento da rodada da rotina Total->TMS (atualizar_total_08). Log so com contagens. Apagar depois.
+# USO UNICO (so leitura): motivos das recusas do TMS na rodada da rotina Total->TMS (atualizar_total_08) depois da mudanca
+# de 21/10 15:48. Log so com contagens e textos de erro mascarados. Apagar depois.
 name: "Uso unico - Andamento rotina Total"
 
 on:
@@ -7,9 +8,9 @@ on:
 jobs:
   sonda:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Andamento (VPS)
+      - name: Recusas (VPS)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -18,8 +19,29 @@ jobs:
           port: 22
           script: |
             echo "agora: $(date '+%H:%M:%S')"
-            ps -eo pid,etime,args | grep "integracao_total_tms" | grep -v grep | awk '{print "   processo", $1, "rodando ha", $2, $NF}'
-            for d in atualizar_total_08; do
-              echo "== $d (cron.log alterado $(date -r /home/projetos/$d/cron.log '+%H:%M:%S'))"
-              tail -n 400 /home/projetos/$d/cron.log | grep -vE "pagina [0-9]+ de" | grep -vE "OMLTCO|[0-9]{8,}" | tail -n 8 | cut -c1-160 | sed 's/^/   /'
-            done
+            tail -n 400 /home/projetos/atualizar_total_08/cron.log | grep -E "Processamento finalizado|ocorrencias preparadas|Outra execucao" | tail -n 6 | sed 's/^/   /'
+            tail -n 30000 /home/projetos/atualizar_total_08/log_envios_tms_08.csv > /tmp/envios_tail.csv
+            python3 - <<'PY'
+            import csv, re
+            from collections import Counter
+            motivos, por_status, novos_ok = Counter(), Counter(), Counter()
+            with open("/tmp/envios_tail.csv", encoding="utf-8", errors="replace", newline="") as f:
+                for row in csv.reader(f):
+                    if len(row) < 17 or row[16] < "2026-10-21T15:5":
+                        continue
+                    status_total, envio, resposta = row[5], row[14], row[15]
+                    if envio == "enviado":
+                        novos_ok[status_total] += 1
+                        continue
+                    texto = re.sub(r"[A-Z0-9]{9,}", "***", resposta)
+                    texto = re.sub(r"\d{4,}", "9999", texto)
+                    m = re.findall(r"A solicita[^.;\"]*|Todas as ocorr[^.;\"]*|[Nn]ão foi encontrad[^.;\"]*|[Ii]nv[aá]lid[^.;\"]*|ocorr[eê]ncia j[aá][^.;\"]*", texto)
+                    motivos[(m[-1] if m else texto[:120])[:120]] += 1
+                    por_status[status_total] += 1
+            print("aceitos por status Total:", dict(novos_ok))
+            print("recusas por status Total:", dict(por_status))
+            print("motivos das recusas:")
+            for t, n in motivos.most_common(10):
+                print(f"   {n:6} x {t}")
+            PY
+            rm -f /tmp/envios_tail.csv
