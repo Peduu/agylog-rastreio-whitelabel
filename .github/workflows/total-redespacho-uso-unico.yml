@@ -1,43 +1,45 @@
-# USO UNICO (so leitura): espera a proxima rodada da rotina Total->TMS (atualizar_total_08) terminar e mostra o resultado dos
-# eventos 38 (REDESPACHADO CORREIO) devolvidos para a fila em 21/10 16:29. Log so com contagens. Apagar depois do uso.
+# USO UNICO: devolve para "erro" (como estavam) os eventos 38 recusados por De/Para que voltaram para a fila em 21/10 16:29
+# mas ficaram fora da janela de 30 dias da rotina (16-20/09; nunca seriam reenviados e ficariam "pendente" para sempre).
+# Com a trava da rotina. Log so com contagens. Apagar este arquivo depois do uso.
 name: "Uso unico - Redespacho Correios da Total no TMS"
 
 on:
   workflow_dispatch:
 
 jobs:
-  sonda:
+  aplicar:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - name: Conferencia (VPS)
+      - name: Fila (VPS)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          command_timeout: 18m
+          command_timeout: 12m
           script: |
             cd /home/projetos/atualizar_total_08 || exit 1
-            echo "inicio: $(date '+%H:%M:%S')"
-            for i in $(seq 1 96); do
-              PEND=$(python3 -c "import sqlite3; c=sqlite3.connect('file:/home/projetos/atualizar_total/operacoes_total_tms.db?mode=ro', uri=True); print(c.execute(\"SELECT COUNT(*) FROM ocorrencias WHERE status_total = 38 AND status_envio = 'pendente'\").fetchone()[0])")
-              [ "$PEND" -eq 0 ] && break
-              sleep 10
-            done
-            echo "fim da espera: $(date '+%H:%M:%S') | eventos 38 ainda na fila: $PEND"
-            tail -n 300 cron.log | grep -E "Processamento finalizado|ocorrencias preparadas|Eventos elegiveis" | tail -n 4 | sed 's/^/   /'
             python3 - <<'PY'
-            import sqlite3
-            c = sqlite3.connect("file:/home/projetos/atualizar_total/operacoes_total_tms.db?mode=ro", uri=True)
-            print("eventos 38 por resultado (codigo TMS | envio | motivo):")
-            for row in c.execute("""SELECT codigo_ocorrencia_tms, status_envio,
-                                           CASE WHEN resposta_api LIKE '%Entregue%' THEN 'pedido ja entregue'
-                                                WHEN resposta_api LIKE '%De/Para%' THEN 'De/Para'
-                                                WHEN status_envio = 'enviado' THEN 'aceito'
-                                                ELSE substr(resposta_api, 1, 60) END, COUNT(*)
-                                    FROM ocorrencias WHERE status_total = 38 AND atualizado_em >= '2026-10-21T16:2'
-                                    GROUP BY 1, 2, 3 ORDER BY 4 DESC"""):
-                print("   %-4s | %-8s | %-30s | %d" % row)
+            import datetime as dt, fcntl, sqlite3, sys, time
+            trava = open(".integracao_total_tms.lock", "w")
+            inicio = time.time()
+            while True:
+                try:
+                    fcntl.flock(trava.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.time() - inicio > 540:
+                        sys.exit("rotina ocupada; nada foi alterado")
+                    time.sleep(5)
+            c = sqlite3.connect("/home/projetos/atualizar_total/operacoes_total_tms.db", timeout=30)
+            filtro = "status_total = 38 AND status_envio = 'pendente' AND resposta_api LIKE '%De/Para%'"
+            print("na fila antes:", c.execute("SELECT COUNT(*) FROM ocorrencias WHERE " + filtro).fetchone()[0],
+                  "| mais nova:", c.execute("SELECT MAX(substr(data_ocorrencia_total, 1, 10)) FROM ocorrencias WHERE " + filtro).fetchone()[0])
+            n = c.execute("UPDATE ocorrencias SET status_envio = 'erro', atualizado_em = ? WHERE " + filtro + " AND data_ocorrencia_total < ?",
+                          (dt.datetime.now().isoformat(timespec="seconds"), (dt.date.today() - dt.timedelta(days=30)).isoformat())).rowcount
+            c.commit()
+            print("voltaram para erro:", n, "| ainda na fila:", c.execute("SELECT COUNT(*) FROM ocorrencias WHERE " + filtro).fetchone()[0])
+            print("pendentes no banco (todos):", c.execute("SELECT COUNT(*) FROM ocorrencias WHERE status_envio = 'pendente'").fetchone()[0])
             PY
