@@ -1,0 +1,81 @@
+# USO UNICO (so leitura): copia CIFRADA do codigo e das regras (sem segredos) da rotina Total->TMS atualizar_total_08,
+# para entender quais eventos da Total vao para o TMS. Nao grava nada. Apagar depois do uso.
+name: "Uso unico - Copia cifrada rotina Total"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Copia cifrada (VPS)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -uo pipefail
+            T=$(mktemp -d)
+            mkdir -p "$T/b"
+            cat > "$T/pub.pem" <<'CHAVE'
+            -----BEGIN PUBLIC KEY-----
+            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEArhx86eg9MSescrTAAfi0
+            kWVIpltk4TVtm+37RSUQPGYtFh2xW8CBabQ4/XxPGaSbViubE8GrIH2l8bs5oYpq
+            LgYxpZ8gvfqTFs7LSHAnsvGMv7WSVBrCkPtkKrALrxP+NycK57rG+HEPIYVyIKMa
+            s2K6jyZtYwSOg3NS2/++a7PM7Sgh/OR6H8bYxgrvvdQzAJdQm6CsRJcqc2hINo4I
+            tz1Krz2pQDrF6NEYd3tJVWzx9LOpjBXmTjF1nucJ2zWc26L5zoPagHoNIiZdOdar
+            eDcqBp3mQXS8C9EKb3bJ0JXfelRwjc3Fd3r/zEwaWz1FDgeTGXBxduQHc6lz9Y8Q
+            vFmcBOLeIExmr4x4HSe+cclUambZzGabNC3giMPqRPpi9HEla+4DO2Ba8FY9QUPr
+            umLIwgn1LNCbb7LK2bzD0RAMSSfYWhj5xIQoLSKvyKMO7C88A/LUkJgXDlTL0mHD
+            91j4A2htzBTquDospoDUH49ujaB83Lya+eApH1YcDC6JAgMBAAE=
+            -----END PUBLIC KEY-----
+            CHAVE
+            ls -la /home/projetos/atualizar_total_08 > "$T/b/ls.txt" 2>&1
+            cat > "$T/x.py" <<'PY'
+            import json, re, sys
+            from collections import Counter
+            from pathlib import Path
+            D = Path("/home/projetos/atualizar_total_08")
+            out = Path(sys.argv[1])
+            def limpa(o):
+                if isinstance(o, dict):
+                    return {k: ("<oculto>" if any(x in k.lower() for x in ("senha", "token", "password", "bearer", "auth", "secret")) else limpa(v)) for k, v in o.items()}
+                if isinstance(o, list):
+                    return [limpa(x) for x in o]
+                return o
+            (out / "regras_sem_segredos.json").write_text(json.dumps(limpa(json.loads((D / "regras.json").read_text(encoding="utf-8"))), ensure_ascii=False, indent=1), encoding="utf-8")
+            for f in D.glob("*.py"):
+                texto = f.read_text(encoding="utf-8", errors="replace")
+                texto = re.sub(r"(?i)((senha|password|token)\s*[:=]\s*[\"'])[^\"']+", r"\1<oculto>", texto)
+                (out / f.name).write_text(texto, encoding="utf-8")
+            try:
+                t = json.loads((D / "resultado_total_tratado_08.json").read_text(encoding="utf-8", errors="replace"))
+                c = Counter()
+                def anda(o):
+                    if isinstance(o, dict):
+                        if "status" in o and "descricao" in o:
+                            c[(str(o.get("status")), str(o.get("descricao"))[:40])] += 1
+                        for v in o.values():
+                            anda(v)
+                    elif isinstance(o, list):
+                        for v in o:
+                            anda(v)
+                anda(t)
+                (out / "tratado_status.txt").write_text("\n".join(f"{n}|{s}|{d}" for (s, d), n in c.most_common(400)), encoding="utf-8")
+                amostra = t[:3] if isinstance(t, list) else {k: (v[:3] if isinstance(v, list) else v) for k, v in t.items()} if isinstance(t, dict) else t
+                (out / "tratado_amostra.json").write_text(json.dumps(amostra, ensure_ascii=False, default=str)[:30000], encoding="utf-8")
+            except Exception as e:
+                (out / "tratado_erro.txt").write_text(repr(e))
+            PY
+            python3 "$T/x.py" "$T/b" 2> "$T/b/erro.txt" || true
+            tar -czf "$T/pacote.tgz" -C "$T/b" .
+            KEY=$(openssl rand -hex 32)
+            openssl enc -aes-256-cbc -pbkdf2 -salt -in "$T/pacote.tgz" -out "$T/pacote.enc" -pass "pass:$KEY"
+            printf '%s' "$KEY" | openssl pkeyutl -encrypt -pubin -inkey "$T/pub.pem" -out "$T/chave.enc"
+            echo CHAVE_INICIO; base64 -w0 "$T/chave.enc"; echo; echo CHAVE_FIM
+            echo DADOS_INICIO; base64 -w 900 "$T/pacote.enc"; echo DADOS_FIM
+            rm -rf "$T"
