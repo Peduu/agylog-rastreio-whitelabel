@@ -1,0 +1,142 @@
+# USO UNICO (so leitura): Total x TMS - recusas da rotina atualizar_total_08 nos ultimos 7 dias (por motivo e cliente) e o
+# que o rastreio/TMS tem dos pedidos recusados. Saida CIFRADA. Nao grava nada. Apagar depois do uso.
+name: "Uso unico - Sonda Total x TMS"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Sonda so leitura (VPS, saida cifrada)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            set -uo pipefail
+            T=$(mktemp -d)
+            mkdir -p "$T/b"
+            cat > "$T/pub.pem" <<'CHAVE'
+            -----BEGIN PUBLIC KEY-----
+            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAncbMJY3A9q7cT386CzRp
+            YY9PL3lBE2pT4BvydW1aYe71ngf0AjPvZPOQ+13xNVG7jjUGaxpQfa5aBcOpUx4h
+            foujbaBTGiK5lFxMvqPo8g5IAQQ/a3lhCIu2Rle1AmaURA6wlmQeZ3Y2CXKIwsOt
+            KP21b96s8XRNvrp9SGeEuNB1Dp+4mVxsbYh7wG9NOCKV4baIiUpqekSONzOzL2aI
+            7eUPoapZAwVY9203g+0CP6ugPXi81/FzVeAQAEMpqH81Ag2zGZ/eY1HjiGxTkiwl
+            7Fq2flsST3M/z97oiBSQlRLjZ2Usvgf6DaAcWW5G0Q43/velAK90ZpwnlNwJCviV
+            yp/JSZikLwS8Ly/7WJ5z7BJ6rncl2zIsJi7cQhGI2YKAh7t1pDtUmCFLZn7FPsci
+            70FqHwJAxtk/DXvKZPgJqeCb/8Onqpgb6TfIB8D3y8wYtXnW8BoqYF0HwWOQHMbJ
+            oF9LyQOObcYgCs4P50YcEFPESyWYRAh7+zqoiskRbvM9AgMBAAE=
+            -----END PUBLIC KEY-----
+            CHAVE
+            cat > "$T/sonda.py" <<'PY'
+            import csv, json, re, shutil, sqlite3, sys, urllib.request
+            from collections import Counter, defaultdict
+            from datetime import datetime, timedelta
+            from pathlib import Path
+
+            OUT = Path(sys.argv[1])
+            D = Path("/home/projetos/atualizar_total_08")
+            CCXP = "15871195"
+            corte = (datetime.now() - timedelta(days=7)).isoformat(timespec="seconds")
+
+            texto = (D / "integracao_total_tms.py").read_text(encoding="utf-8", errors="replace")
+            texto = re.sub(r"(?i)((senha|password|token)\s*[:=]\s*[\"'])[^\"']+", r"\1<oculto>", texto)
+            (OUT / "integracao_total_tms.py").write_text(texto, encoding="utf-8")
+
+
+            def ler_env(caminho):
+                env = {}
+                for linha in open(caminho, encoding="utf-8", errors="replace"):
+                    linha = linha.strip()
+                    if linha and not linha.startswith("#") and "=" in linha:
+                        k, v = linha.split("=", 1)
+                        env[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
+                return env
+
+
+            R = ler_env("/etc/rastreamento.env")
+            TMS_URL = R.get("TMS_API_URL") or "https://corellilog.tmselite.com/api/ocorrencias/ocorrencianotafiscaldepara"
+
+            # 1) log de envios: ultimos 7 dias, por resultado, motivo, cliente
+            cab = None
+            por_motivo, por_cliente, pedidos_erro = Counter(), Counter(), defaultdict(set)
+            ultimo_por_pedido = {}
+            with open(D / "log_envios_tms_08.csv", encoding="utf-8", errors="replace", newline="") as f:
+                leitor = csv.reader(f)
+                cab = next(leitor, None)
+                for row in leitor:
+                    if len(row) < 17 or row[16] < corte:
+                        continue
+                    chave, nf, serie, pedido, rastreio, st, desc, data, *_ = row
+                    cnpj, envio, resposta = row[13], row[14], row[15]
+                    cliente = "ccxp" if re.sub(r"\D", "", cnpj).startswith(CCXP) else ("sem cnpj" if not cnpj else "outros")
+                    if envio == "enviado":
+                        por_cliente[(cliente, "enviado")] += 1
+                        continue
+                    m = re.findall(r"A solicita[^.;\"]*|CNPJ do cliente[^.;\"]*|[Ss]tatus \d+ sem de/para[^.;\"]*|Essa ocorr[^.;\"]*|n[aã]o devolveu[^.;\"]*", resposta)
+                    motivo = (m[-1] if m else re.sub(r"\d{4,}", "9", resposta)[:100])[:90]
+                    por_motivo[(cliente, motivo)] += 1
+                    por_cliente[(cliente, envio)] += 1
+                    pedidos_erro[(cliente, motivo)].add((pedido, nf, serie, rastreio))
+            saida = {"cabecalho_log": cab, "por_cliente": {f"{a}|{b}": n for (a, b), n in por_cliente.items()},
+                     "por_motivo": {f"{a}|{b}": n for (a, b), n in por_motivo.most_common(40)},
+                     "pedidos_distintos_por_motivo": {f"{a}|{b}": len(v) for (a, b), v in pedidos_erro.items()}}
+
+            # 2) pedidos com erro de identificacao: o que o rastreio e o TMS tem (amostra)
+            p = sqlite3.connect("file:/home/rastreamento/database.db?mode=ro", uri=True)
+            p.row_factory = sqlite3.Row
+            cols = [r[1] for r in p.execute("PRAGMA table_info(rastreios)")]
+            saida["colunas_rastreios"] = cols
+
+
+            def tms(cnpj, campo, valor):
+                corpo = {"cnpjEmbarcador": cnpj, campo: [valor]}
+                req = urllib.request.Request(TMS_URL, data=json.dumps(corpo).encode(),
+                                             headers={"Content-Type": "application/json", "Accept": "application/json",
+                                                      "Authorization": f"Bearer {R.get('TMS_API_TOKEN', '')}"})
+                try:
+                    with urllib.request.urlopen(req, timeout=40) as r:
+                        d = json.loads(r.read().decode("utf-8"))
+                    res = d.get("listaResultados") if isinstance(d, dict) else None
+                    return len(res) if isinstance(res, list) else ("erro " + str((d or {}).get("listaErros"))[:80])
+                except Exception as exc:
+                    return type(exc).__name__
+
+
+            amostras = {}
+            for (cliente, motivo), itens in pedidos_erro.items():
+                if "CNPJ do cliente" in motivo or "n" in motivo and "encontrada com os dados de NF" in motivo:
+                    lista = []
+                    for pedido, nf, serie, rastreio in sorted(itens)[:12]:
+                        linhas = [dict(r) for r in p.execute(
+                            "SELECT codigo, nota_fiscal, cnpj_cliente FROM rastreios WHERE codigo = ? OR nota_fiscal = ? LIMIT 3",
+                            (pedido, nf))] if "nota_fiscal" in cols else []
+                        info = {"pedido": pedido, "nf_total": nf, "serie_total": serie, "awb": rastreio, "rastreios": linhas}
+                        for linha in linhas[:1]:
+                            cnpj = linha.get("cnpj_cliente") or ""
+                            info["tms_por_pedido"] = tms(cnpj, "listaPedidos", pedido)
+                            info["tms_por_nf"] = tms(cnpj, "listaNotasFiscais", nf) if nf else "-"
+                        lista.append(info)
+                    amostras[f"{cliente}|{motivo}"] = lista
+            saida["amostras"] = amostras
+            (OUT / "analise.json").write_text(json.dumps(saida, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+            print("por cliente:", saida["por_cliente"])
+            print("motivos (cliente|motivo -> eventos / pedidos):")
+            for k, n in saida["por_motivo"].items():
+                print(f"   {n:6} / {saida['pedidos_distintos_por_motivo'].get(k, 0):5} | {k}")
+            PY
+            python3 "$T/sonda.py" "$T/b" 2> "$T/b/erro_python.txt" | sed -E 's/[A-Z]{4}[A-Z0-9]{8,}/***/g; s/[0-9]{11,14}/<doc>/g' || echo 'sonda com erro (detalhe no pacote)'
+            tar -czf "$T/pacote.tgz" -C "$T/b" .
+            KEY=$(openssl rand -hex 32)
+            openssl enc -aes-256-cbc -pbkdf2 -salt -in "$T/pacote.tgz" -out "$T/pacote.enc" -pass "pass:$KEY"
+            printf '%s' "$KEY" | openssl pkeyutl -encrypt -pubin -inkey "$T/pub.pem" -out "$T/chave.enc"
+            echo CHAVE_INICIO; base64 -w0 "$T/chave.enc"; echo; echo CHAVE_FIM
+            echo DADOS_INICIO; base64 -w 900 "$T/pacote.enc"; echo DADOS_FIM
+            rm -rf "$T"
