@@ -15,6 +15,7 @@ import unicodedata
 from depara_ocorrencias import DE_PARA_OCORRENCIAS, DE_PARA_INSUCESSO
 from localizacao import montar_localizacao_publica, ocorrencias_com_local
 import prazo_cep
+import prazo_transportadora
 from datetime import datetime, timedelta
 from collections import OrderedDict
 from io import StringIO
@@ -1217,6 +1218,7 @@ def buscar_codigo_correios_total(codigo):
         if entrada and entrada[0] > agora:
             return entrada[1]
 
+    previsao = None
     try:
         response = requests.post(
             TOTAL_EXPRESS_API_URL,
@@ -1229,7 +1231,10 @@ def buscar_codigo_correios_total(codigo):
             codigo_correios = ""
         else:
             response.raise_for_status()
-            codigo_correios = extrair_codigo_correios_total(response.json(), codigo)
+            payload = response.json()
+            codigo_correios = extrair_codigo_correios_total(payload, codigo)
+            # Mesma resposta: previsao de entrega da Total para o prazo da pagina (prazo_transportadora.py).
+            previsao = prazo_transportadora.previsao_total(payload, codigo)
     except (requests.RequestException, ValueError):
         # Erros de rede e autenticacao nao devem ser confundidos com ausencia
         # de redespacho, nem gravados no cache de resultados negativos.
@@ -1239,8 +1244,18 @@ def buscar_codigo_correios_total(codigo):
     with _TOTAL_EXPRESS_CACHE_LOCK:
         if len(_TOTAL_EXPRESS_CACHE) >= 10000:
             _TOTAL_EXPRESS_CACHE.clear()
-        _TOTAL_EXPRESS_CACHE[codigo] = (time.monotonic() + validade, codigo_correios)
+        _TOTAL_EXPRESS_CACHE[codigo] = (time.monotonic() + validade, codigo_correios, previsao)
     return codigo_correios
+
+
+def previsao_total_em_cache(codigo):
+    """Previsao da Total guardada pela ultima consulta do cartao dos Correios (sem consulta nova); None se nao houver."""
+    codigo = str(codigo or "").strip().upper()
+    with _TOTAL_EXPRESS_CACHE_LOCK:
+        entrada = _TOTAL_EXPRESS_CACHE.get(codigo)
+    if not entrada or len(entrada) < 3 or entrada[0] <= time.monotonic():
+        return None
+    return entrada[2]
 
 
 def buscar_rastreio_na_api(codigo, cnpj_cliente, somente_pedido=False):
@@ -4228,7 +4243,8 @@ def _detalhe_prazo(resultado, codigo):
 
 
 def _prazo_publico(resultado, codigo, status_key):
-    """Prazo de entrega para o cliente: "" se desligado no admin, se faltar dado real, fora de "a caminho" ou vencido."""
+    """Prazo de entrega para o cliente: "" se desligado no admin, se faltar dado real, fora de "a caminho" ou vencido.
+    Ordem (prazo_transportadora.py): previsao da Total > previsao da Logan > prazo do TMS / tabela por CEP; vencida passa adiante."""
     if status_key not in prazo_cep.A_CAMINHO or resultado.get("_demo_status"):
         return ""
     try:
@@ -4241,6 +4257,18 @@ def _prazo_publico(resultado, codigo, status_key):
         return ""
     if not ligado:
         return ""
+    try:
+        hoje = datetime.now(prazo_cep.BRASILIA).date()
+        referencia = resultado.get("codigoReferencia") or resultado.get("codigo") or codigo
+        transportadora = prazo_transportadora.primeira_valida([
+            previsao_total_em_cache(referencia),
+            prazo_transportadora.previsao_logan([codigo, referencia, resultado.get("codigoCliente")], hoje=hoje),
+        ], hoje)
+    except Exception as e:   # a previsao das transportadoras nunca pode derrubar a pagina
+        print(f"[PRAZO] falha na previsao da transportadora: {type(e).__name__}")
+        transportadora = None
+    if transportadora:
+        return transportadora.strftime("%d/%m/%Y")
     return prazo_cep.prazo_para_cliente(_detalhe_prazo(resultado, codigo), status_key)
 
 

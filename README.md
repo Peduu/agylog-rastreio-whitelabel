@@ -58,4 +58,12 @@ URL: /tracking/{slug}/
   Renderiza página com identidade do cliente
 ```
 
+## Prazo de entrega
+
+A página só mostra prazo real, com o pedido a caminho e nunca vencido. Ordem das fontes: previsão da transportadora
+parceira (Total Express, Logan) → prazo registrado do TMS → tabela por CEP (`prazo_transportadora.py`, `prazo_cep.py`).
+
+**Integração nova no rastreio (transportadora, parceiro, API):** verificar se a resposta traz previsão/prazo de entrega e
+incluir em `prazo_transportadora.py`.
+
 O fluxo de desenvolvimento e os temas por cliente foram criados com auxílio de fluxo de trabalho assistido por IA (Claude Code), acelerando a entrega de cada nova identidade visual.

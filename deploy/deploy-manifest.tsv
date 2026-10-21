@@ -77,6 +77,7 @@ static/logos/correios.svg	/home/rastreamento/static/logos/correios.svg
 static/correios_tracking.js	/home/rastreamento/static/correios_tracking.js
 localizacao.py	/home/rastreamento/localizacao.py
 prazo_cep.py	/home/rastreamento/prazo_cep.py
+prazo_transportadora.py	/home/rastreamento/prazo_transportadora.py
 data/municipios.json	/home/rastreamento/data/municipios.json
 static/localizacao.js	/home/rastreamento/static/localizacao.js
 static/localizacao.css	/home/rastreamento/static/localizacao.css
