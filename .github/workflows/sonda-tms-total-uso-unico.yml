@@ -1,5 +1,5 @@
-# USO UNICO (so leitura): recusas "codigo da ocorrencia nao encontrado" x aceitos, por servico e identificacao enviados ao TMS
-# (7 dias) + onde fica o banco de estado da rotina. Log so com contagens e textos mascarados. Nao grava nada. Apagar depois.
+# USO UNICO (so leitura): por codigo de ocorrencia do TMS, quantos eventos da Total foram aceitos x recusados por "De/Para"
+# (historico do banco de estado da rotina) + de/para de ocorrencias da rotina Logan. Log so com contagens. Apagar depois.
 name: "Uso unico - Sonda Total x TMS"
 
 on:
@@ -18,47 +18,20 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
-            cd /home/projetos/atualizar_total_08
             python3 - <<'PY'
-            import csv, json, re, sqlite3
-            from collections import Counter
-            from datetime import datetime, timedelta
-            regras = json.load(open("regras.json", encoding="utf-8"))
-            saida = regras.get("saida", {})
-            print("saida (regras):", {k: v for k, v in saida.items()})
-            corte = (datetime.now() - timedelta(days=7)).isoformat(timespec="seconds")
-            c, exemplos = Counter(), []
-            with open(saida.get("arquivo_log_envios", "log_envios_tms_08.csv"), encoding="utf-8", errors="replace", newline="") as f:
-                for row in csv.reader(f):
-                    if len(row) < 17 or row[16] < corte or row[12] not in ("01", "66", "14", "112"):
-                        continue
-                    cliente = "ccxp" if re.sub(r"\D", "", row[13]).startswith("15871195") else "outros"
-                    resp = row[15]
-                    serv = re.findall(r"[\"']servico[\"']: ?[\"']?(\d+)", resp)
-                    ident = "pedido" if re.search(r"[\"']nroPedido[\"']: ?[\"'][^\"']", resp) else ("nf" if re.search(r"[\"']nroNotaFiscal[\"']: ?[\"'][^\"']", resp) else "?")
-                    if "digo da ocorr" in resp:
-                        res = "codigo nao encontrado"
-                        if len(exemplos) < 3:
-                            exemplos.append(re.sub(r"[A-Z0-9]{9,}|\d{6,}", "*", resp)[:700])
-                    elif row[14] == "enviado":
-                        res = "aceito"
-                    else:
-                        res = "outra recusa"
-                    c[(cliente, row[12], serv[0] if serv else "-", ident, res)] += 1
-            for k, n in sorted(c.items()):
-                print("   %5d | %-6s | codigo %-4s | servico %-3s | ident %-6s | %s" % ((n,) + k))
-            print("EXEMPLOS:")
-            for e in exemplos:
-                print("   ", e)
-            for nome in ("operacoes_total_tms.db",):
-                pass
-            caminho = saida.get("arquivo_operacoes", "operacoes_total_tms.db")
-            try:
-                con = sqlite3.connect("file:%s?mode=ro" % caminho, uri=True)
-                print("banco de estado:", caminho, "| linhas:", con.execute("SELECT COUNT(*) FROM ocorrencias").fetchone()[0])
-                for st, n in con.execute("SELECT status_envio, COUNT(*) FROM ocorrencias GROUP BY 1"):
-                    print("   ", st, n)
-                print("   recusas 'codigo nao encontrado' no banco:", con.execute("SELECT COUNT(*) FROM ocorrencias WHERE resposta_api LIKE '%digo da ocorr%'").fetchone()[0])
-            except Exception as exc:
-                print("banco de estado:", caminho, "erro", type(exc).__name__, exc)
+            import sqlite3
+            con = sqlite3.connect("file:/home/projetos/atualizar_total/operacoes_total_tms.db?mode=ro", uri=True)
+            print("codigo TMS | status Total | aceitos | recusa De/Para | outras recusas | ultimo aceito | ultima recusa De/Para")
+            for row in con.execute("""
+                SELECT codigo_ocorrencia_tms, status_total,
+                       SUM(status_envio = 'enviado'),
+                       SUM(status_envio = 'erro' AND resposta_api LIKE 'API do TMS rejeitou%De/Para%'),
+                       SUM(status_envio = 'erro' AND resposta_api NOT LIKE 'API do TMS rejeitou%De/Para%'),
+                       MAX(CASE WHEN status_envio = 'enviado' THEN substr(registrado_em, 1, 10) END),
+                       MAX(CASE WHEN status_envio = 'erro' AND resposta_api LIKE 'API do TMS rejeitou%De/Para%' THEN substr(registrado_em, 1, 10) END)
+                FROM ocorrencias GROUP BY 1, 2 ORDER BY 1, 2"""):
+                print("   %-6s | %4s | %6s | %5s | %6s | %s | %s" % tuple("" if v is None else v for v in row))
             PY
+            echo "== de/para de ocorrencias da rotina Logan (codigos TMS usados):"
+            f=$(ls /home/projetos/atualizar_logan/lista_ocorrencias_simexpress.csv /home/projetos/atualizar_logan/*/lista_ocorrencias_simexpress.csv 2>/dev/null | head -1)
+            [ -n "$f" ] && head -60 "$f" | cut -c1-160
