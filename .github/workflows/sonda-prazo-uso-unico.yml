@@ -1,0 +1,101 @@
+# USO UNICO (so leitura): formato da previsao de entrega nas APIs da Total e da Logan + permissao do servico do rastreio para
+# ler a lista de pedidos da Logan. Log so com nomes de campos, datas e contagens (sem pedidos). Apagar depois do uso.
+name: "Uso unico - Sonda do prazo das transportadoras"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sonda so leitura (VPS)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -uo pipefail
+            L=/home/projetos/atualizar_logan/pedidos_recuperacao.txt
+            echo "== servico do rastreio"
+            systemctl show rastreamento.service -p User -p Group -p EnvironmentFiles | sed 's/^/   /'
+            U=$(systemctl show rastreamento.service -p User --value); [ -z "$U" ] && U=root
+            ls -ld /home/projetos /home/projetos/atualizar_logan | awk '{print "   " $1, $3, $4, $NF}'
+            ls -l "$L" | awk '{print "   " $1, $3, $4, $NF}'
+            if runuser -u "$U" -- test -r "$L" 2>/dev/null; then echo "   $U consegue ler a lista da Logan"; else echo "   $U NAO consegue ler a lista da Logan"; fi
+            echo "   chaves no /etc/rastreamento.env: $(cut -d= -f1 /etc/rastreamento.env | grep -v '^#' | tr '\n' ' ')"
+            echo "   chaves Logan na rotina: $(grep -oE '^(LOGAN_API_URL|SIMEXPRESS_AUTHORIZATION_CODE)=' /home/projetos/atualizar_logan/.env | tr '\n' ' ')"
+            python3 - <<'PY'
+            import base64, json, re, sqlite3, time, urllib.request
+            from collections import Counter
+            def env(caminho):
+                e = {}
+                for l in open(caminho, encoding="utf-8", errors="replace"):
+                    l = l.strip()
+                    if l and not l.startswith("#") and "=" in l:
+                        k, v = l.split("=", 1)
+                        e[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
+                return e
+            R = env("/etc/rastreamento.env")
+            G = env("/home/projetos/atualizar_logan/.env")
+            def post(url, corpo, headers):
+                h = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "AgyLog-Rastreamento/1.0"}
+                h.update(headers)
+                try:
+                    with urllib.request.urlopen(urllib.request.Request(url, data=json.dumps(corpo).encode(), headers=h), timeout=30) as r:
+                        return json.loads(r.read().decode("utf-8"))
+                except Exception as exc:
+                    return {"_erro": type(exc).__name__}
+            def campos(o, prefixo=""):
+                if isinstance(o, dict):
+                    for k, v in o.items():
+                        yield from campos(v, prefixo + "." + k)
+                elif isinstance(o, list) and o:
+                    yield from campos(o[0], prefixo + "[]")
+                else:
+                    yield prefixo, o
+            def forma(v):
+                return re.sub(r"\d", "9", str(v))
+            print("== Total: previsao nos pedidos recentes do CCXP")
+            p = sqlite3.connect("file:/home/rastreamento/database.db?mode=ro", uri=True)
+            recentes = [c for (c, j) in p.execute("SELECT codigo, cnpj_cliente FROM rastreios ORDER BY id DESC LIMIT 4000")
+                        if re.sub(r"\D", "", str(j or "")).startswith("15871195")][:300]
+            auth = base64.b64encode(f"{R.get('TOTAL_EXPRESS_API_USER', '')}:{R.get('TOTAL_EXPRESS_API_PASSWORD', '')}".encode()).decode()
+            vistos, formatos, chaves = 0, Counter(), Counter()
+            hoje = time.strftime("%Y-%m-%d")
+            for i in range(0, len(recentes), 30):
+                d = post("https://apis.totalexpress.com.br/ics-tracking-encomenda-lv/v1/tracking",
+                         {"pedidos": recentes[i:i + 30], "comprovanteEntrega": False}, {"Authorization": "Basic " + auth})
+                for e in (d or {}).get("data") or []:
+                    if not isinstance(e, dict):
+                        continue
+                    vistos += 1
+                    for k, v in campos(e):
+                        if re.search(r"(?i)previs|prazo", k):
+                            chaves[k] += 1
+                            formatos[(k, forma(v))] += 1
+                time.sleep(1)
+            print("   pedidos achados na Total:", vistos)
+            print("   campos de previsao/prazo:", chaves.most_common())
+            print("   formatos:", formatos.most_common(8))
+            print("== Logan: previsao em 6 pedidos da lista (a caminho)")
+            lista = [l.strip() for l in open("/home/projetos/atualizar_logan/pedidos_recuperacao.txt", encoding="utf-8") if l.strip()]
+            fl, kl, futuras = Counter(), Counter(), 0
+            for cod in lista[:6]:
+                d = post(G.get("LOGAN_API_URL") or "https://endpoint.simexpress.com.br/logan/endpoint/consultar/",
+                         {"Nr_Pedido": cod, "Danfe": ""}, {"Authorization": G.get("SIMEXPRESS_AUTHORIZATION_CODE", "")})
+                if "_erro" in d:
+                    kl["erro " + d["_erro"]] += 1
+                for k, v in campos(d):
+                    if re.search(r"(?i)previs|prazo", k):
+                        kl[k] += 1
+                        fl[(k, forma(v))] += 1
+                        if re.fullmatch(r"\d{8}", str(v)) and f"{str(v)[:4]}-{str(v)[4:6]}-{str(v)[6:]}" >= hoje:
+                            futuras += 1
+                time.sleep(2)
+            print("   campos de previsao/prazo:", kl.most_common())
+            print("   formatos:", fl.most_common(6), "| previsoes de hoje em diante:", futuras, "de", min(6, len(lista)))
+            PY
