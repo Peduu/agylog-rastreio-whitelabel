@@ -1,5 +1,5 @@
-# USO UNICO (so leitura): saude das rotinas Total->TMS (atualizar_total, _08, _MQF).
-# Repo PUBLICO: o log so tem contagens e motivos com numeros mascarados (sem pedido, nome ou CNPJ).
+# USO UNICO (so leitura): por que a rotina Total MQF parou e quais clientes cada rotina cobre.
+# Repo PUBLICO: o log so tem contagens, slugs de cliente do portal e mensagens com nomes/numeros mascarados.
 # Nao grava nada. Apagar depois do uso.
 name: "Uso unico - Saude rotinas Total"
 
@@ -20,61 +20,79 @@ jobs:
           port: 22
           script: |
             echo "agora: $(date '+%Y-%m-%d %H:%M')"
-            echo "cron com rotina Total: $(crontab -l 2>/dev/null | grep -v '^#' | grep -c 'atualizar_total')"
-            ps -eo etime,args | grep "integracao_total_tms" | grep -v grep | awk '{print "processo rodando ha", $1}'
+            crontab -l 2>/dev/null | grep -v '^#' | grep 'atualizar_total' | sed -E 's#(/home/projetos/[A-Za-z0-9_]+).*#\1#' | awk '{print "cron:", $1, $2, $3, $4, $5, $NF}'
             cat > /tmp/sonda_total_$$.py <<'PY'
-            import csv, glob, os, re, sqlite3
+            import csv, json, os, re, sqlite3
             from collections import Counter, defaultdict
             from datetime import datetime, timedelta
 
             def limpa(t):
-                t = re.sub(r"[A-Z]{2,}[A-Z0-9]{8,}", "***", str(t))
-                t = re.sub(r"\d{4,}", "9", t)
-                return re.sub(r"\s+", " ", t)[:110]
+                t = str(t)
+                t = re.sub(r"https?://\S+", "<url>", t)
+                t = re.sub(r"\b[A-ZÀ-Ú][A-Za-zÀ-ú'.]+(?:\s+(?:d[aeo]s?\s+)?[A-ZÀ-Ú][A-Za-zÀ-ú'.]+)+", "<nome>", t)
+                t = re.sub(r"[A-Z]{2,}[A-Z0-9]{6,}", "***", t)
+                t = re.sub(r"\d+", "9", t)
+                return re.sub(r"\s+", " ", t).strip()[:95]
+
+            # CNPJ (raiz 8 digitos) -> slug do portal, pela base do rastreio
+            slug = {}
+            try:
+                p = sqlite3.connect("file:/home/rastreamento/database.db?mode=ro", uri=True)
+                cols = [r[1] for r in p.execute("PRAGMA table_info(rastreios)")]
+                ccol = next((c for c in ("cliente", "cliente_slug", "slug") if c in cols), None)
+                if ccol and "cnpj_cliente" in cols:
+                    for cli, cnpj in p.execute("SELECT %s, cnpj_cliente FROM rastreios WHERE cnpj_cliente <> '' GROUP BY 1, 2" % ccol):
+                        slug.setdefault(re.sub(r"\D", "", cnpj or "")[:8], str(cli or "?").lower())
+                print("colunas rastreios com cliente:", ccol, "| raizes de CNPJ mapeadas:", len(slug))
+            except Exception as exc:
+                print("mapa de clientes indisponivel:", type(exc).__name__)
+
+            def cli(cnpj):
+                raiz = re.sub(r"\D", "", cnpj or "")[:8]
+                return slug.get(raiz, "sem cnpj" if not raiz else "nao mapeado")
+
+            def esqueleto(o, nivel=0):
+                if isinstance(o, dict):
+                    return {k: ("<oculto>" if re.search(r"(?i)senha|password|token|secret|key|usuario|user|login|email|cpf|nome", k) else esqueleto(v, nivel + 1)) for k, v in o.items()}
+                if isinstance(o, list):
+                    nums = [re.sub(r"\D", "", str(x)) for x in o]
+                    if nums and all(len(n) >= 11 for n in nums):
+                        return {"cnpjs": len(o), "clientes": sorted(set(cli(n) for n in nums))}
+                    return "lista(%d)" % len(o)
+                if isinstance(o, (int, float, bool)) or o is None:
+                    return o
+                return "texto" if len(str(o)) > 20 or re.search(r"\d{5,}", str(o)) else str(o)
 
             corte = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
-            for d in ("atualizar_total", "atualizar_total_08", "atualizar_total_MQF"):
+            for d in ("atualizar_total_08", "atualizar_total_MQF"):
                 base = "/home/projetos/" + d
                 print("\n==", d)
-                log = base + "/cron.log"
-                if os.path.exists(log):
-                    print("cron.log alterado:", datetime.fromtimestamp(os.path.getmtime(log)).strftime("%Y-%m-%d %H:%M"))
-                    linhas = open(log, encoding="utf-8", errors="replace").read().splitlines()[-3000:]
-                    auth = sum(1 for l in linhas if re.search(r"(?i)autentica..o inv.lida", l))
-                    erros = sum(1 for l in linhas if re.search(r"(?i)\berro|error|traceback", l))
-                    tipos = Counter(m.group(1) for l in linhas for m in re.finditer(r"\b([A-Z][A-Za-z]+(?:Error|Exception))\b", l))
-                    print("ultimas 3000 linhas -> autenticacao invalida:", auth, "| linhas de erro:", erros, "| excecoes:", dict(tipos.most_common(5)))
-                else:
-                    print("sem cron.log")
-                for arq in sorted(glob.glob(base + "/log_envios_tms*.csv")):
-                    por_dia = defaultdict(Counter)
-                    motivos = Counter()
-                    ultimo = ""
-                    with open(arq, encoding="utf-8", errors="replace", newline="") as f:
+                try:
+                    print("regras.json:", json.dumps(esqueleto(json.load(open(base + "/regras.json", encoding="utf-8"))), ensure_ascii=False)[:1500])
+                except Exception as exc:
+                    print("regras.json indisponivel:", type(exc).__name__)
+                linhas = open(base + "/cron.log", encoding="utf-8", errors="replace").read().splitlines()[-3000:]
+                formas = Counter(limpa(l) for l in linhas if re.search(r"(?i)\berro|error|falh|traceback|exception", l))
+                for f, n in formas.most_common(8):
+                    print("   erro no log %4d | %s" % (n, f))
+                ultimas = [limpa(l) for l in linhas if l.strip()][-4:]
+                for f in ultimas:
+                    print("   fim do log:", f)
+                arq = [x for x in os.listdir(base) if x.startswith("log_envios_tms") and x.endswith(".csv")]
+                for a in arq:
+                    por_cli = defaultdict(Counter)
+                    with open(os.path.join(base, a), encoding="utf-8", errors="replace", newline="") as f:
                         leitor = csv.reader(f)
                         next(leitor, None)
                         for row in leitor:
-                            if len(row) < 17:
-                                continue
-                            quando = row[16][:10]
-                            ultimo = max(ultimo, row[16][:16])
-                            if quando < corte:
-                                continue
-                            por_dia[quando][row[14] or "vazio"] += 1
-                            if row[14] != "enviado":
-                                motivos[limpa(row[15])[:90]] += 1
-                    print("arquivo:", os.path.basename(arq), "| ultimo registro:", ultimo)
-                    for dia in sorted(por_dia):
-                        print("   ", dia, dict(por_dia[dia]))
-                    for m, n in motivos.most_common(6):
-                        print("    motivo %5d | %s" % (n, m))
-            db = "/home/projetos/atualizar_total/operacoes_total_tms.db"
-            if os.path.exists(db):
-                c = sqlite3.connect("file:" + db + "?mode=ro", uri=True)
-                for (t,) in c.execute("SELECT name FROM sqlite_master WHERE type='table'"):
-                    cols = [r[1] for r in c.execute("PRAGMA table_info(%s)" % t)]
-                    if "status_envio" in cols:
-                        print("\n== fila", t, dict(c.execute("SELECT status_envio, COUNT(*) FROM %s GROUP BY 1" % t).fetchall()))
+                            if len(row) >= 17 and row[16][:10] >= ("2026-09-20" if d.endswith("MQF") else corte):
+                                chave = cli(row[13])
+                                por_cli[chave][row[14] or "vazio"] += 1
+                                if row[14] != "enviado":
+                                    por_cli[chave]["motivo: " + limpa(row[15])[:60]] += 1
+                    print("  ", a, "por cliente (_08: 10 dias; MQF: desde 20/09):")
+                    for k in sorted(por_cli):
+                        print("     ", k, dict(por_cli[k].most_common(5)))
             PY
             python3 /tmp/sonda_total_$$.py
             rm -f /tmp/sonda_total_$$.py
