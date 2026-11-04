@@ -82,18 +82,6 @@ jobs:
                 print("usuario informado = usuario da rotina MQF:", usuario == total["usuario"])
                 print("usuario informado = usuario da rotina do ecom (_08):", usuario == ecom.get("usuario"))
             print("senha informada = senha atual do ecom (_08):", senha == ecom.get("senha"))
-            # Diagnostico somente leitura: usuario cifrado para chave temporaria local.
-            if usuario and usuario != total["usuario"]:
-                import base64, subprocess
-                with tempfile.NamedTemporaryFile("wb", delete=False) as pub:
-                    pub.write(base64.b64decode("LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF4T3RicUZKUklqZ3hQTlZDejBvcgowNVo4VHZhdHZ0SVF5ZTdYbmZwL3R6V1hmSktKZnpCeUxyY0RxeUlkS01HdU5OSTJLS1pESFk1anlVSWZyTDRiCkdwa0VvdUlyRXlPeUdsbE1GREdUbEkydlYyb3RPUTNEQWZVTDl4Y0YvRnBrbVNYVTNWZWU4bE5keFgxTk4zSHcKYUNDWVRCUGcwK2l1Y1lJM3YwZXpPalZ4WnBBTkJwOG12SHFhSk1XRnE2dVFwcVNibkVqaGlDM1RqM0hYT1R4TApOVlROS3pDNEFnNWROek5ZalZTZmx5TU1oOUtNT2l0ZFFrS1dwSTRiWDdiLzF4SmpzWjZrOGNETjJwTE9ETm1pCkx6V1o4cjA4NXpERlBFdnFDdUxzMFpoaDJmekt1cFlHN3ZJaXZCVVUrUG4wdy9NUGpkdUN4ZjZCZTFxQmVEQ20KM1FJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=="))
-                try:
-                    cifrado = subprocess.run(["openssl", "pkeyutl", "-encrypt", "-pubin", "-inkey", pub.name, "-pkeyopt", "rsa_padding_mode:oaep", "-pkeyopt", "rsa_oaep_md:sha256"], input=json.dumps({"usuario_mqf": total["usuario"]}).encode(), capture_output=True)
-                    if cifrado.returncode:
-                        sys.exit("Falha na cifragem do diagnostico; nenhuma alteracao.")
-                    print("AUDIT_CIPHER:" + base64.b64encode(cifrado.stdout).decode())
-                finally:
-                    os.unlink(pub.name)
             if usuario and usuario != total["usuario"]:
                 sys.exit("ERRO: o usuario informado nao e o da rotina MQF; nao troco a senha de outra conta. Nada foi alterado.")
             print("senha do arquivo = senha nova:", total["senha"] == senha)
