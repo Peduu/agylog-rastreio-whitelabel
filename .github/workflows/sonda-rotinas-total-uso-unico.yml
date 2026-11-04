@@ -1,0 +1,80 @@
+# USO UNICO (so leitura): saude das rotinas Total->TMS (atualizar_total, _08, _MQF).
+# Repo PUBLICO: o log so tem contagens e motivos com numeros mascarados (sem pedido, nome ou CNPJ).
+# Nao grava nada. Apagar depois do uso.
+name: "Uso unico - Saude rotinas Total"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Sonda so leitura (VPS)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            echo "agora: $(date '+%Y-%m-%d %H:%M')"
+            echo "cron com rotina Total: $(crontab -l 2>/dev/null | grep -v '^#' | grep -c 'atualizar_total')"
+            ps -eo etime,args | grep "integracao_total_tms" | grep -v grep | awk '{print "processo rodando ha", $1}'
+            cat > /tmp/sonda_total_$$.py <<'PY'
+            import csv, glob, os, re, sqlite3
+            from collections import Counter, defaultdict
+            from datetime import datetime, timedelta
+
+            def limpa(t):
+                t = re.sub(r"[A-Z]{2,}[A-Z0-9]{8,}", "***", str(t))
+                t = re.sub(r"\d{4,}", "9", t)
+                return re.sub(r"\s+", " ", t)[:110]
+
+            corte = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
+            for d in ("atualizar_total", "atualizar_total_08", "atualizar_total_MQF"):
+                base = "/home/projetos/" + d
+                print("\n==", d)
+                log = base + "/cron.log"
+                if os.path.exists(log):
+                    print("cron.log alterado:", datetime.fromtimestamp(os.path.getmtime(log)).strftime("%Y-%m-%d %H:%M"))
+                    linhas = open(log, encoding="utf-8", errors="replace").read().splitlines()[-3000:]
+                    auth = sum(1 for l in linhas if re.search(r"(?i)autentica..o inv.lida", l))
+                    erros = sum(1 for l in linhas if re.search(r"(?i)\berro|error|traceback", l))
+                    tipos = Counter(m.group(1) for l in linhas for m in re.finditer(r"\b([A-Z][A-Za-z]+(?:Error|Exception))\b", l))
+                    print("ultimas 3000 linhas -> autenticacao invalida:", auth, "| linhas de erro:", erros, "| excecoes:", dict(tipos.most_common(5)))
+                else:
+                    print("sem cron.log")
+                for arq in sorted(glob.glob(base + "/log_envios_tms*.csv")):
+                    por_dia = defaultdict(Counter)
+                    motivos = Counter()
+                    ultimo = ""
+                    with open(arq, encoding="utf-8", errors="replace", newline="") as f:
+                        leitor = csv.reader(f)
+                        next(leitor, None)
+                        for row in leitor:
+                            if len(row) < 17:
+                                continue
+                            quando = row[16][:10]
+                            ultimo = max(ultimo, row[16][:16])
+                            if quando < corte:
+                                continue
+                            por_dia[quando][row[14] or "vazio"] += 1
+                            if row[14] != "enviado":
+                                motivos[limpa(row[15])[:90]] += 1
+                    print("arquivo:", os.path.basename(arq), "| ultimo registro:", ultimo)
+                    for dia in sorted(por_dia):
+                        print("   ", dia, dict(por_dia[dia]))
+                    for m, n in motivos.most_common(6):
+                        print("    motivo %5d | %s" % (n, m))
+            db = "/home/projetos/atualizar_total/operacoes_total_tms.db"
+            if os.path.exists(db):
+                c = sqlite3.connect("file:" + db + "?mode=ro", uri=True)
+                for (t,) in c.execute("SELECT name FROM sqlite_master WHERE type='table'"):
+                    cols = [r[1] for r in c.execute("PRAGMA table_info(%s)" % t)]
+                    if "status_envio" in cols:
+                        print("\n== fila", t, dict(c.execute("SELECT status_envio, COUNT(*) FROM %s GROUP BY 1" % t).fetchall()))
+            PY
+            python3 /tmp/sonda_total_$$.py
+            rm -f /tmp/sonda_total_$$.py
